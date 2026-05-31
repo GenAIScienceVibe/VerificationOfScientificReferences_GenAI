@@ -1,0 +1,3843 @@
+# ==================================================================================================
+# API REVIEW COMMENTS
+# --------------------------------------------------------------------------------------------------
+# Main gaps:
+#   1) Response envelope is wrong: this file uses {success, data, error}; final contract uses
+#      {success, data, message, errors, request_id}. Successful examples must always have errors: [].
+#   2) API flow is step-endpoint driven. Final product flow should be pipeline-run driven:
+#      upload -> POST /documents/{document_id}/pipeline-runs -> poll pipeline run -> results/report.
+#   3) Missing pipeline endpoints: /health/readiness, /documents/{id}/pipeline-runs,
+#      /pipeline-runs/{id}, /pipeline-runs/{id}/steps, /pipeline-runs/{id}/cancel.
+#   4) Missing final report resource flow: POST /documents/{id}/reports, GET /reports/{id},
+#      optional GET /reports/{id}/download.
+#   5) Missing feedback/UAT coverage: /claim-reference-links/{link_id}/feedback and /uat/surveys.
+#   6) Missing internal architecture APIs: /internal/rag/* and /internal/genai/*.
+#   7) Many enum values are lowercase/title-case, while final contract uses uppercase stable values.
+#   8) Several request bodies are missing for manual/debug POST endpoints.
+#   9) Several list APIs lack pagination/filter parameters required by frontend scalability.
+#  10) Some endpoints expose raw/debug internals as public APIs; mark them optional/debug, not normal UX flow.
+# ==================================================================================================
+openapi: 3.0.3
+info:
+  title: Scientific Reference Verification API
+  description: >
+    Backend API for uploading scientific documents and running the complete
+    reference, citation, claim, evidence, and verification workflow.
+  version: 0.3.0
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local development server
+
+tags:
+  - name: Health
+    description: Service health and availability
+  - name: Documents
+    description: Document upload, retrieval, and processing status
+  - name: Text
+    description: Raw text and section access
+  - name: References
+    description: Reference extraction and DOI lookup
+  - name: Claims
+    description: Claim and citation extraction and mapping
+  - name: Evidence
+    description: Evidence package preparation
+  - name: Cache
+    description: Verification cache layer
+  - name: Retrieval
+    description: RAG/ML evidence retrieval
+  - name: Verification
+    description: Full verification orchestration and results
+  - name: Safety
+    description: Safety rule evaluation and audit
+  - name: Reports
+    description: Report generation and user feedback
+  - name: Internal
+    description: Internal architecture APIs for RAG/ML and GenAI services. Not for frontend use.
+
+# ---------------------------------------------------------------------------
+# PATHS
+# ---------------------------------------------------------------------------
+paths:
+
+  # ── BE-0  Health ──────────────────────────────────────────────────────────
+
+# REVIEW [HIGH]: Exists, but not aligned with final v4.
+# - Missing /health/readiness endpoint.
+# - Response example uses status: ok, service: backend, version: 0.3.0, error: null.
+# - Final response must use status: OK, service: refcheck-backend, version: 1.0.0,
+#   timestamp, message: "Backend is healthy", errors: [], request_id.
+# - Must use shared response envelope: success/data/message/errors/request_id.
+  /health:
+    get:
+      tags: [Health]
+      summary: Check backend health
+      operationId: getHealth
+      responses:
+        "200":
+          description: Backend is running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                success: true
+                data:
+                  status: OK
+                  service: refcheck-backend
+                  version: 1.0.0
+                  timestamp: "2026-05-24T12:00:00Z"
+                message: Backend is healthy
+                errors: []
+                request_id: req_abc123
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /health/readiness:
+    get:
+      tags: [Health]
+      summary: Check backend readiness
+      description: >
+        Returns whether the backend is ready to accept requests.
+        Differs from /health in that it verifies upstream dependencies
+        (database, RAG/ML service, GenAI service) are reachable.
+      operationId: getReadiness
+      responses:
+        "200":
+          description: Backend is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                success: true
+                data:
+                  status: OK
+                  service: refcheck-backend
+                  version: 1.0.0
+                  timestamp: "2026-05-24T12:00:00Z"
+                message: Backend is ready
+                errors: []
+                request_id: req_abc124
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  # ── BE-0 / BE-2  Documents ────────────────────────────────────────────────
+
+# REVIEW [MEDIUM]: Extra endpoint not in final MVP contract.
+# - A document history/list endpoint is useful, but final MVP does not require it.
+# - If kept, add pagination parameters page/page_size and maybe status/search filters.
+# - Response wrapper must be changed to final envelope with message/errors/request_id.
+  /documents:
+    get:
+      tags: [Documents]
+      summary: List all uploaded documents
+      description: >
+        Returns a paginated list of all documents.
+      operationId: listDocuments
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: Page number (1-based).
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Number of results per page.
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/DocumentProcessingStatus"
+          description: Filter by document processing status.
+      responses:
+        "200":
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentListResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [HIGH]: Endpoint concept is correct, but request/response are not aligned.
+# - Final allows optional document_title and uploaded_by fields in multipart form.
+# - Response should return upload_type: PDF and uppercase status: UPLOADED.
+# - Current response uses content_type and lowercase status: uploaded.
+# - Final success status code is standardized to 200 in v4; this uses 201.
+# - Example must include message, errors: [], request_id and must not use error: null.
+  /documents/upload:
+    post:
+      tags: [Documents]
+      summary: Upload a PDF document
+      description: >
+        Accepts a PDF file upload. Returns 415 for any non-PDF file type.
+        The document is stored with status "UPLOADED" and queued for text extraction.
+      operationId: uploadDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PDF file to upload. Only application/pdf is accepted.
+                document_title:
+                  type: string
+                  description: Optional human-readable title for the document.
+                uploaded_by:
+                  type: string
+                  description: Optional identifier of the user uploading the document.
+      responses:
+        "200":
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentUploadResponse"
+              example:
+                success: true
+                data:
+                  document_id: doc_123
+                  filename: sample_paper.pdf
+                  upload_type: PDF
+                  status: UPLOADED
+                  created_at: "2026-05-24T12:00:00Z"
+                message: Document uploaded successfully.
+                errors: []
+                request_id: req_abc125
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [HIGH]: Endpoint concept is correct, but request body is incomplete.
+# - Final request requires title + text, not filename + text.
+# - Response should include title, upload_type: TEXT, status: UPLOADED.
+# - Add clear validation for empty/too-short text.
+# - Wrapper must use success/data/message/errors/request_id.
+  /documents/text:
+    post:
+      tags: [Documents]
+      summary: Submit a plain-text document
+      description: >
+        Accepts raw text as a document body. Useful for testing or when
+        PDF extraction has already been done externally.
+      operationId: uploadTextDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, text]
+              properties:
+                title:
+                  type: string
+                  description: Human-readable title for the document.
+                text:
+                  type: string
+                  description: Full document text.
+                  minLength: 10
+                  maxLength: 500000
+      responses:
+        "200":
+          description: Text document created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentUploadResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [MEDIUM]: GET/DELETE concepts are valid but response contracts differ.
+# - Final DELETE returns a normal JSON response wrapper, not 204 No Content.
+# - Document details should expose upload_type, title/filename, status, pages_count,
+#   references_count, claims_count, created_at, updated_at.
+# - Current schema uses content_type/page_count and lowercase statuses.
+  /documents/{document_id}:
+    get:
+      tags: [Documents]
+      summary: Get document metadata
+      operationId: getDocument
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: Document found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Documents]
+      summary: Delete a document and all associated data
+      description: >
+        Permanently deletes the document and all associated data including
+        references, claims, evidence packages, verification results, and feedback.
+        Returns 409 if the document is currently being processed.
+      operationId: deleteDocument
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: Document deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletedResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [HIGH]: Status endpoint is important but not aligned.
+# - Final response should include frontend_status, progress_percentage, current_step,
+#   latest_pipeline_run_id.
+# - Current schema uses step/progress/message and lowercase statuses.
+# - This endpoint should complement pipeline-runs, not replace them.
+  /documents/{document_id}/status:
+    get:
+      tags: [Documents]
+      summary: Get document processing status
+      description: >
+        Returns the current status and active pipeline step.
+        Frontend should poll this endpoint during async processing.
+        Includes latest_pipeline_run_id for linking to pipeline-runs detail.
+      operationId: getDocumentStatus
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: Current processing status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentStatusResponse"
+              example:
+                success: true
+                data:
+                  document_id: doc_123
+                  status: VERIFYING
+                  frontend_status: processing
+                  current_step: genai_verification
+                  progress_percentage: 75
+                  latest_pipeline_run_id: run_abc
+                  message: Running GenAI verification.
+                  updated_at: "2026-05-24T12:02:00Z"
+                message: Status retrieved.
+                errors: []
+                request_id: req_abc126
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ── BE-2  Text extraction ─────────────────────────────────────────────────
+
+# REVIEW [MEDIUM]: Extra/debug endpoint not in final MVP.
+# - Raw text can be large and privacy-sensitive.
+# - If kept, mark as developer/debug/admin endpoint or return only previews/chunks.
+# - Final frontend mainly needs sections, claims, evidence and result details.
+  /documents/{document_id}/raw-text:
+    get:
+      tags: [Text]
+      summary: "[Debug/Admin] Get raw and cleaned extracted text"
+      description: >
+        Debug/admin endpoint. Raw text can be large and privacy-sensitive.
+        Frontend should use /sections, /claims, or /verification-results instead.
+        Only available after text extraction has completed.
+      operationId: getDocumentRawText
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: Raw and cleaned text
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RawTextResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [MEDIUM]: Endpoint exists in final MVP, but schema differs.
+# - Final section object uses section_id, name, order_index, text_preview.
+# - Current schema uses type/text/start_char/end_char and may return full text.
+# - Consider returning preview by default to reduce payload and privacy exposure.
+  /documents/{document_id}/sections:
+    get:
+      tags: [Text]
+      summary: Get detected document sections
+      description: >
+        Returns detected sections: title, abstract, body, references.
+        Only available after text extraction has completed.
+      operationId: getDocumentSections
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: Detected sections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SectionsResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ── BE-3  Reference extraction ────────────────────────────────────────────
+
+# REVIEW [HIGH]: This should be optional/manual debug, not normal frontend flow.
+# - Final UX uses POST /documents/{document_id}/pipeline-runs.
+# - Final debug endpoint includes a request body such as {force:false, options:{}}.
+# - Response should return a queued job/debug run object, not directly ReferenceListResponse.
+# - Add request body and align response envelope.
+  /documents/{document_id}/extract-references:
+    post:
+      tags: [References]
+      summary: "[Debug] Extract and parse references from the document"
+      description: >
+        Debug/manual trigger for reference extraction. Normal flow uses
+        POST /documents/{document_id}/pipeline-runs.
+        Requires text extraction to have completed first (409 otherwise).
+      operationId: extractReferences
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  default: false
+                  description: Re-run even if references are already extracted.
+                options:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "202":
+          description: Reference extraction queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractionStartedResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [HIGH]: Endpoint is needed, but parameters and response fields are incomplete.
+# - Add query parameters: metadata_status, page, page_size.
+# - Final reference fields include raw_reference, extracted_title, extracted_authors,
+#   extracted_year, extracted_doi, doi_status, metadata_status, metadata_match_score.
+# - Current schema uses raw_text, doi, doi_normalized, position and lacks metadata_status.
+  /documents/{document_id}/references:
+    get:
+      tags: [References]
+      summary: Get all extracted references for a document
+      operationId: getDocumentReferences
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+        - name: doi_status
+          in: query
+          required: false
+          description: Filter by DOI status.
+          schema:
+            $ref: "#/components/schemas/DoiStatus"
+        - name: metadata_status
+          in: query
+          required: false
+          description: Filter by metadata lookup status.
+          schema:
+            type: string
+            enum: [NOT_LOOKED_UP, LOOKUP_SUCCEEDED, LOOKUP_FAILED, METADATA_UNAVAILABLE]
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: List of references
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferenceListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [MEDIUM]: Endpoint exists in final MVP but response schema is incomplete.
+# - Final single reference response should include metadata object and match_details.
+# - Use extracted_* field names consistently.
+# - Current response does not fully support frontend reference detail view.
+  /references/{reference_id}:
+    get:
+      tags: [References]
+      summary: Get a single reference by ID
+      operationId: getReference
+      parameters:
+        - $ref: "#/components/parameters/ReferenceId"
+      responses:
+        "200":
+          description: Reference details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferenceResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ── BE-4  DOI metadata lookup ─────────────────────────────────────────────
+
+# REVIEW [MEDIUM]: Extra public endpoint not in final MVP.
+# - Final primary flow verifies DOIs inside pipeline or debug /documents/{id}/verify-dois.
+# - If kept, treat as developer/debug endpoint and add optional request body {force:false}.
+# - Do not make frontend depend on this single-reference POST for the main user journey.
+  /references/{reference_id}/verify-doi:
+    post:
+      tags: [References]
+      summary: "[Debug] Look up and verify DOI metadata for one reference"
+      description: >
+        Debug/manual trigger for single-reference DOI lookup. Normal flow uses pipeline-runs.
+        Result is cached. Missing or malformed DOIs return a safe result with
+        doi_status set accordingly — they do NOT return 4xx errors.
+        A 503 is returned only if the external metadata service is unreachable.
+      operationId: verifyDoi
+      parameters:
+        - $ref: "#/components/parameters/ReferenceId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  default: false
+                  description: Re-run even if metadata was already fetched.
+      responses:
+        "200":
+          description: DOI verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DoiVerificationResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [MEDIUM]: Endpoint exists in final MVP but response should align.
+# - Final metadata status values: NOT_LOOKED_UP, LOOKUP_SUCCEEDED, LOOKUP_FAILED, METADATA_UNAVAILABLE.
+# - Response should use metadata_status and metadata object exactly as final spec.
+# - Current description says 404 if not looked up; final can represent not-looked-up with status.
+  /references/{reference_id}/metadata:
+    get:
+      tags: [References]
+      summary: Get stored metadata for a reference
+      description: >
+        Returns previously fetched and cached source metadata.
+        Returns 404 if DOI lookup has not been run yet.
+      operationId: getReferenceMetadata
+      parameters:
+        - $ref: "#/components/parameters/ReferenceId"
+      responses:
+        "200":
+          description: Source metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferenceMetadataResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [HIGH]: This should be optional/manual debug, not normal frontend flow.
+# - Final frontend starts a full pipeline run instead of calling this manually.
+# - Add request body {force:false, options:{}}.
+# - Final debug response returns job_id/status queued, not a completed BatchDoiVerificationResponse.
+  /documents/{document_id}/verify-dois:
+    post:
+      tags: [References]
+      summary: "[Debug] Batch-verify all DOIs in a document"
+      description: >
+        Debug/manual trigger for batch DOI verification. Normal flow uses pipeline-runs.
+        Requires reference extraction to have completed first (409 otherwise).
+      operationId: verifyAllDois
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  default: false
+                options:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "202":
+          description: DOI verification queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractionStartedResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ── BE-5  Claim and citation extraction ───────────────────────────────────
+
+# REVIEW [HIGH]: Endpoint is useful as debug, but request/response are incomplete.
+# - Final debug request should allow options such as mode and sections or force/options.
+# - Normal user flow should use pipeline-runs.
+# - Claim extraction output must include claim_type, section_name, source_paragraph,
+#   citation_text, page_number/paragraph_index/sentence_index, extraction_confidence.
+  /documents/{document_id}/extract-claims:
+    post:
+      tags: [Claims]
+      summary: "[Debug] Extract claims and citations from the document body"
+      description: >
+        Sends cleaned document body paragraphs to the GenAI claim extraction
+        service. Validates the JSON output before storing.
+        Requires text extraction to have completed (409 otherwise).
+        If GenAI returns invalid JSON the backend retries once,
+        then returns 502 with GENAI_INVALID_RESPONSE.
+        Returns 202 immediately; poll /status for progress,
+        then fetch results via GET /documents/{document_id}/claims.
+      operationId: extractClaims
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "202":
+          description: Claim extraction queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractionStartedResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [HIGH]: Endpoint exists in final MVP but lacks required query parameters and fields.
+# - Add filters: claim_type, mapping_status, page, page_size.
+# - Current Claim schema lacks claim_type, section_name, source_paragraph, citation_text,
+#   page_number, extraction_confidence, mapping_status.
+  /documents/{document_id}/claims:
+    get:
+      tags: [Claims]
+      summary: Get all extracted claims
+      operationId: getDocumentClaims
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+        - name: claim_type
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by claim type.
+        - name: mapping_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [MAPPED, UNMAPPED, UNCERTAIN]
+          description: Filter by citation mapping status.
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: List of claims
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClaimListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [LOW/MEDIUM]: Extra endpoint not in final MVP list.
+# - It may be useful for debugging, but frontend should mainly use claim-reference-links.
+# - If kept, response should use citation_text/citation_style/mapped_reference_id/mapping_confidence.
+  /documents/{document_id}/citations:
+    get:
+      tags: [Claims]
+      summary: "[Debug/Optional] Get all detected in-text citations"
+      description: >
+        Debug/optional endpoint. Frontend should primarily use /claim-reference-links.
+        If kept, response uses citation_text, citation_style, mapped_reference_id.
+      operationId: getDocumentCitations
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: List of citations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CitationListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [HIGH]: Path name is not aligned.
+# - Final path is GET /documents/{document_id}/claim-reference-links.
+# - Response should include link_id, claim_text, citation_text, citation_style,
+#   reference_title, doi, mapping_status, mapping_confidence.
+# - Current pairs schema is too thin for frontend mapping UI.
+  /documents/{document_id}/claim-reference-links:
+    get:
+      tags: [Claims]
+      summary: Get claim-to-reference mapping links
+      description: >
+        Returns all claim-reference links. Uncertain mappings
+        (mapping_confidence below threshold) are included but flagged.
+      operationId: getClaimReferenceLinks
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: Claim-reference links
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClaimReferenceMapResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ── BE-6  Evidence packages ───────────────────────────────────────────────
+
+# REVIEW [HIGH]: This should be optional/manual debug, not normal frontend flow.
+# - Add request body {force:false, options:{}}.
+# - Final debug response returns queued job object.
+# - Evidence preparation must include source_evidence, evidence_availability and policy versions.
+  /documents/{document_id}/prepare-evidence:
+    post:
+      tags: [Evidence]
+      summary: "[Debug] Build evidence packages for all claim-reference pairs"
+      description: >
+        Debug/manual trigger for evidence preparation. Normal flow uses pipeline-runs.
+        Requires claims and DOI verification to have completed (409 otherwise).
+      operationId: prepareEvidence
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  default: false
+                options:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "202":
+          description: Evidence preparation queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractionStartedResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [HIGH]: Endpoint exists, but schema is missing important fields.
+# - Final EvidencePackage includes metadata, source_evidence {evidence_availability,text,source_url},
+#   and policy {embedding_model_version,prompt_version,verification_policy_version}.
+# - Current schema has evidence_level/source_url only and does not expose source_evidence text.
+  /claims/{claim_id}/evidence-package:
+    get:
+      tags: [Evidence]
+      summary: "[Debug] Get the evidence package for a single claim"
+      operationId: getEvidencePackage
+      parameters:
+        - $ref: "#/components/parameters/ClaimId"
+      responses:
+        "200":
+          description: Evidence package
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidencePackageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ── BE-7  Cache layer ─────────────────────────────────────────────────────
+
+# REVIEW [HIGH]: Useful debug endpoint but request body is missing.
+# - Final request should include include_semantic and threshold.
+# - Response should include cache_status, cache_source, matched_result_id,
+#   semantic_similarity, reuse_allowed.
+# - Cache reuse must require same/similar claim AND same DOI/source/policy version.
+  /claims/{claim_id}/check-cache:
+    post:
+      tags: [Cache]
+      summary: "[Debug] Check exact and semantic cache for an existing verification"
+      description: >
+        Debug/manual cache check. Normal flow is pipeline-controlled.
+        First checks for an exact hit (same normalised claim + same DOI + same policy version).
+        If no exact hit, optionally queries the RAG/ML semantic cache.
+        Semantic reuse threshold is ≥ 0.92 with same DOI and same policy version.
+        Medium matches (0.80–0.91) are NOT auto-reused.
+      operationId: checkCache
+      parameters:
+        - $ref: "#/components/parameters/ClaimId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                include_semantic:
+                  type: boolean
+                  default: true
+                  description: Whether to also check the semantic cache if no exact hit.
+                threshold:
+                  type: number
+                  format: float
+                  default: 0.92
+                  minimum: 0
+                  maximum: 1
+                  description: Minimum similarity score to consider a semantic cache hit reusable.
+      responses:
+        "200":
+          description: Cache lookup result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CacheCheckResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [LOW/MEDIUM]: Extra endpoint not in final MVP.
+# - Cache result can be included in verification result or check-cache response.
+# - If kept, mark as debug/internal admin. Frontend should not require it.
+  /claims/{claim_id}/cache-result:
+    get:
+      tags: [Cache]
+      summary: "[Debug/Internal] Get stored cache result for a claim"
+      operationId: getCacheResult
+      parameters:
+        - $ref: "#/components/parameters/ClaimId"
+      responses:
+        "200":
+          description: Cached verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CacheResultResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ── BE-8  RAG/ML retrieval ────────────────────────────────────────────────
+
+# REVIEW [HIGH]: Useful debug endpoint but request body is missing.
+# - Final request should include force and top_k.
+# - This is debug/manual; normal flow goes through pipeline.
+# - RAG/ML execution should be internal/backend-controlled.
+  /claims/{claim_id}/retrieve-evidence:
+    post:
+      tags: [Retrieval]
+      summary: "[Debug] Send evidence package to RAG/ML and retrieve top evidence chunks"
+      description: >
+        Debug/manual RAG/ML retrieval trigger. Normal flow is pipeline-controlled.
+        Requires an evidence package to exist for this claim (409 otherwise).
+      operationId: retrieveEvidence
+      parameters:
+        - $ref: "#/components/parameters/ClaimId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  default: false
+                  description: Re-run even if retrieval results already exist.
+                top_k:
+                  type: integer
+                  default: 5
+                  minimum: 1
+                  maximum: 20
+                  description: Number of top evidence chunks to retrieve.
+      responses:
+        "200":
+          description: Retrieval results stored and returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetrievalResultResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "504":
+          $ref: "#/components/responses/GatewayTimeout"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [MEDIUM]: Endpoint exists, but response schema differs.
+# - Final uses top_chunks, overall_similarity_score, retrieval_confidence, evidence_type, source.
+# - Current schema uses chunks and source_doi only; not enough for claim detail/evidence UI.
+  /claims/{claim_id}/retrieval-results:
+    get:
+      tags: [Retrieval]
+      summary: Get stored RAG/ML retrieval results for a claim
+      operationId: getRetrievalResults
+      parameters:
+        - $ref: "#/components/parameters/ClaimId"
+      responses:
+        "200":
+          description: Stored retrieval results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetrievalResultResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ── BE-9  Verification orchestration ──────────────────────────────────────
+
+# REVIEW [CRITICAL]: Wrong main orchestration endpoint.
+# - Replace with POST /documents/{document_id}/pipeline-runs.
+# - Final request body includes mode, use_cache, use_rag, use_genai_safety_review, generate_report.
+# - Response should return pipeline_run_id and status QUEUED.
+# - This old endpoint encourages frontend to manage workflow incorrectly.
+  /documents/{document_id}/pipeline-runs:
+    post:
+      tags: [Verification]
+      summary: Start the full verification pipeline for a document
+      description: >
+        Triggers the complete pipeline:
+        text extraction → reference extraction → DOI lookup →
+        claim extraction → citation mapping → evidence packages →
+        cache check → RAG retrieval → GenAI verification → safety checks → result storage.
+        Returns 202 immediately with a pipeline_run_id. Poll
+        GET /pipeline-runs/{pipeline_run_id} for progress.
+        Returns 409 if a pipeline run is already active for this document.
+      operationId: startPipelineRun
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [full, references_only, claims_only]
+                  default: full
+                  description: Which pipeline stages to run.
+                use_cache:
+                  type: boolean
+                  default: true
+                use_rag:
+                  type: boolean
+                  default: true
+                use_genai_safety_review:
+                  type: boolean
+                  default: true
+                generate_report:
+                  type: boolean
+                  default: true
+      responses:
+        "202":
+          description: Pipeline run queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunStartedResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /pipeline-runs/{pipeline_run_id}:
+    get:
+      tags: [Verification]
+      summary: Get pipeline run status and progress
+      description: >
+        Returns the current status of a pipeline run, including per-step
+        progress. Poll this endpoint after starting a pipeline run.
+      operationId: getPipelineRun
+      parameters:
+        - $ref: "#/components/parameters/PipelineRunId"
+      responses:
+        "200":
+          description: Pipeline run details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /pipeline-runs/{pipeline_run_id}/steps:
+    get:
+      tags: [Verification]
+      summary: Get individual step statuses for a pipeline run
+      operationId: getPipelineRunSteps
+      parameters:
+        - $ref: "#/components/parameters/PipelineRunId"
+      responses:
+        "200":
+          description: Step-by-step progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunStepsResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /pipeline-runs/{pipeline_run_id}/cancel:
+    post:
+      tags: [Verification]
+      summary: Cancel an in-progress pipeline run
+      operationId: cancelPipelineRun
+      parameters:
+        - $ref: "#/components/parameters/PipelineRunId"
+      responses:
+        "200":
+          description: Pipeline run cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # kept for backward compatibility / debug
+  /documents/{document_id}/run-verification:
+    post:
+      tags: [Verification]
+      summary: "[Deprecated] Run the full verification pipeline"
+      description: >
+        Deprecated. Use POST /documents/{document_id}/pipeline-runs instead.
+        Kept for backward compatibility during migration.
+      operationId: runVerification
+      deprecated: true
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "202":
+          description: Verification pipeline queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationStartedResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [LOW/MEDIUM]: Extra risky debug/admin endpoint not in final MVP.
+# - Resetting pipeline state can cause data loss/confusion.
+# - If kept, restrict to admin/debug and require explicit request body reason/force.
+  /documents/{document_id}/reset:
+    post:
+      tags: [Documents]
+      summary: "[Admin] Reset a document's pipeline state"
+      description: >
+        Admin/debug endpoint. Resets the document status to UPLOADED and clears
+        all extracted data (references, claims, evidence packages, verification results).
+        Only allowed when the document is in a FAILED or VERIFIED state.
+        Returns 409 if the document is currently being processed.
+        Requires an explicit reason for audit purposes.
+      operationId: resetDocument
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  description: Reason for resetting the document. Required for audit trail.
+                force:
+                  type: boolean
+                  default: false
+                  description: If true, allow reset even when document is in VERIFIED state.
+      responses:
+        "200":
+          description: Document reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentStatusResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [HIGH]: Endpoint exists but query parameters and result schema differ.
+# - Final query params: support_status, human_review_required, cache_source, page, page_size.
+# - Current uses needs_review instead of human_review_required.
+# - Response should include document-level summary plus results with claim_text, citation_text,
+#   reference_title, doi, evidence_availability, evidence_used_count, overall_similarity_score,
+#   verification_method, safety_risk_level.
+  /documents/{document_id}/verification-results:
+    get:
+      tags: [Verification]
+      summary: Get all verification results for a document
+      operationId: getDocumentVerificationResults
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+        - name: support_status
+          in: query
+          required: false
+          description: Filter results by support status.
+          schema:
+            $ref: "#/components/schemas/SupportStatus"
+        - name: human_review_required
+          in: query
+          required: false
+          description: If true, return only results requiring human review.
+          schema:
+            type: boolean
+        - name: cache_source
+          in: query
+          required: false
+          description: Filter by cache source.
+          schema:
+            $ref: "#/components/schemas/CacheSource"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Verification results list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationResultListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [HIGH]: Endpoint exists but detail response is not aligned.
+# - Final detail response should be nested: claim, citation, reference, retrieved_evidence,
+#   verification, safety_check.
+# - Current VerificationResult object is too flat and misses source paragraph/location details.
+  /verification-results/{result_id}:
+    get:
+      tags: [Verification]
+      summary: Get a single verification result with full audit trail
+      operationId: getVerificationResult
+      parameters:
+        - $ref: "#/components/parameters/ResultId"
+      responses:
+        "200":
+          description: Verification result detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationResultResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ── BE-10  Safety checks ──────────────────────────────────────────────────
+
+# REVIEW [LOW/MEDIUM]: Extra endpoint not in final MVP.
+# - Final safety details are included in GET /verification-results/{result_id}.
+# - If kept, treat as debug/admin endpoint.
+  /verification-results/{result_id}/safety-checks:
+    get:
+      tags: [Safety]
+      summary: "[Debug/Admin] Get all safety check results for a verification result"
+      description: >
+        Returns each safety rule that was evaluated, whether it triggered,
+        and the reason. Triggered rules cause the support_status to be
+        overridden to "Needs Human Review" or "Insufficient Evidence".
+      operationId: getSafetyChecks
+      parameters:
+        - $ref: "#/components/parameters/ResultId"
+      responses:
+        "200":
+          description: Safety check results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SafetyChecksResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [LOW/MEDIUM]: Extra endpoint not in final MVP.
+# - Safety summary can be included in report/verification summary.
+# - If kept, mark as optional analytics/admin endpoint.
+  /documents/{document_id}/safety-summary:
+    get:
+      tags: [Safety]
+      summary: "[Optional/Analytics] Get aggregated safety rule summary for a document"
+      description: >
+        Returns how many claims triggered each safety rule across the document.
+        Useful for identifying systemic issues (e.g. many missing DOIs).
+      operationId: getDocumentSafetySummary
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: Document-level safety summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentSafetySummaryResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ── BE-11  Reports and feedback ───────────────────────────────────────────
+
+# REVIEW [MEDIUM]: Extra endpoint compared to final MVP.
+# - Final report flow uses POST /documents/{document_id}/reports and GET /reports/{report_id}.
+# - If summary endpoint is kept, align field names with final report summary.
+  /documents/{document_id}/summary:
+    get:
+      tags: [Reports]
+      summary: Get document-level verification summary
+      operationId: getDocumentSummary
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: Document summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentSummaryResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [CRITICAL]: Report API is not aligned with final contract.
+# - Final is POST /documents/{document_id}/reports to generate a report.
+# - Final is GET /reports/{report_id} to retrieve it.
+# - Optional download endpoint: GET /reports/{report_id}/download?format=PDF.
+# - Current GET /documents/{id}/report?format=... mixes generation/retrieval and lacks report_id.
+  /documents/{document_id}/reports:
+    post:
+      tags: [Reports]
+      summary: Generate a verification report for a document
+      description: >
+        Triggers report generation. Returns 202 with a report_id.
+        Poll GET /reports/{report_id} to check status and retrieve the report.
+      operationId: generateReport
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "202":
+          description: Report generation queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportStartedResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /reports/{report_id}:
+    get:
+      tags: [Reports]
+      summary: Get a generated report by ID
+      description: >
+        Returns the full report including summary, all claim results,
+        DOI summary, safety findings, and human review recommendations.
+      operationId: getReport
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      responses:
+        "200":
+          description: Verification report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /reports/{report_id}/download:
+    get:
+      tags: [Reports]
+      summary: Download a report in a specified format
+      operationId: downloadReport
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PDF, HTML]
+            default: PDF
+          description: Download format.
+      responses:
+        "200":
+          description: Report file
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            text/html:
+              schema:
+                type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # kept for backward compatibility / debug
+  /documents/{document_id}/report:
+    get:
+      tags: [Reports]
+      summary: "[Deprecated] Get the full verification report"
+      description: >
+        Deprecated. Use POST /documents/{document_id}/reports and GET /reports/{report_id} instead.
+        Kept for backward compatibility.
+      deprecated: true
+      operationId: getDocumentReport
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [json, html, pdf]
+            default: json
+          description: Output format for the report.
+      responses:
+        "200":
+          description: Verification report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportResponse"
+            text/html:
+              schema:
+                type: string
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WorkflowConflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# REVIEW [HIGH]: Feedback endpoint partially aligns, but request schema is wrong.
+# - Final POST request uses user_label, user_comment, user_role.
+# - Current request uses corrected_status, comment, reviewer_id.
+# - Final also requires POST /claim-reference-links/{link_id}/feedback and POST /uat/surveys.
+# - PUT feedback is extra and not in final MVP.
+  /verification-results/{result_id}/feedback:
+    post:
+      tags: [Reports]
+      summary: Submit user feedback or correction for a verification result
+      description: >
+        Stores a human correction for a specific verification result.
+        The corrected_status is stored alongside the original result
+        and is used to improve the semantic cache (cache_source = human_corrected).
+        Returns 409 if feedback has already been submitted for this result.
+      operationId: submitFeedback
+      parameters:
+        - $ref: "#/components/parameters/ResultId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackRequest"
+      responses:
+        "201":
+          description: Feedback stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/FeedbackAlreadySubmitted"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      tags: [Reports]
+      summary: "[Deprecated/Not in MVP] Update or correct previously submitted feedback"
+      description: >
+        Not part of the final MVP. Kept for reference only.
+        Per review: PUT feedback is extra and not in final MVP contract.
+      deprecated: true
+      operationId: updateFeedback
+      parameters:
+        - $ref: "#/components/parameters/ResultId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackRequest"
+      responses:
+        "200":
+          description: Feedback updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /claim-reference-links/{link_id}/feedback:
+    post:
+      tags: [Reports]
+      summary: Submit feedback on a claim-reference mapping
+      description: >
+        Allows a reviewer to flag or correct a claim-reference mapping.
+        Supports feedback_type such as CORRECT, INCORRECT, UNCERTAIN and
+        an optional suggested_reference_id.
+      operationId: submitMappingFeedback
+      parameters:
+        - $ref: "#/components/parameters/LinkId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MappingFeedbackRequest"
+      responses:
+        "201":
+          description: Mapping feedback stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /uat/surveys:
+    post:
+      tags: [Reports]
+      summary: Submit a UAT survey response
+      description: >
+        Records a user's UAT survey submission. Used during acceptance testing
+        to collect structured feedback on the overall verification experience.
+      operationId: submitUatSurvey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UatSurveyRequest"
+      responses:
+        "201":
+          description: Survey submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UatSurveyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ── Internal architecture APIs ────────────────────────────────────────────
+
+  /internal/rag/embed:
+    post:
+      tags: [Internal]
+      summary: "[Internal] Embed text via RAG/ML service"
+      description: >
+        Internal endpoint. Sends text to the RAG/ML embedding service and returns
+        the embedding vector. Not exposed to frontend. Used by pipeline internally.
+      operationId: internalRagEmbed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                model_version:
+                  type: string
+                  nullable: true
+      responses:
+        "200":
+          description: Embedding result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalEmbedResponse"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /internal/rag/search:
+    post:
+      tags: [Internal]
+      summary: "[Internal] Semantic search via RAG/ML service"
+      description: >
+        Internal endpoint. Runs a semantic search against the RAG/ML index.
+        Not exposed to frontend. Used by pipeline during evidence retrieval.
+      operationId: internalRagSearch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                top_k:
+                  type: integer
+                  default: 5
+                doi_filter:
+                  type: string
+                  nullable: true
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalSearchResponse"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /internal/genai/verify:
+    post:
+      tags: [Internal]
+      summary: "[Internal] Run GenAI verification for a claim-evidence pair"
+      description: >
+        Internal endpoint. Sends a claim and evidence package to the GenAI service
+        and returns the verification verdict. Not exposed to frontend.
+        Used by pipeline during verification step.
+      operationId: internalGenaiVerify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [claim_text, evidence_text]
+              properties:
+                claim_text:
+                  type: string
+                evidence_text:
+                  type: string
+                doi:
+                  type: string
+                  nullable: true
+                prompt_version:
+                  type: string
+                  nullable: true
+      responses:
+        "200":
+          description: GenAI verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalGenaiVerifyResponse"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /internal/genai/extract-claims:
+    post:
+      tags: [Internal]
+      summary: "[Internal] Run GenAI claim extraction"
+      description: >
+        Internal endpoint. Sends document body paragraphs to the GenAI extraction
+        service and returns raw claim/citation JSON. Not exposed to frontend.
+      operationId: internalGenaiExtractClaims
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paragraphs]
+              properties:
+                paragraphs:
+                  type: array
+                  items:
+                    type: string
+                prompt_version:
+                  type: string
+                  nullable: true
+      responses:
+        "200":
+          description: Raw extracted claims
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalExtractClaimsResponse"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# ---------------------------------------------------------------------------
+# COMPONENTS
+# ---------------------------------------------------------------------------
+components:
+
+  # ── Parameters ─────────────────────────────────────────────────────────────
+  parameters:
+    DocumentId:
+      name: document_id
+      in: path
+      required: true
+      description: Unique identifier of the document.
+      schema:
+        type: string
+        example: doc_123
+
+    ReferenceId:
+      name: reference_id
+      in: path
+      required: true
+      description: Unique identifier of the reference.
+      schema:
+        type: string
+        example: ref_456
+
+    ClaimId:
+      name: claim_id
+      in: path
+      required: true
+      description: Unique identifier of the claim.
+      schema:
+        type: string
+        example: clm_789
+
+    ResultId:
+      name: result_id
+      in: path
+      required: true
+      description: Unique identifier of the verification result.
+      schema:
+        type: string
+        example: vr_001
+
+    PipelineRunId:
+      name: pipeline_run_id
+      in: path
+      required: true
+      description: Unique identifier of the pipeline run.
+      schema:
+        type: string
+        example: run_abc123
+
+    ReportId:
+      name: report_id
+      in: path
+      required: true
+      description: Unique identifier of the generated report.
+      schema:
+        type: string
+        example: rpt_001
+
+    LinkId:
+      name: link_id
+      in: path
+      required: true
+      description: Unique identifier of the claim-reference link.
+      schema:
+        type: string
+        example: lnk_001
+
+  # ── Reusable responses ──────────────────────────────────────────────────────
+  responses:
+
+    NoContent:
+      description: The resource was successfully deleted. No content is returned.
+
+    BadRequest:
+      description: Invalid request payload or parameters.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorApiResponse"
+          example:
+            success: false
+            data: null
+            error:
+              code: BAD_REQUEST
+              message: Invalid request payload.
+              details: {}
+
+    NotFound:
+      description: The requested resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorApiResponse"
+          example:
+            success: false
+            data: null
+            error:
+              code: NOT_FOUND
+              message: Requested resource was not found.
+              details:
+                resource: document
+
+    UnsupportedMediaType:
+      description: File type is not supported. Only PDF files are accepted.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorApiResponse"
+          example:
+            success: false
+            data: null
+            error:
+              code: UNSUPPORTED_MEDIA_TYPE
+              message: Only PDF files are supported.
+              details:
+                allowed_types: [application/pdf]
+                received: text/csv
+
+    PayloadTooLarge:
+      description: Uploaded file or text body exceeds the maximum allowed size.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorApiResponse"
+          example:
+            success: false
+            data: null
+            error:
+              code: PAYLOAD_TOO_LARGE
+              message: File size exceeds the maximum allowed limit.
+              details:
+                max_size_mb: 50
+                received_size_mb: 87
+
+    UnprocessableEntity:
+      description: >
+        The request is well-formed but cannot be processed in the current state.
+        Typically returned when a required prior pipeline step has not completed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorApiResponse"
+          example:
+            success: false
+            data: null
+            error:
+              code: UNPROCESSABLE_ENTITY
+              message: Document text must be extracted before references can be parsed.
+              details:
+                required_step: text_extraction
+                current_status: uploaded
+
+    WorkflowConflict:
+      description: >
+        The requested operation conflicts with the document's current pipeline state.
+        Examples: calling extract-references before text extraction is done,
+        calling run-verification while a verification is already running,
+        or trying to access results that do not exist yet.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorApiResponse"
+          example:
+            success: false
+            data: null
+            error:
+              code: WORKFLOW_CONFLICT
+              message: This operation requires a prior pipeline step to be completed first.
+              details:
+                required_step: text_extraction
+                current_step: uploaded
+                document_id: doc_123
+
+    FeedbackAlreadySubmitted:
+      description: Feedback has already been submitted for this verification result.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorApiResponse"
+          example:
+            success: false
+            data: null
+            error:
+              code: FEEDBACK_ALREADY_SUBMITTED
+              message: Feedback has already been submitted for this result.
+              details:
+                result_id: vr_001
+                existing_feedback_id: fb_001
+
+    BadGateway:
+      description: >
+        An upstream service (RAG/ML, GenAI, or external metadata API)
+        returned an invalid or unexpected response.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorApiResponse"
+          example:
+            success: false
+            data: null
+            error:
+              code: BAD_GATEWAY
+              message: Upstream service returned an invalid response.
+              details:
+                service: rag_ml
+                upstream_status: 500
+
+    ServiceUnavailable:
+      description: >
+        An upstream service is temporarily unavailable or unreachable.
+        The client should retry after a short delay.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorApiResponse"
+          headers:
+            Retry-After:
+              description: Suggested number of seconds to wait before retrying.
+              schema:
+                type: integer
+                example: 30
+          example:
+            success: false
+            data: null
+            error:
+              code: SERVICE_UNAVAILABLE
+              message: The metadata lookup service is currently unavailable. Please retry later.
+              details:
+                service: doi_metadata
+                retry_after_seconds: 30
+
+    GatewayTimeout:
+      description: >
+        An upstream service did not respond within the allowed timeout window.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorApiResponse"
+          example:
+            success: false
+            data: null
+            error:
+              code: GATEWAY_TIMEOUT
+              message: The RAG/ML service did not respond within the timeout window.
+              details:
+                service: rag_ml
+                timeout_seconds: 30
+
+    InternalServerError:
+      description: An unexpected internal server error occurred.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorApiResponse"
+          example:
+            success: false
+            data: null
+            error:
+              code: INTERNAL_SERVER_ERROR
+              message: An unexpected error occurred.
+              details: {}
+
+  # ── Schemas ─────────────────────────────────────────────────────────────────
+  schemas:
+
+    # ── Envelope ───────────────────────────────────────────────────────────
+
+# REVIEW [CRITICAL]: Response envelope is not aligned with final API.
+# - Current: {success, data, error}
+# - Final:   {success, data, message, errors, request_id}
+# - All success examples must have errors: [] and endpoint-specific message.
+    ApiResponse:
+      type: object
+      required: [success, data, message, errors, request_id]
+      properties:
+        success:
+          type: boolean
+        data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+          description: Human-readable status message for this response.
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+          description: Empty array on success. Contains one or more error objects on failure.
+        request_id:
+          type: string
+          nullable: true
+          description: Unique identifier for this request, for tracing and support.
+
+    ErrorApiResponse:
+      type: object
+      required: [success, data, message, errors, request_id]
+      properties:
+        success:
+          type: boolean
+          example: false
+        data:
+          nullable: true
+          example: null
+        message:
+          type: string
+          nullable: true
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+        request_id:
+          type: string
+          nullable: true
+
+    ApiError:
+      type: object
+      required: [code, detail]
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code.
+          example: NOT_FOUND
+        field:
+          type: string
+          nullable: true
+          description: The field that caused the error, if applicable.
+        detail:
+          type: string
+          description: Human-readable explanation of this error.
+          example: Requested resource was not found.
+
+    DocumentListResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                documents:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Document"
+                total:
+                  type: integer
+                page:
+                  type: integer
+                  description: Current page number.
+                page_size:
+                  type: integer
+                total_pages:
+                  type: integer
+
+    ExtractionStartedResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                document_id:
+                  type: string
+                status:
+                  type: string
+                  example: queued
+                message:
+                  type: string
+                  example: Claim extraction has been queued.
+
+    # ── Health ──────────────────────────────────────────────────────────────
+
+    HealthResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Health"
+
+# REVIEW [HIGH]: Health schema values are not aligned.
+# - Final data: status=OK, service=refcheck-backend, version=1.0.0, timestamp.
+# - Current uses lowercase ok and service backend.
+    Health:
+      type: object
+      required: [status, service, version, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [OK, DEGRADED, UNAVAILABLE]
+          example: OK
+        service:
+          type: string
+          example: refcheck-backend
+        version:
+          type: string
+          example: 1.0.0
+        timestamp:
+          type: string
+          format: date-time
+          description: Time at which the health check was performed.
+
+    # ── Document ────────────────────────────────────────────────────────────
+
+# REVIEW [HIGH]: Status enum is too generic and lowercase.
+# - Final document statuses: UPLOADED, TEXT_EXTRACTING, TEXT_EXTRACTED, REFERENCES_EXTRACTING,
+#   REFERENCES_EXTRACTED, DOI_VERIFYING, DOI_VERIFIED, CLAIMS_EXTRACTING, CLAIMS_EXTRACTED,
+#   EVIDENCE_PREPARING, EVIDENCE_READY, VERIFYING, VERIFIED, REPORT_GENERATED, FAILED, PARTIAL_FAILED.
+    DocumentProcessingStatus:
+      type: string
+      description: Current processing status of the document.
+      enum:
+        - UPLOADED
+        - TEXT_EXTRACTING
+        - TEXT_EXTRACTED
+        - REFERENCES_EXTRACTING
+        - REFERENCES_EXTRACTED
+        - DOI_VERIFYING
+        - DOI_VERIFIED
+        - CLAIMS_EXTRACTING
+        - CLAIMS_EXTRACTED
+        - EVIDENCE_PREPARING
+        - EVIDENCE_READY
+        - VERIFYING
+        - VERIFIED
+        - REPORT_GENERATED
+        - FAILED
+        - PARTIAL_FAILED
+      example: UPLOADED
+
+# REVIEW [HIGH]: Pipeline step concept should be represented through pipeline-runs and steps.
+# - Final uses pipeline_run_id and step status objects for progress tracking.
+# - Keep step enum aligned to uppercase final names if retained.
+    DocumentProcessingStep:
+      type: string
+      description: Active pipeline step during processing.
+      enum:
+        - TEXT_EXTRACTION
+        - SECTION_DETECTION
+        - REFERENCE_EXTRACTION
+        - DOI_LOOKUP
+        - CLAIM_EXTRACTION
+        - CITATION_MAPPING
+        - EVIDENCE_PREPARATION
+        - CACHE_CHECK
+        - RAG_RETRIEVAL
+        - GENAI_VERIFICATION
+        - SAFETY_CHECK
+        - REPORT_GENERATION
+
+    DocumentUploadResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/DocumentUpload"
+
+    DocumentResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Document"
+
+    DocumentStatusResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/DocumentStatus"
+
+    Document:
+      type: object
+      required: [document_id, filename, upload_type, status, created_at, updated_at]
+      properties:
+        document_id:
+          type: string
+        filename:
+          type: string
+        title:
+          type: string
+          nullable: true
+        upload_type:
+          type: string
+          enum: [PDF, TEXT]
+          example: PDF
+        status:
+          $ref: "#/components/schemas/DocumentProcessingStatus"
+        file_size_bytes:
+          type: integer
+          nullable: true
+        page_count:
+          type: integer
+          nullable: true
+        references_count:
+          type: integer
+          nullable: true
+          description: Number of extracted references. Null until reference extraction is complete.
+        claims_count:
+          type: integer
+          nullable: true
+          description: Number of extracted claims. Null until claim extraction is complete.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    DocumentStatus:
+      type: object
+      required: [document_id, status, updated_at]
+      properties:
+        document_id:
+          type: string
+        status:
+          $ref: "#/components/schemas/DocumentProcessingStatus"
+        frontend_status:
+          type: string
+          enum: [idle, processing, completed, failed]
+          nullable: true
+          description: Simplified status for frontend display.
+        current_step:
+          nullable: true
+          $ref: "#/components/schemas/DocumentProcessingStep"
+        progress_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          nullable: true
+          example: 75
+        latest_pipeline_run_id:
+          type: string
+          nullable: true
+          description: ID of the most recent pipeline run for this document.
+        message:
+          type: string
+          nullable: true
+        error_detail:
+          type: string
+          nullable: true
+          description: Set when status is FAILED. Describes what went wrong.
+        updated_at:
+          type: string
+          format: date-time
+
+    # ── Text / Sections ─────────────────────────────────────────────────────
+
+    RawTextResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/RawText"
+
+    RawText:
+      type: object
+      required: [document_id, raw_text, cleaned_text]
+      properties:
+        document_id:
+          type: string
+        raw_text:
+          type: string
+          description: Unprocessed text as extracted from the file.
+        cleaned_text:
+          type: string
+          description: Text after removing artefacts and normalizing whitespace.
+
+    SectionsResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/DocumentSections"
+
+    DocumentSections:
+      type: object
+      required: [document_id, sections]
+      properties:
+        document_id:
+          type: string
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentSection"
+
+    DocumentSection:
+      type: object
+      required: [section_id, name]
+      properties:
+        section_id:
+          type: string
+        name:
+          type: string
+          description: Human-readable section name (e.g. Abstract, Introduction).
+        type:
+          type: string
+          enum: [title, abstract, introduction, body, references, unknown]
+        order_index:
+          type: integer
+          nullable: true
+          description: 0-based position of the section in the document.
+        text_preview:
+          type: string
+          nullable: true
+          description: Short preview of the section text (first ~200 chars). Full text not returned by default.
+        start_char:
+          type: integer
+          nullable: true
+        end_char:
+          type: integer
+          nullable: true
+
+    # ── References ──────────────────────────────────────────────────────────
+
+# REVIEW [HIGH]: DOI enum values do not match final.
+# - Final: FOUND, MISSING, MALFORMED, VALID, INVALID, LOOKUP_FAILED.
+# - Current: found, missing, malformed, unresolvable.
+    DoiStatus:
+      type: string
+      description: >
+        Result of DOI extraction and validation.
+        FOUND = DOI extracted and resolved successfully.
+        MISSING = No DOI present in the reference.
+        MALFORMED = DOI present but does not match expected format.
+        VALID = DOI is valid in format.
+        INVALID = DOI format is invalid.
+        LOOKUP_FAILED = DOI valid but could not be resolved by the metadata service.
+      enum: [FOUND, MISSING, MALFORMED, VALID, INVALID, LOOKUP_FAILED]
+      example: FOUND
+
+    ReferenceListResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                document_id:
+                  type: string
+                references:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Reference"
+                total:
+                  type: integer
+                page:
+                  type: integer
+                page_size:
+                  type: integer
+                total_pages:
+                  type: integer
+
+    ReferenceResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Reference"
+
+# REVIEW [HIGH]: Reference schema does not match final frontend needs.
+# - Add extracted_title, extracted_authors, extracted_year, extracted_doi,
+#   metadata_status, metadata_match_score.
+# - Rename raw_text to raw_reference for consistency.
+    Reference:
+      type: object
+      required: [reference_id, document_id, raw_reference, doi_status]
+      properties:
+        reference_id:
+          type: string
+          example: ref_456
+        document_id:
+          type: string
+        raw_reference:
+          type: string
+          description: Original reference string as extracted from the document.
+        extracted_title:
+          type: string
+          nullable: true
+        extracted_authors:
+          type: array
+          items:
+            type: string
+          nullable: true
+        extracted_year:
+          type: integer
+          nullable: true
+        extracted_doi:
+          type: string
+          nullable: true
+          example: 10.1000/xyz123
+        doi_normalized:
+          type: string
+          nullable: true
+          description: DOI in normalised lowercase form without URL prefix.
+        doi_status:
+          $ref: "#/components/schemas/DoiStatus"
+        metadata_status:
+          type: string
+          enum: [NOT_LOOKED_UP, LOOKUP_SUCCEEDED, LOOKUP_FAILED, METADATA_UNAVAILABLE]
+          nullable: true
+        metadata_match_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          nullable: true
+          description: Score (0–1) indicating how well fetched metadata matches the extracted reference.
+        metadata:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/SourceMetadata"
+          description: Fetched metadata for this reference, if available.
+        position:
+          type: integer
+          nullable: true
+          description: 1-based index in the reference list.
+
+    # ── DOI Metadata ────────────────────────────────────────────────────────
+
+    DoiVerificationResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/DoiVerification"
+
+    DoiVerification:
+      type: object
+      required: [reference_id, doi_status, metadata_quality_score]
+      properties:
+        reference_id:
+          type: string
+        doi_status:
+          $ref: "#/components/schemas/DoiStatus"
+        metadata_quality_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: >
+            Score (0–1) indicating how well the fetched metadata matches
+            the extracted reference text. 0 if DOI is missing or unresolvable.
+        title_match:
+          type: boolean
+          nullable: true
+        year_match:
+          type: boolean
+          nullable: true
+        author_match:
+          type: boolean
+          nullable: true
+        cached:
+          type: boolean
+          default: false
+          description: True if result was served from the metadata cache.
+
+    ReferenceMetadataResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/SourceMetadata"
+
+    SourceMetadata:
+      type: object
+      required: [reference_id]
+      properties:
+        reference_id:
+          type: string
+        metadata_status:
+          type: string
+          enum: [NOT_LOOKED_UP, LOOKUP_SUCCEEDED, LOOKUP_FAILED, METADATA_UNAVAILABLE]
+          nullable: true
+          description: Status of the metadata lookup for this reference.
+        doi:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        authors:
+          type: array
+          items:
+            type: string
+          nullable: true
+        year:
+          type: integer
+          nullable: true
+        journal:
+          type: string
+          nullable: true
+        publisher:
+          type: string
+          nullable: true
+        url:
+          type: string
+          nullable: true
+        abstract:
+          type: string
+          nullable: true
+        fetched_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    BatchDoiVerificationResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                document_id:
+                  type: string
+                total:
+                  type: integer
+                verified:
+                  type: integer
+                missing_doi:
+                  type: integer
+                malformed_doi:
+                  type: integer
+                unresolvable:
+                  type: integer
+                results:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/DoiVerification"
+
+    # ── Claims and Citations ────────────────────────────────────────────────
+
+    ClaimListResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                document_id:
+                  type: string
+                claims:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Claim"
+                total:
+                  type: integer
+
+# REVIEW [HIGH]: Claim schema is missing important fields.
+# - Add claim_type, section_name, source_paragraph, citation_text, page_number,
+#   extraction_confidence, mapping_status.
+    Claim:
+      type: object
+      required: [claim_id, document_id, claim_text]
+      properties:
+        claim_id:
+          type: string
+          example: clm_789
+        document_id:
+          type: string
+        claim_text:
+          type: string
+          description: The factual assertion extracted from the document body.
+        claim_type:
+          type: string
+          nullable: true
+          description: Category of the claim (e.g. causal, correlational, descriptive).
+        section_name:
+          type: string
+          nullable: true
+          description: Name of the document section the claim was found in.
+        source_paragraph:
+          type: string
+          nullable: true
+          description: The paragraph text from which the claim was extracted.
+        citation_text:
+          type: string
+          nullable: true
+          description: The in-text citation as it appears alongside the claim.
+        page_number:
+          type: integer
+          nullable: true
+        paragraph_index:
+          type: integer
+          nullable: true
+        sentence_index:
+          type: integer
+          nullable: true
+        extraction_confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          nullable: true
+        mapping_status:
+          type: string
+          enum: [MAPPED, UNMAPPED, UNCERTAIN]
+          nullable: true
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Citation"
+
+    CitationListResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                document_id:
+                  type: string
+                citations:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Citation"
+
+# REVIEW [MEDIUM]: Citation schema should align with final naming.
+# - Use citation_text, citation_style, mapped_reference_id, mapping_confidence.
+# - raw_marker is less clear for frontend and report language.
+    Citation:
+      type: object
+      required: [citation_id, citation_text]
+      properties:
+        citation_id:
+          type: string
+        citation_text:
+          type: string
+          description: In-text citation as it appears in the document (e.g. [1] or (Smith 2020)).
+        citation_style:
+          type: string
+          nullable: true
+          description: Style of the citation (e.g. numeric, author-date, footnote).
+        raw_marker:
+          type: string
+          nullable: true
+          description: Raw marker string. Kept for backward compatibility.
+          deprecated: true
+        mapped_reference_id:
+          type: string
+          nullable: true
+          description: Resolved reference ID. Null if mapping is uncertain.
+        reference_id:
+          type: string
+          nullable: true
+          description: Alias for mapped_reference_id. Kept for backward compatibility.
+          deprecated: true
+        mapping_confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          nullable: true
+        mapping_uncertain:
+          type: boolean
+          default: false
+          description: True when the citation could not be mapped to a reference with confidence.
+
+    ClaimReferenceMapResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                document_id:
+                  type: string
+                pairs:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ClaimReferencePair"
+
+# REVIEW [HIGH]: Claim-reference link schema is too thin.
+# - Final needs link_id, claim_text, citation_text, citation_style,
+#   reference_title, doi, mapping_status, mapping_confidence.
+    ClaimReferencePair:
+      type: object
+      required: [link_id, claim_id]
+      properties:
+        link_id:
+          type: string
+          description: Unique identifier for this claim-reference link.
+        claim_id:
+          type: string
+        claim_text:
+          type: string
+          nullable: true
+        citation_text:
+          type: string
+          nullable: true
+        citation_style:
+          type: string
+          nullable: true
+          description: Style of the citation (e.g. numeric, author-date).
+        reference_id:
+          type: string
+          nullable: true
+        reference_title:
+          type: string
+          nullable: true
+        doi:
+          type: string
+          nullable: true
+        mapping_status:
+          type: string
+          enum: [MAPPED, UNMAPPED, UNCERTAIN]
+          nullable: true
+        mapping_confidence:
+          type: number
+          format: float
+          nullable: true
+        mapping_uncertain:
+          type: boolean
+          default: false
+
+    # ── Evidence ────────────────────────────────────────────────────────────
+
+# REVIEW [HIGH]: Evidence enum/name does not match final.
+# - Final name: Evidence availability.
+# - Final values: METADATA_ONLY, ABSTRACT_AVAILABLE, FULL_TEXT_AVAILABLE, SOURCE_UNAVAILABLE.
+    EvidenceLevel:
+      type: string
+      description: >
+        Indicates what evidence is available for verification.
+        FULL_TEXT_AVAILABLE is the strongest; SOURCE_UNAVAILABLE means
+        verification cannot be performed and result will be INSUFFICIENT_EVIDENCE.
+      enum:
+        - FULL_TEXT_AVAILABLE
+        - ABSTRACT_AVAILABLE
+        - METADATA_ONLY
+        - SOURCE_UNAVAILABLE
+
+    PrepareEvidenceResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                document_id:
+                  type: string
+                packages_created:
+                  type: integer
+                packages:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/EvidencePackageSummary"
+
+    EvidencePackageSummary:
+      type: object
+      properties:
+        claim_id:
+          type: string
+        reference_id:
+          type: string
+        evidence_level:
+          $ref: "#/components/schemas/EvidenceLevel"
+
+    EvidencePackageResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/EvidencePackage"
+
+# REVIEW [HIGH]: EvidencePackage is missing source_evidence and policy fields.
+# - Add source_evidence: {evidence_availability, text, source_url}.
+# - Add policy: {embedding_model_version, prompt_version, verification_policy_version}.
+    EvidencePackage:
+      type: object
+      required: [claim_id, reference_id, evidence_level]
+      properties:
+        claim_id:
+          type: string
+        reference_id:
+          type: string
+        claim_text:
+          type: string
+        citation_text:
+          type: string
+          nullable: true
+        doi:
+          type: string
+          nullable: true
+        doi_status:
+          $ref: "#/components/schemas/DoiStatus"
+        metadata:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/SourceMetadata"
+        evidence_level:
+          $ref: "#/components/schemas/EvidenceLevel"
+        source_evidence:
+          nullable: true
+          type: object
+          properties:
+            evidence_availability:
+              $ref: "#/components/schemas/EvidenceLevel"
+            text:
+              type: string
+              nullable: true
+              description: The evidence text used for verification.
+            source_url:
+              type: string
+              nullable: true
+        policy:
+          nullable: true
+          type: object
+          properties:
+            embedding_model_version:
+              type: string
+              nullable: true
+            prompt_version:
+              type: string
+              nullable: true
+            verification_policy_version:
+              type: string
+              nullable: true
+
+    # ── Cache ───────────────────────────────────────────────────────────────
+
+# REVIEW [HIGH]: Cache source enum values should be uppercase.
+# - Final: NEW_VERIFICATION, EXACT_CACHE, SEMANTIC_CACHE, HUMAN_CORRECTED.
+    CacheSource:
+      type: string
+      description: >
+        Indicates where the verification result came from.
+        HUMAN_CORRECTED takes precedence over all other sources.
+      enum:
+        - NEW_VERIFICATION
+        - EXACT_CACHE
+        - SEMANTIC_CACHE
+        - HUMAN_CORRECTED
+
+# REVIEW [HIGH]: Cache thresholds/rules not aligned.
+# - Final semantic cache reusable threshold is >= 0.92 with same DOI and same policy version.
+# - Medium matches should not be auto-reused.
+    CacheHitLevel:
+      type: string
+      description: >
+        Result of the cache lookup.
+        exact = same normalised claim + same DOI + same policy version.
+        high_similarity = similarity ≥ 0.92 and same DOI and same policy version.
+        medium_similarity = similarity 0.80–0.91 and same DOI. NOT auto-reused.
+        no_hit = no usable cache entry found.
+      enum: [exact, high_similarity, medium_similarity, no_hit]
+
+    CacheCheckResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/CacheCheck"
+
+# REVIEW [HIGH]: Cache response fields should align with final.
+# - Add cache_status, cache_source, matched_result_id, semantic_similarity, reuse_allowed.
+    CacheCheck:
+      type: object
+      required: [claim_id, cache_status]
+      properties:
+        claim_id:
+          type: string
+        cache_status:
+          type: string
+          enum: [HIT, MISS, PARTIAL_HIT]
+          description: Result of the cache lookup.
+        cache_source:
+          $ref: "#/components/schemas/CacheSource"
+          nullable: true
+        matched_result_id:
+          type: string
+          nullable: true
+          description: ID of the matched verification result if cache hit.
+        semantic_similarity:
+          type: number
+          format: float
+          nullable: true
+        reuse_allowed:
+          type: boolean
+          nullable: true
+          description: Whether the cached result may be reused according to policy.
+        hit_level:
+          $ref: "#/components/schemas/CacheHitLevel"
+          nullable: true
+        recommendation:
+          type: string
+          enum: [REUSE, SUGGEST_REUSE, RERUN, HUMAN_REVIEW]
+          nullable: true
+
+    CacheResultResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/CacheResult"
+
+    CacheResult:
+      type: object
+      properties:
+        claim_id:
+          type: string
+        cache_source:
+          $ref: "#/components/schemas/CacheSource"
+        similarity_score:
+          type: number
+          format: float
+          nullable: true
+        verification_result:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/VerificationResult"
+
+    # ── Retrieval ───────────────────────────────────────────────────────────
+
+    RetrievalResultResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/RetrievalResult"
+
+# REVIEW [HIGH]: Retrieval result schema should match final RAG contract.
+# - Use top_chunks, overall_similarity_score, retrieval_confidence.
+# - Chunks should include chunk_id, chunk_text, similarity_score, evidence_type, source.
+    RetrievalResult:
+      type: object
+      required: [claim_id, retrieval_status]
+      properties:
+        claim_id:
+          type: string
+        retrieval_status:
+          type: string
+          enum: [SUCCESS, NO_EVIDENCE, SERVICE_ERROR, TIMEOUT]
+        top_chunks:
+          type: array
+          nullable: true
+          items:
+            $ref: "#/components/schemas/EvidenceChunk"
+        overall_similarity_score:
+          type: number
+          format: float
+          nullable: true
+        retrieval_confidence:
+          type: number
+          format: float
+          nullable: true
+        semantic_cache_hit:
+          type: boolean
+          nullable: true
+        service_error_detail:
+          type: string
+          nullable: true
+          description: Set when retrieval_status is SERVICE_ERROR or TIMEOUT.
+
+# REVIEW [MEDIUM]: EvidenceChunk is missing chunk_id, evidence_type and source.
+# - source_doi alone is not enough for frontend evidence view or audit trail.
+    EvidenceChunk:
+      type: object
+      required: [chunk_text, similarity_score]
+      properties:
+        chunk_id:
+          type: string
+          nullable: true
+          description: Unique identifier for this evidence chunk.
+        chunk_text:
+          type: string
+        similarity_score:
+          type: number
+          format: float
+        evidence_type:
+          type: string
+          nullable: true
+          description: Type of evidence (e.g. abstract, full_text, metadata).
+        source:
+          type: string
+          nullable: true
+          description: Source identifier (e.g. DOI or URL) of the evidence chunk.
+        source_doi:
+          type: string
+          nullable: true
+
+    # ── Safety ──────────────────────────────────────────────────────────────
+
+# REVIEW [MEDIUM]: Safety rule enum should align with final rule language and backend safety policy.
+# - Keep machine-readable codes stable and document final backend action per rule.
+    SafetyRuleId:
+      type: string
+      description: Machine-readable identifier for a safety rule (BE-10).
+      enum:
+        - missing_doi
+        - invalid_doi
+        - no_abstract_or_evidence
+        - low_similarity
+        - low_genai_confidence
+        - ml_genai_conflict
+        - genai_invalid_response
+        - uncertain_citation_mapping
+        - evidence_unavailable
+
+    SafetyCheckResult:
+      type: object
+      required: [rule, triggered]
+      properties:
+        rule:
+          $ref: "#/components/schemas/SafetyRuleId"
+        triggered:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+          description: Human-readable explanation of why the rule triggered.
+        override_status:
+          $ref: "#/components/schemas/SupportStatus"
+          nullable: true
+          description: >
+            The support_status value this rule forces when triggered.
+            Null if the rule did not trigger.
+
+    SafetyChecksResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                result_id:
+                  type: string
+                checks:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/SafetyCheckResult"
+                any_triggered:
+                  type: boolean
+                  description: True if at least one safety rule triggered.
+                final_status:
+                  $ref: "#/components/schemas/SupportStatus"
+
+    DocumentSafetySummaryResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/DocumentSafetySummary"
+
+    DocumentSafetySummary:
+      type: object
+      required: [document_id]
+      properties:
+        document_id:
+          type: string
+        total_claims_checked:
+          type: integer
+        rules_triggered:
+          type: array
+          items:
+            type: object
+            properties:
+              rule:
+                $ref: "#/components/schemas/SafetyRuleId"
+              triggered_count:
+                type: integer
+              affected_claim_ids:
+                type: array
+                items:
+                  type: string
+
+    # ── Verification ────────────────────────────────────────────────────────
+
+# REVIEW [HIGH]: Support status values must be uppercase in final API.
+# - Final: SUPPORTED, PARTIALLY_SUPPORTED, NOT_SUPPORTED, INSUFFICIENT_EVIDENCE, NEEDS_HUMAN_REVIEW.
+# - Current title-case values will cause frontend/backend mismatch.
+    SupportStatus:
+      type: string
+      description: >
+        Final verification verdict for a claim-reference pair.
+        NEEDS_HUMAN_REVIEW is set when any safety rule triggers.
+        INSUFFICIENT_EVIDENCE is set when no usable evidence is available.
+      enum:
+        - SUPPORTED
+        - PARTIALLY_SUPPORTED
+        - NOT_SUPPORTED
+        - INSUFFICIENT_EVIDENCE
+        - NEEDS_HUMAN_REVIEW
+
+    VerificationStartedResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                document_id:
+                  type: string
+                status:
+                  type: string
+                  example: queued
+                message:
+                  type: string
+                  example: Verification pipeline has been queued.
+
+    VerificationResultListResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                document_id:
+                  type: string
+                results:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/VerificationResult"
+                total:
+                  type: integer
+                human_review_count:
+                  type: integer
+                  description: Number of results requiring human review.
+                page:
+                  type: integer
+                page_size:
+                  type: integer
+                total_pages:
+                  type: integer
+
+    VerificationResultResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/VerificationResult"
+
+# REVIEW [HIGH]: VerificationResult schema is not aligned with final response.
+# - Final list item includes claim_text, citation_text, reference_title, doi, doi_status,
+#   support_status, confidence, human_review_required, cache_source,
+#   evidence_availability, evidence_used_count, overall_similarity_score,
+#   verification_method, explanation, safety_risk_level.
+# - Detail endpoint should return nested claim/citation/reference/retrieved_evidence/verification/safety_check.
+    VerificationResult:
+      type: object
+      required: [result_id, claim_id, support_status, created_at]
+      properties:
+        result_id:
+          type: string
+          example: vr_001
+        claim_id:
+          type: string
+        claim_text:
+          type: string
+          nullable: true
+          description: The claim text, included for convenience in list views.
+        citation_text:
+          type: string
+          nullable: true
+          description: The in-text citation associated with this result.
+        reference_id:
+          type: string
+          nullable: true
+        reference_title:
+          type: string
+          nullable: true
+          description: Title of the cited reference.
+        doi:
+          type: string
+          nullable: true
+        support_status:
+          $ref: "#/components/schemas/SupportStatus"
+        confidence_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          nullable: true
+          description: GenAI confidence score. Null if safety rules blocked GenAI from running.
+        human_review_required:
+          type: boolean
+          description: True if this result requires human review.
+        explanation:
+          type: string
+          nullable: true
+          description: Human-readable GenAI explanation of the verdict.
+        evidence_availability:
+          $ref: "#/components/schemas/EvidenceLevel"
+          nullable: true
+          description: Evidence level available for this verification.
+        evidence_used:
+          type: array
+          items:
+            type: string
+          description: List of DOIs or evidence chunk IDs used during verification.
+        evidence_used_count:
+          type: integer
+          nullable: true
+          description: Number of evidence chunks used.
+        overall_similarity_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          nullable: true
+          description: Overall similarity score from RAG/ML retrieval.
+        verification_method:
+          type: string
+          nullable: true
+          description: Method used for verification (e.g. genai, cache, human).
+        safety_checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/SafetyCheckResult"
+          description: All safety rules evaluated for this result.
+        any_safety_triggered:
+          type: boolean
+          description: True if at least one safety rule triggered and overrode the GenAI verdict.
+        safety_risk_level:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          nullable: true
+          description: Aggregated safety risk level for this result.
+        cache_source:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/CacheSource"
+        ml_rag_conflict:
+          type: boolean
+          nullable: true
+          description: True if RAG/ML and GenAI verdicts conflicted, triggering NEEDS_HUMAN_REVIEW.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    # ── Reports and Feedback ────────────────────────────────────────────────
+
+    DocumentSummaryResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/DocumentSummary"
+
+# REVIEW [MEDIUM]: Summary fields should align with final report summary.
+# - Use valid_dois, missing_dois, invalid_dois, total_claims, supported,
+#   partially_supported, not_supported, insufficient_evidence, needs_human_review,
+#   overall_risk_level.
+    DocumentSummary:
+      type: object
+      required: [document_id]
+      properties:
+        document_id:
+          type: string
+        total_claims:
+          type: integer
+        total_references:
+          type: integer
+        valid_dois:
+          type: integer
+        missing_dois:
+          type: integer
+        invalid_dois:
+          type: integer
+        supported:
+          type: integer
+        partially_supported:
+          type: integer
+        not_supported:
+          type: integer
+        insufficient_evidence:
+          type: integer
+        needs_human_review:
+          type: integer
+        overall_risk_level:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          nullable: true
+        high_risk_claim_ids:
+          type: array
+          items:
+            type: string
+          description: >
+            Claim IDs considered high risk:
+            NOT_SUPPORTED or NEEDS_HUMAN_REVIEW due to safety rules.
+        safety_rules_triggered:
+          type: array
+          items:
+            $ref: "#/components/schemas/SafetyRuleId"
+          description: Distinct safety rules that triggered at least once in this document.
+        limitations:
+          type: string
+          nullable: true
+          description: Auto-generated limitations note based on evidence levels and safety findings.
+
+    ReportResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Report"
+
+# REVIEW [HIGH]: Report schema is tied to document_id rather than report_id.
+# - Final report flow has report_id, document_id, title, format, summary, html_content, created_at.
+# - Generation and retrieval should be separate endpoints.
+    Report:
+      type: object
+      required: [report_id, document_id, summary, generated_at]
+      properties:
+        report_id:
+          type: string
+          description: Unique identifier for this report.
+        document_id:
+          type: string
+        title:
+          type: string
+          nullable: true
+        format:
+          type: string
+          enum: [JSON, HTML, PDF]
+          nullable: true
+        summary:
+          $ref: "#/components/schemas/DocumentSummary"
+        claim_results:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationResult"
+        doi_summary:
+          type: array
+          items:
+            $ref: "#/components/schemas/DoiVerification"
+        safety_summary:
+          $ref: "#/components/schemas/DocumentSafetySummary"
+        human_review_recommendations:
+          type: array
+          items:
+            type: string
+          description: Claim IDs recommended for human review.
+        html_content:
+          type: string
+          nullable: true
+          description: Pre-rendered HTML content of the report, if generated.
+        generated_at:
+          type: string
+          format: date-time
+
+# REVIEW [HIGH]: Feedback request does not match final.
+# - Final verification feedback: user_label, user_comment, user_role.
+# - Separate mapping feedback endpoint must support feedback_type, suggested_reference_id, comment.
+    FeedbackRequest:
+      type: object
+      required: [user_label]
+      properties:
+        user_label:
+          $ref: "#/components/schemas/SupportStatus"
+          description: The reviewer's corrected verdict.
+        user_comment:
+          type: string
+          nullable: true
+          description: Optional free-text explanation from the reviewer.
+        user_role:
+          type: string
+          nullable: true
+          description: Role of the reviewer (e.g. domain_expert, editor, researcher).
+
+# REVIEW [MEDIUM]: Feedback response should include stored:true and align to final response wrapper.
+# - Add request_id/errors/message through shared envelope.
+    FeedbackResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                feedback_id:
+                  type: string
+                result_id:
+                  type: string
+                  nullable: true
+                user_label:
+                  $ref: "#/components/schemas/SupportStatus"
+                stored:
+                  type: boolean
+                  example: true
+                  description: Confirms the feedback was persisted.
+                created_at:
+                  type: string
+                  format: date-time
+                updated_at:
+                  type: string
+                  format: date-time
+                  nullable: true
+
+    # ── Pipeline Runs ────────────────────────────────────────────────────────
+
+    PipelineRunStartedResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                pipeline_run_id:
+                  type: string
+                document_id:
+                  type: string
+                status:
+                  type: string
+                  example: QUEUED
+                message:
+                  type: string
+                  example: Verification pipeline has been queued.
+
+    PipelineRunResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PipelineRun"
+
+    PipelineRunStepsResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                pipeline_run_id:
+                  type: string
+                steps:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PipelineRunStep"
+
+    PipelineRun:
+      type: object
+      required: [pipeline_run_id, document_id, status, created_at]
+      properties:
+        pipeline_run_id:
+          type: string
+          example: run_abc123
+        document_id:
+          type: string
+        status:
+          type: string
+          enum: [QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED]
+        mode:
+          type: string
+          enum: [full, references_only, claims_only]
+          nullable: true
+        progress_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          nullable: true
+        current_step:
+          $ref: "#/components/schemas/DocumentProcessingStep"
+          nullable: true
+        error_detail:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    PipelineRunStep:
+      type: object
+      required: [step, status]
+      properties:
+        step:
+          $ref: "#/components/schemas/DocumentProcessingStep"
+        status:
+          type: string
+          enum: [PENDING, RUNNING, COMPLETED, FAILED, SKIPPED]
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_detail:
+          type: string
+          nullable: true
+
+    # ── Reports ──────────────────────────────────────────────────────────────
+
+    ReportStartedResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                report_id:
+                  type: string
+                document_id:
+                  type: string
+                status:
+                  type: string
+                  example: QUEUED
+                message:
+                  type: string
+                  example: Report generation has been queued.
+
+    # ── Document Upload ───────────────────────────────────────────────────────
+
+    DocumentUpload:
+      type: object
+      required: [document_id, filename, upload_type, status, created_at]
+      properties:
+        document_id:
+          type: string
+          example: doc_123
+        filename:
+          type: string
+          example: sample_paper.pdf
+        title:
+          type: string
+          nullable: true
+        upload_type:
+          type: string
+          enum: [PDF, TEXT]
+          example: PDF
+        status:
+          $ref: "#/components/schemas/DocumentProcessingStatus"
+        file_size_bytes:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Delete ───────────────────────────────────────────────────────────────
+
+    DeletedResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                document_id:
+                  type: string
+                deleted:
+                  type: boolean
+                  example: true
+
+    # ── Feedback ─────────────────────────────────────────────────────────────
+
+    MappingFeedbackRequest:
+      type: object
+      required: [feedback_type]
+      properties:
+        feedback_type:
+          type: string
+          enum: [CORRECT, INCORRECT, UNCERTAIN]
+          description: The reviewer's assessment of the mapping.
+        suggested_reference_id:
+          type: string
+          nullable: true
+          description: If INCORRECT, the reviewer may suggest the correct reference.
+        comment:
+          type: string
+          nullable: true
+
+    # ── UAT Surveys ──────────────────────────────────────────────────────────
+
+    UatSurveyRequest:
+      type: object
+      required: [document_id, responses]
+      properties:
+        document_id:
+          type: string
+        user_id:
+          type: string
+          nullable: true
+        responses:
+          type: array
+          items:
+            type: object
+            required: [question_id, answer]
+            properties:
+              question_id:
+                type: string
+              answer:
+                type: string
+          description: List of question/answer pairs from the survey.
+        overall_rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        free_text:
+          type: string
+          nullable: true
+
+    UatSurveyResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                survey_id:
+                  type: string
+                document_id:
+                  type: string
+                stored:
+                  type: boolean
+                  example: true
+                created_at:
+                  type: string
+                  format: date-time
+
+    # ── Internal schemas ─────────────────────────────────────────────────────
+
+    InternalEmbedResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                embedding:
+                  type: array
+                  items:
+                    type: number
+                  description: Embedding vector.
+                model_version:
+                  type: string
+                  nullable: true
+
+    InternalSearchResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                results:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/EvidenceChunk"
+                total:
+                  type: integer
+
+    InternalGenaiVerifyResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                support_status:
+                  $ref: "#/components/schemas/SupportStatus"
+                confidence_score:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 1
+                  nullable: true
+                explanation:
+                  type: string
+                  nullable: true
+                raw_response:
+                  type: string
+                  nullable: true
+                  description: Raw GenAI response before parsing.
+
+    InternalExtractClaimsResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                claims:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      claim_text:
+                        type: string
+                      citation_text:
+                        type: string
+                        nullable: true
+                      paragraph_index:
+                        type: integer
+                        nullable: true
+                raw_response:
+                  type: string
+                  nullable: true
+                  description: Raw GenAI JSON before validation.
