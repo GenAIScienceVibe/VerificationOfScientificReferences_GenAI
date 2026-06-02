@@ -43,6 +43,7 @@ from app.db.models import (
 )
 from app.logger import logger
 from app.services.text_service import process_document_text, process_text_document
+from app.services.reference_service import process_references
 from app.db.repositories import (
     CacheIndexRepository,
     CitationRepository,
@@ -455,7 +456,7 @@ def _report_to_dict(r: Report) -> dict:
 # ---------------------------------------------------------------------------
 
 def _run_text_extraction(document_id: str, pdf_bytes: bytes) -> None:
-    """Background task: extract text from PDF and store sections."""
+    """Background task: extract text from PDF, then trigger reference extraction."""
     with SessionLocal() as db:
         result = process_document_text(document_id, pdf_bytes, db)
         if result.success:
@@ -463,12 +464,14 @@ def _run_text_extraction(document_id: str, pdf_bytes: bytes) -> None:
                 f"[bg] {document_id} — text extraction complete: "
                 f"{result.page_count} pages, {len(result.sections)} sections"
             )
+            # Chain: trigger reference extraction
+            _run_reference_extraction(document_id)
         else:
             logger.error(f"[bg] {document_id} — text extraction failed: {result.error}")
 
 
 def _run_text_processing(document_id: str, text: str) -> None:
-    """Background task: process plain text and store sections."""
+    """Background task: process plain text, then trigger reference extraction."""
     with SessionLocal() as db:
         result = process_text_document(document_id, text, db)
         if result.success:
@@ -476,8 +479,23 @@ def _run_text_processing(document_id: str, text: str) -> None:
                 f"[bg] {document_id} — text processing complete: "
                 f"{len(result.sections)} sections"
             )
+            # Chain: trigger reference extraction
+            _run_reference_extraction(document_id)
         else:
             logger.error(f"[bg] {document_id} — text processing failed: {result.error}")
+
+
+def _run_reference_extraction(document_id: str) -> None:
+    """Background task: extract references from stored sections."""
+    with SessionLocal() as db:
+        result = process_references(document_id, db)
+        if result.success:
+            logger.info(
+                f"[bg] {document_id} — reference extraction complete: "
+                f"{result.total} refs, {result.found_doi} DOIs found"
+            )
+        else:
+            logger.error(f"[bg] {document_id} — reference extraction failed: {result.error}")
 
 
 # ---------------------------------------------------------------------------
@@ -733,6 +751,7 @@ def get_sections(document_id: str = Path(...), db: Session = Depends(get_db)):
 
 @app.post("/api/v1/documents/{document_id}/extract-references", status_code=202, tags=["References"])
 def extract_references(
+    background_tasks: BackgroundTasks,
     document_id: str = Path(...),
     body: DebugStepRequest = DebugStepRequest(),
     db: Session = Depends(get_db),
@@ -742,8 +761,7 @@ def extract_references(
         raise_404("Document", document_id)
     if doc.status == DocumentProcessingStatus.UPLOADED:
         raise_409("WORKFLOW_CONFLICT", "Text extraction must complete before references can be extracted.")
-    doc.status = DocumentProcessingStatus.REFERENCES_EXTRACTING
-    db.commit()
+    background_tasks.add_task(_run_reference_extraction, document_id=document_id)
     return ok({"document_id": document_id, "status": "QUEUED",
                "message": "Reference extraction has been queued."})
 
