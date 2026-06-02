@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import Depends, FastAPI, File, HTTPException, Path, Query, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Path, Query, UploadFile
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
@@ -42,6 +42,7 @@ from app.db.models import (
     VerificationResult,
 )
 from app.logger import logger
+from app.services.text_service import process_document_text, process_text_document
 from app.db.repositories import (
     CacheIndexRepository,
     CitationRepository,
@@ -450,6 +451,36 @@ def _report_to_dict(r: Report) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Background tasks
+# ---------------------------------------------------------------------------
+
+def _run_text_extraction(document_id: str, pdf_bytes: bytes) -> None:
+    """Background task: extract text from PDF and store sections."""
+    with SessionLocal() as db:
+        result = process_document_text(document_id, pdf_bytes, db)
+        if result.success:
+            logger.info(
+                f"[bg] {document_id} — text extraction complete: "
+                f"{result.page_count} pages, {len(result.sections)} sections"
+            )
+        else:
+            logger.error(f"[bg] {document_id} — text extraction failed: {result.error}")
+
+
+def _run_text_processing(document_id: str, text: str) -> None:
+    """Background task: process plain text and store sections."""
+    with SessionLocal() as db:
+        result = process_text_document(document_id, text, db)
+        if result.success:
+            logger.info(
+                f"[bg] {document_id} — text processing complete: "
+                f"{len(result.sections)} sections"
+            )
+        else:
+            logger.error(f"[bg] {document_id} — text processing failed: {result.error}")
+
+
+# ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
 
@@ -499,6 +530,7 @@ def list_documents(
 
 @app.post("/api/v1/documents/upload", tags=["Documents"])
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     document_title: Optional[str] = None,
     uploaded_by: Optional[str] = None,
@@ -525,11 +557,23 @@ async def upload_document(
     DocumentRepository(db).create(doc)
     db.commit()
     logger.info(f"[document] {doc.document_id} uploaded — {size_bytes} bytes — {file.filename}")
-    return ok(_doc_to_dict(doc), message="Document uploaded successfully.")
+
+    # Trigger text extraction in background
+    background_tasks.add_task(
+        _run_text_extraction,
+        document_id=doc.document_id,
+        pdf_bytes=contents,
+    )
+
+    return ok(_doc_to_dict(doc), message="Document uploaded. Text extraction started.")
 
 
 @app.post("/api/v1/documents/text", tags=["Documents"])
-def upload_text_document(body: TextDocumentRequest, db: Session = Depends(get_db)):
+def upload_text_document(
+    background_tasks: BackgroundTasks,
+    body: TextDocumentRequest,
+    db: Session = Depends(get_db),
+):
     doc = Document(
         document_id=new_id("doc_"),
         title=body.title,
@@ -541,7 +585,15 @@ def upload_text_document(body: TextDocumentRequest, db: Session = Depends(get_db
     DocumentRepository(db).create(doc)
     db.commit()
     logger.info(f"[document] {doc.document_id} created (text) — {doc.file_size_bytes} bytes — {doc.title}")
-    return ok(_doc_to_dict(doc), message="Text document created successfully.")
+
+    # Trigger text processing in background
+    background_tasks.add_task(
+        _run_text_processing,
+        document_id=doc.document_id,
+        text=body.text,
+    )
+
+    return ok(_doc_to_dict(doc), message="Text document created. Processing started.")
 
 
 @app.get("/api/v1/documents/{document_id}", tags=["Documents"])
