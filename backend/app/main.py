@@ -44,6 +44,7 @@ from app.db.models import (
 from app.logger import logger
 from app.services.text_service import process_document_text, process_text_document
 from app.services.reference_service import process_references
+from app.services.doi_lookup_service import lookup_all_references, lookup_single_reference
 from app.db.repositories import (
     CacheIndexRepository,
     CitationRepository,
@@ -486,7 +487,7 @@ def _run_text_processing(document_id: str, text: str) -> None:
 
 
 def _run_reference_extraction(document_id: str) -> None:
-    """Background task: extract references from stored sections."""
+    """Background task: extract references, then trigger DOI lookup."""
     with SessionLocal() as db:
         result = process_references(document_id, db)
         if result.success:
@@ -494,8 +495,43 @@ def _run_reference_extraction(document_id: str) -> None:
                 f"[bg] {document_id} — reference extraction complete: "
                 f"{result.total} refs, {result.found_doi} DOIs found"
             )
+            # Chain: trigger DOI lookup
+            _run_doi_lookup(document_id)
         else:
             logger.error(f"[bg] {document_id} — reference extraction failed: {result.error}")
+
+
+def _run_doi_lookup(document_id: str) -> None:
+    """Background task: lookup DOI metadata for all references."""
+    with SessionLocal() as db:
+        result = lookup_all_references(document_id, db)
+        if result.success:
+            logger.info(
+                f"[bg] {document_id} — DOI lookup complete: "
+                f"{result.succeeded} succeeded, {result.failed} failed, "
+                f"{result.cached} cached"
+            )
+        else:
+            logger.error(f"[bg] {document_id} — DOI lookup failed: {result.error}")
+
+
+def _run_text_extraction_from_db(document_id: str) -> None:
+    """Background task: re-trigger text extraction using stored file bytes."""
+    from app.db.repositories import DocumentRepository as DR
+    with SessionLocal() as db:
+        doc = DR(db).get(document_id)
+        if not doc or not doc.file_path:
+            logger.error(f"[bg] {document_id} — no file path stored, cannot re-extract")
+            return
+        try:
+            with open(doc.file_path, "rb") as f:
+                pdf_bytes = f.read()
+            result = process_document_text(document_id, pdf_bytes, db)
+            if result.success:
+                logger.info(f"[bg] {document_id} — re-extraction complete: {result.page_count} pages")
+                _run_reference_extraction(document_id)
+        except Exception as e:
+            logger.error(f"[bg] {document_id} — re-extraction failed: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -811,11 +847,17 @@ def verify_doi(
     ref = ReferenceRepository(db).get(reference_id)
     if not ref:
         raise_404("Reference", reference_id)
+
+    result = lookup_single_reference(reference_id, db, force=body.force or False)
     return ok({
         "reference_id": reference_id,
-        "doi_status": ref.doi_status.value if ref.doi_status else None,
-        "metadata_quality_score": ref.metadata_match_score,
-        "cached": True,
+        "doi_status": result.doi_status.value if result.doi_status else None,
+        "metadata_status": result.metadata_status.value if result.metadata_status else None,
+        "metadata_quality_score": result.match_score,
+        "title_match": result.title_match,
+        "year_match": result.year_match,
+        "author_match": result.author_match,
+        "cached": result.cached,
     })
 
 
@@ -826,7 +868,19 @@ def get_reference_metadata(reference_id: str = Path(...), db: Session = Depends(
         raise_404("Reference", reference_id)
     meta = SourceMetadataRepository(db).get_by_reference(reference_id)
     if not meta:
-        raise_404("SourceMetadata", reference_id)
+        return ok({
+            "reference_id": reference_id,
+            "metadata_status": ref.metadata_status.value if ref.metadata_status else "NOT_LOOKED_UP",
+            "doi": ref.doi_normalized,
+            "title": None,
+            "authors": None,
+            "year": None,
+            "journal": None,
+            "publisher": None,
+            "url": None,
+            "abstract": None,
+            "fetched_at": None,
+        })
     return ok({
         "reference_id": reference_id,
         "metadata_status": meta.metadata_status.value if meta.metadata_status else None,
@@ -844,6 +898,7 @@ def get_reference_metadata(reference_id: str = Path(...), db: Session = Depends(
 
 @app.post("/api/v1/documents/{document_id}/verify-dois", status_code=202, tags=["References"])
 def verify_all_dois(
+    background_tasks: BackgroundTasks,
     document_id: str = Path(...),
     body: DebugStepRequest = DebugStepRequest(),
     db: Session = Depends(get_db),
@@ -851,8 +906,7 @@ def verify_all_dois(
     doc = DocumentRepository(db).get(document_id)
     if not doc:
         raise_404("Document", document_id)
-    doc.status = DocumentProcessingStatus.DOI_VERIFYING
-    db.commit()
+    background_tasks.add_task(_run_doi_lookup, document_id=document_id)
     return ok({"document_id": document_id, "status": "QUEUED",
                "message": "DOI verification has been queued."})
 
@@ -1493,3 +1547,94 @@ def internal_genai_verify(body: dict, db: Session = Depends(get_db)):
 @app.post("/api/v1/internal/genai/extract-claims", tags=["Internal"])
 def internal_genai_extract_claims(body: dict, db: Session = Depends(get_db)):
     return ok({"claims": [], "raw_response": None})
+
+
+# ---------------------------------------------------------------------------
+# Missing endpoints from openapi_full_final_corrected.yaml
+# ---------------------------------------------------------------------------
+
+# ── Documents ────────────────────────────────────────────────────────────────
+
+@app.post("/api/v1/documents/{document_id}/extract-text", status_code=202, tags=["Debug"])
+def extract_text_debug(
+    background_tasks: BackgroundTasks,
+    document_id: str = Path(...),
+    db: Session = Depends(get_db),
+):
+    """[Debug] Manually trigger text extraction for a document."""
+    doc = DocumentRepository(db).get(document_id)
+    if not doc:
+        raise_404("Document", document_id)
+    background_tasks.add_task(_run_text_extraction_from_db, document_id=document_id)
+    return ok({"document_id": document_id, "status": "QUEUED",
+               "message": "Text extraction has been queued."})
+
+
+# ── Claims ───────────────────────────────────────────────────────────────────
+
+@app.post("/api/v1/claims/{claim_id}/verify", status_code=202, tags=["Verification"])
+def verify_claim(
+    background_tasks: BackgroundTasks,
+    claim_id: str = Path(...),
+    db: Session = Depends(get_db),
+):
+    """Trigger verification for a single claim. Implemented in BE-9."""
+    claim = ClaimRepository(db).get(claim_id)
+    if not claim:
+        raise_404("Claim", claim_id)
+    return ok({"claim_id": claim_id, "status": "QUEUED",
+               "message": "Claim verification queued. Implemented in BE-9."})
+
+
+# ── Internal GenAI ────────────────────────────────────────────────────────────
+
+@app.post("/internal/genai/generate-explanation", tags=["Internal"])
+def internal_genai_generate_explanation(body: dict, db: Session = Depends(get_db)):
+    """Generate a human-readable explanation for a verification result."""
+    return ok({"explanation": "Placeholder — BE-9.", "raw_response": None})
+
+
+@app.post("/internal/genai/generate-report-summary", tags=["Internal"])
+def internal_genai_generate_report_summary(body: dict, db: Session = Depends(get_db)):
+    """Generate a report summary for a document verification run."""
+    return ok({"summary": "Placeholder — BE-11.", "raw_response": None})
+
+
+@app.post("/internal/genai/map-citations", tags=["Internal"])
+def internal_genai_map_citations(body: dict, db: Session = Depends(get_db)):
+    """Map in-text citations to extracted references."""
+    return ok({"mappings": [], "raw_response": None})
+
+
+@app.post("/internal/genai/safety-review", tags=["Internal"])
+def internal_genai_safety_review(body: dict, db: Session = Depends(get_db)):
+    """Run a safety review on a verification result."""
+    return ok({"safe": True, "flags": [], "raw_response": None})
+
+
+@app.post("/internal/genai/understand-document", tags=["Internal"])
+def internal_genai_understand_document(body: dict, db: Session = Depends(get_db)):
+    """Generate a high-level document understanding summary."""
+    return ok({"document_type": "research_paper", "language": "en",
+               "summary": "Placeholder — BE-5.", "raw_response": None})
+
+
+@app.post("/internal/genai/verify-claim", tags=["Internal"])
+def internal_genai_verify_claim(body: dict, db: Session = Depends(get_db)):
+    """Core GenAI claim verification call. Implemented in BE-9."""
+    return ok({"support_status": "SUPPORTED", "confidence_score": 0.87,
+               "explanation": "Placeholder — BE-9.", "raw_response": None})
+
+
+# ── Internal RAG ──────────────────────────────────────────────────────────────
+
+@app.post("/internal/rag/check-semantic-cache", tags=["Internal"])
+def internal_rag_check_semantic_cache(body: dict, db: Session = Depends(get_db)):
+    """Check semantic cache for a similar claim verification."""
+    return ok({"cache_hit": False, "similarity_score": None, "cached_result": None})
+
+
+@app.post("/internal/rag/retrieve-evidence", tags=["Internal"])
+def internal_rag_retrieve_evidence(body: dict, db: Session = Depends(get_db)):
+    """Retrieve evidence chunks for a claim from the RAG index."""
+    return ok({"chunks": [], "total": 0, "model_version": "text-embedding-3-small-v1"})

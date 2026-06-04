@@ -74,41 +74,48 @@ class DetectedSection:
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """You are a scientific document analyzer.
-Your task is to identify section headers from a list of candidate lines extracted from an academic paper.
+You will receive a list of candidate lines extracted from an academic paper.
+Your task is to identify which lines are real section headers and classify them.
+The paper may be in ANY language (English, German, French, Italian, Spanish, etc.).
 
-You will receive a list of candidate lines that might be section headers.
 Return ONLY a valid JSON array. No explanation, no markdown, no code blocks.
 
 Each item must have:
-- "name": the section name (e.g. "Abstract", "1. Introduction", "Methods")
+- "name": the section name as it appears (e.g. "Abstract", "1. Introduction", "2 Methoden")
 - "type": one of: title, abstract, introduction, body, references
-- "header_text": the exact line from the candidates list
+- "header_text": the exact line as provided
 
-Use these type rules:
-- title: paper title (usually first, longest, no number prefix)
-- abstract: abstract or summary
-- introduction: introduction section
-- body: methods, results, discussion, conclusion, findings, data, adoption, beliefs, experiment, evaluation, background, related work, or any numbered section
-- references: references, bibliography, acknowledgments, data availability
+Classify by what the section CONTAINS, not by keyword alone:
+- title: paper title at the top (usually first entry, no number prefix)
+- abstract: section summarizing the paper — "Abstract", "Zusammenfassung", "Resume", "Sommario", etc.
+- introduction: opening section — "Introduction", "Einleitung", "Introduzione", "Introduccion", etc.
+- body: any content section — methods, results, discussion, conclusion, methodology,
+  "Methoden", "Ergebnisse", "Diskussion", "Fazit", "Conclusione", or any numbered section
+- references: section listing cited works at the end of the paper —
+  "References", "Literaturverzeichnis", "Quellenverzeichnis", "Bibliographie",
+  "Bibliografía", "Riferimenti", "Bibliography", or equivalent in any language.
+  Also: "Acknowledgments", "Danksagung", "Appendix", "Anhang"
 
-Only include lines that are genuine section headers. Skip page numbers, figure captions, author names.
+IMPORTANT: Skip table of contents entries entirely — lines followed by dots
+(e.g. "1 Einleitung ............. 1") are TOC entries, NOT real section headers.
+Only include headers that appear in the actual document body, not in a table of contents.
+If you see the same header twice (once in TOC, once in body), only include it once.
+
+Only include lines that are genuine section headers.
+Skip page numbers, figure captions, footnotes, author names, table content.
 
 Example output:
 [
-  {"name": "Abstract", "type": "abstract", "header_text": "Abstract"},
-  {"name": "1. Introduction", "type": "introduction", "header_text": "1. Introduction"},
-  {"name": "2. Methods", "type": "body", "header_text": "2. Methods"},
-  {"name": "References", "type": "references", "header_text": "References"}
+  {"name": "1 Einleitung", "type": "introduction", "header_text": "1 Einleitung"},
+  {"name": "2 Methoden", "type": "body", "header_text": "2 Methoden"},
+  {"name": "Literaturverzeichnis", "type": "references", "header_text": "Literaturverzeichnis"}
 ]"""
 
 
 def _extract_candidate_lines(text: str) -> List[str]:
     """
-    Extract lines that could be section headers:
-    - Short lines (< 80 chars)
-    - Start with a number or known keyword
-    - Not purely numeric (page numbers)
-    - Appear at start of paragraph
+    Extract lines that could be section headers.
+    Filters out table of contents entries (lines with dots/page numbers).
     """
     candidates = []
     seen = set()
@@ -125,20 +132,43 @@ def _extract_candidate_lines(text: str) -> List[str]:
         if re.match(r"^\[\d+\]", stripped):
             continue
 
-        # Include if starts with number+dot (section header pattern)
+        # Skip table of contents entries — lines with many dots or trailing page numbers
+        # e.g. "1 Einleitung .................. 1" or "References ......... 44"
+        if re.search(r'\.{4,}', stripped):
+            continue
+        if re.search(r'\s+\d{1,3}\s*$', stripped) and re.search(r'\.{2,}', stripped):
+            continue
+
+        # Include if starts with number+space (section header pattern)
         if re.match(r"^\d+\.?\s+\w", stripped):
             if stripped not in seen:
                 candidates.append(stripped)
                 seen.add(stripped)
             continue
 
-        # Include known keywords
+        # Include known keywords — multilingual
         keywords = [
+            # English
             "abstract", "summary", "introduction", "background",
             "methods", "materials", "results", "discussion",
             "conclusion", "findings", "references", "bibliography",
-            "acknowledgments", "appendix", "related work",
-            "data availability", "significance",
+            "acknowledgments", "acknowledgements", "appendix",
+            "related work", "data availability", "significance",
+            # German
+            "zusammenfassung", "einleitung", "methoden", "methodik",
+            "ergebnisse", "diskussion", "fazit", "schluss",
+            "literaturverzeichnis", "literatur", "quellenverzeichnis",
+            "quellen", "bibliographie", "danksagung", "anhang",
+            "abbildungsverzeichnis", "tabellenverzeichnis",
+            # French
+            "résumé", "méthodes", "résultats", "références",
+            "remerciements", "annexe",
+            # Italian
+            "sommario", "introduzione", "metodi", "risultati",
+            "conclusione", "riferimenti",
+            # Spanish
+            "resumen", "introducción", "métodos", "resultados",
+            "discusión", "conclusiones", "referencias", "bibliografía",
         ]
         lower = stripped.lower()
         if any(lower.startswith(k) for k in keywords):
@@ -146,7 +176,23 @@ def _extract_candidate_lines(text: str) -> List[str]:
                 candidates.append(stripped)
                 seen.add(stripped)
 
-    return candidates[:50]  # max 50 candidates
+    return candidates[:50]
+
+
+def _find_real_section_pos(
+    cleaned_text: str,
+    header: str,
+    search_from: int = 0,
+    raw_text: Optional[str] = None,
+) -> int:
+    """
+    Find the position of a section header in the cleaned text.
+    Since Claude already filters out TOC entries, we just do a simple find.
+    """
+    pos = cleaned_text.find(header, search_from)
+    return pos
+
+    return -1
 
 
 def detect_sections_with_genai(cleaned_text: str, raw_text: Optional[str] = None) -> Optional[List[DetectedSection]]:
@@ -201,13 +247,23 @@ def detect_sections_with_genai(cleaned_text: str, raw_text: Optional[str] = None
         order_index = 0
 
         # Add title as first section (text before first detected header)
+        # The first header appears twice if there's a TOC — once in TOC, once in body.
+        # We want the SECOND occurrence (the real one in the body).
         first_header_pos = len(cleaned_text)
         if sections_json:
             first_header = sections_json[0].get("header_text", "").strip()
             if first_header:
-                pos = cleaned_text.find(first_header)
-                if pos != -1:
-                    first_header_pos = pos
+                # Find first occurrence
+                first_pos = cleaned_text.find(first_header)
+                if first_pos != -1:
+                    # Try to find a second occurrence (real section after TOC)
+                    second_pos = cleaned_text.find(first_header, first_pos + len(first_header))
+                    if second_pos != -1:
+                        # Two occurrences — first is TOC, second is real
+                        first_header_pos = second_pos
+                    else:
+                        # Only one occurrence — it's the real section
+                        first_header_pos = first_pos
 
         title_text = cleaned_text[:first_header_pos].strip()
         if title_text:
@@ -222,6 +278,9 @@ def detect_sections_with_genai(cleaned_text: str, raw_text: Optional[str] = None
             order_index += 1
 
         # Add detected sections
+        # Search sequentially — each section must start after the previous one
+        last_end = first_header_pos
+
         for i, sec in enumerate(sections_json):
             name = sec.get("name", "Content")
             sec_type = _str_to_section_type(sec.get("type", "unknown"))
@@ -230,17 +289,22 @@ def detect_sections_with_genai(cleaned_text: str, raw_text: Optional[str] = None
             if not header:
                 continue
 
-            start = cleaned_text.find(header)
+            start = _find_real_section_pos(cleaned_text, header, last_end, raw_text=raw_text)
             if start == -1:
                 continue
 
             # End = start of next section
             if i + 1 < len(sections_json):
                 next_header = sections_json[i + 1].get("header_text", "").strip()
-                next_pos = cleaned_text.find(next_header, start + 1) if next_header else -1
-                end = next_pos if next_pos != -1 else len(cleaned_text)
+                if next_header:
+                    next_pos = _find_real_section_pos(cleaned_text, next_header, start + len(header), raw_text=raw_text)
+                    end = next_pos if next_pos != -1 and next_pos > start else len(cleaned_text)
+                else:
+                    end = len(cleaned_text)
             else:
                 end = len(cleaned_text)
+
+            last_end = start + len(header)
 
             full_text = cleaned_text[start:end].strip()
             if not full_text:
