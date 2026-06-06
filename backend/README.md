@@ -7,7 +7,8 @@ Current implementation status:
 - BE-1 — Backend Foundation: implemented
 - BE-2 — Database Design: implemented
 - BE-3 — Document Upload and Text Processing: implemented
-- BE-4 to BE-13: intentionally deferred
+- BE-4 — Reference and DOI Extraction: implemented
+- BE-5 to BE-13: intentionally deferred
 
 ## Backend scope
 
@@ -56,11 +57,27 @@ Frontend, RAG, GenAI, and external academic services must not write directly to 
 - document details/status/sections/raw-text endpoints
 - BE-3 document-processing tests
 
+
+## Implemented in BE-4
+
+- deterministic references-section detection from BE-3 `DocumentSection` records and `cleaned_text` fallback
+- rule-based individual reference splitting for APA-style, numbered, bracketed, blank-line separated, and multi-line references
+- DOI extraction using regex with support for `doi:`, `DOI:`, `https://doi.org/`, and `http://dx.doi.org/` formats
+- DOI normalization to lowercase DOI values without URL/prefix or obvious trailing punctuation
+- BE-4 DOI statuses: `FOUND`, `MISSING`, and `MALFORMED`
+- `Reference` database persistence with `metadata_status = NOT_LOOKED_UP`
+- idempotent re-run behavior by replacing existing extracted references for the document
+- document `references_count` and status update to `REFERENCES_EXTRACTED`
+- reference APIs:
+  - `POST /api/v1/documents/{document_id}/extract-references`
+  - `GET /api/v1/documents/{document_id}/references`
+  - `GET /api/v1/references/{reference_id}`
+- BE-4 reference/DOI tests and fixtures
+
 ## Intentionally deferred
 
 The following are not implemented yet:
 
-- BE-4 reference and DOI extraction
 - BE-5 DOI metadata lookup
 - BE-6 claim and citation management logic
 - BE-7 evidence package builder logic
@@ -90,7 +107,7 @@ APP_NAME="verifAI / RefCheck AI Backend"
 APP_VERSION="1.0.0"
 ENVIRONMENT="local"
 API_PREFIX="/api/v1"
-DATABASE_URL="sqlite:///./data/refcheck_be3.db"
+DATABASE_URL="sqlite:///./data/refcheck_be4.db"
 FILE_STORAGE_DIR="./data/uploads"
 MAX_UPLOAD_SIZE_BYTES="10485760"
 GROQ_MODEL="meta-llama/llama-4-scout-17b-16e-instruct"
@@ -156,6 +173,15 @@ curl http://127.0.0.1:8000/api/v1/documents/{document_id}/sections
 curl http://127.0.0.1:8000/api/v1/documents/{document_id}/raw-text
 ```
 
+Extract and inspect references:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/extract-references
+curl http://127.0.0.1:8000/api/v1/documents/{document_id}/references
+curl "http://127.0.0.1:8000/api/v1/documents/{document_id}/references?doi_status=FOUND"
+curl http://127.0.0.1:8000/api/v1/references/{reference_id}
+```
+
 ## Run validation
 
 ```bash
@@ -172,4 +198,5 @@ See:
 ```text
 docs/BE2_DATABASE_DESIGN.md
 docs/BE3_DOCUMENT_UPLOAD_AND_TEXT_PROCESSING.md
+docs/BE4_REFERENCE_AND_DOI_EXTRACTION.md
 ```

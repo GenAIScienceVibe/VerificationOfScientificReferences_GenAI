@@ -41,12 +41,16 @@ def _processing_note() -> str:
 
 
 def _status_progress(status: str, section_count: int = 0) -> tuple[str, int, str]:
+    if status == DocumentStatus.REFERENCES_EXTRACTED.value:
+        return "References extracted and ready for DOI metadata lookup", 45, "REFERENCES_EXTRACTED"
+    if status == DocumentStatus.REFERENCES_EXTRACTING.value:
+        return "Reference extraction in progress", 40, "REFERENCES_EXTRACTING"
     if status == DocumentStatus.TEXT_EXTRACTED.value:
         return "Text extracted and ready for reference extraction", 30, "COMPLETED" if section_count else "TEXT_EXTRACTION"
     if status == DocumentStatus.TEXT_EXTRACTING.value:
         return "Text extraction in progress", 15, "TEXT_EXTRACTION"
     if status == DocumentStatus.PARTIAL_FAILED.value:
-        return "Text processing partially completed with warnings", 25, "SECTION_DETECTION"
+        return "Processing partially completed with warnings", 25, "PARTIAL_FAILED"
     if status == DocumentStatus.FAILED.value:
         return "Document processing failed", 0, "FAILED"
     return "Document uploaded", 10, "UPLOAD"

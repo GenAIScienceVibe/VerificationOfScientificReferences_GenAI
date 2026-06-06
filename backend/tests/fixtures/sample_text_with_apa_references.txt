@@ -1,0 +1,12 @@
+Sample Paper
+
+Abstract
+This paper discusses reference verification.
+
+Introduction
+The method builds on prior work (Smith, 2023).
+
+References
+Smith, J. (2023). Reference verification with AI. Journal of Demo Studies. https://doi.org/10.1234/ABC.Def.2023.
+Johnson, A., & Lee, B. (2021). Citation checking methods. Testing Journal. DOI: 10.5678/Test.Case.2021
+Brown, C. (2020). A paper without a DOI. Demo Publisher.
