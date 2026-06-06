@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.errors import AppException, ErrorCode
 from app.core.responses import success_response
+from app.db.session import get_db
 from app.schemas.documents import TextSubmissionRequest
 from app.services.document_stub_service import create_text_document, create_upload_document, get_document, get_document_status
 
@@ -17,6 +19,7 @@ async def upload_document(
     file: UploadFile | None = File(default=None),
     document_title: str | None = Form(default=None),
     uploaded_by: str | None = Form(default=None),
+    db: Session = Depends(get_db),
 ):
     if file is None:
         raise AppException(
@@ -26,7 +29,9 @@ async def upload_document(
             detail="A PDF file is required for /documents/upload.",
             message="File is required",
         )
-    record = await create_upload_document(file=file, document_title=document_title, uploaded_by=uploaded_by, settings=get_settings())
+    record = await create_upload_document(
+        file=file, document_title=document_title, uploaded_by=uploaded_by, settings=get_settings(), db=db
+    )
     data = {
         "document_id": record["document_id"],
         "filename": record["filename"],
@@ -38,12 +43,12 @@ async def upload_document(
         "is_stub": record["is_stub"],
         "stub_note": record["stub_note"],
     }
-    return success_response(request=request, data=data, message="Document upload accepted by BE-1 stub")
+    return success_response(request=request, data=data, message="Document upload stored by BE-2 database stub")
 
 
 @router.post("/text")
-async def submit_document_text(request: Request, payload: TextSubmissionRequest):
-    record = create_text_document(title=payload.title, text=payload.text)
+async def submit_document_text(request: Request, payload: TextSubmissionRequest, db: Session = Depends(get_db)):
+    record = create_text_document(title=payload.title, text=payload.text, db=db)
     data = {
         "document_id": record["document_id"],
         "title": record["title"],
@@ -54,12 +59,12 @@ async def submit_document_text(request: Request, payload: TextSubmissionRequest)
         "is_stub": record["is_stub"],
         "stub_note": record["stub_note"],
     }
-    return success_response(request=request, data=data, message="Text submission accepted by BE-1 stub")
+    return success_response(request=request, data=data, message="Text submission stored by BE-2 database stub")
 
 
 @router.get("/{document_id}")
-async def document_metadata(request: Request, document_id: str):
-    record = get_document(document_id)
+async def document_metadata(request: Request, document_id: str, db: Session = Depends(get_db)):
+    record = get_document(document_id, db)
     data = {
         "document_id": record["document_id"],
         "filename": record["filename"],
@@ -75,10 +80,10 @@ async def document_metadata(request: Request, document_id: str):
         "is_stub": record["is_stub"],
         "stub_note": record["stub_note"],
     }
-    return success_response(request=request, data=data, message="Document metadata returned from BE-1 stub")
+    return success_response(request=request, data=data, message="Document metadata returned from BE-2 database stub")
 
 
 @router.get("/{document_id}/status")
-async def document_status(request: Request, document_id: str):
-    data = get_document_status(document_id)
-    return success_response(request=request, data=data, message="Document status returned from BE-1 stub")
+async def document_status(request: Request, document_id: str, db: Session = Depends(get_db)):
+    data = get_document_status(document_id, db)
+    return success_response(request=request, data=data, message="Document status returned from BE-2 database stub")

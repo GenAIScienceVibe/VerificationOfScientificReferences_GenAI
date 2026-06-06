@@ -18,6 +18,7 @@ from app.core.exception_handlers import (
 )
 from app.core.logging import configure_logging
 from app.core.middleware import RequestIdMiddleware
+from app.db.init_db import init_db
 from app.db.session import ensure_sqlite_parent_directory
 
 settings = get_settings()
@@ -28,6 +29,7 @@ configure_logging(settings.log_level)
 async def lifespan(app: FastAPI):
     settings.file_storage_dir.mkdir(parents=True, exist_ok=True)
     ensure_sqlite_parent_directory()
+    init_db()
     yield
 
 

@@ -13,13 +13,14 @@ def assert_wrapper(payload: dict, success: bool = True) -> None:
     assert payload["request_id"].startswith("req_")
 
 
-def test_text_submission_and_document_status_stub() -> None:
+def test_text_submission_and_document_status_database_stub() -> None:
     response = client.post("/api/v1/documents/text", json={"title": "Demo Paper", "text": "This is a test."})
     assert response.status_code == 200
     payload = response.json()
     assert_wrapper(payload)
     document_id = payload["data"]["document_id"]
-    assert payload["data"]["upload_type"] == "TEXT_SUBMISSION"
+    assert payload["data"]["upload_type"] == "TEXT"
+    assert payload["data"]["status"] == "UPLOADED"
     assert payload["data"]["is_stub"] is True
 
     metadata_response = client.get(f"/api/v1/documents/{document_id}")
@@ -28,12 +29,13 @@ def test_text_submission_and_document_status_stub() -> None:
     assert_wrapper(metadata)
     assert metadata["data"]["document_id"] == document_id
     assert metadata["data"]["claims_count"] == 0
+    assert metadata["data"]["phase"] == "BE-2"
 
     status_response = client.get(f"/api/v1/documents/{document_id}/status")
     assert status_response.status_code == 200
     status_payload = status_response.json()
     assert_wrapper(status_payload)
-    assert status_payload["data"]["latest_pipeline_run_id"] == "not_started_be1_stub"
+    assert status_payload["data"]["latest_pipeline_run_id"] == "not_started_be2_db_stub"
 
 
 def test_pdf_upload_stub_success() -> None:
@@ -43,7 +45,8 @@ def test_pdf_upload_stub_success() -> None:
     payload = response.json()
     assert_wrapper(payload)
     assert payload["data"]["filename"] == "paper.pdf"
-    assert payload["data"]["upload_type"] == "PDF_UPLOAD"
+    assert payload["data"]["upload_type"] == "PDF"
+    assert payload["data"]["status"] == "UPLOADED"
     assert payload["data"]["file_size_bytes"] > 0
 
 
