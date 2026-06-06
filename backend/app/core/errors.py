@@ -15,9 +15,17 @@ class ErrorCode(StrEnum):
     DATABASE_UNAVAILABLE = "DATABASE_UNAVAILABLE"
     PIPELINE_RUN_NOT_FOUND = "PIPELINE_RUN_NOT_FOUND"
 
+    # BE-3 document upload and text-processing errors.
+    PDF_READ_FAILED = "PDF_READ_FAILED"
+    TEXT_REQUIRED = "TEXT_REQUIRED"
+    TEXT_TOO_SHORT = "TEXT_TOO_SHORT"
+    TEXT_EXTRACTION_FAILED = "TEXT_EXTRACTION_FAILED"
+    SECTION_DETECTION_FAILED = "SECTION_DETECTION_FAILED"
+    FILE_STORAGE_FAILED = "FILE_STORAGE_FAILED"
+
 
 class AppException(Exception):
-    """Known application exception that should be returned using the standard API wrapper."""
+    """Known application exception returned using the standard API wrapper."""
 
     def __init__(
         self,

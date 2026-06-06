@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -8,7 +8,14 @@ from app.core.errors import AppException, ErrorCode
 from app.core.responses import success_response
 from app.db.session import get_db
 from app.schemas.documents import TextSubmissionRequest
-from app.services.document_stub_service import create_text_document, create_upload_document, get_document, get_document_status
+from app.services.document_processing_service import (
+    create_text_document,
+    create_uploaded_pdf_document,
+    get_document,
+    get_document_raw_text,
+    get_document_sections,
+    get_document_status,
+)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -29,37 +36,43 @@ async def upload_document(
             detail="A PDF file is required for /documents/upload.",
             message="File is required",
         )
-    record = await create_upload_document(
+    data = await create_uploaded_pdf_document(
         file=file, document_title=document_title, uploaded_by=uploaded_by, settings=get_settings(), db=db
     )
-    data = {
-        "document_id": record["document_id"],
-        "filename": record["filename"],
-        "upload_type": record["upload_type"],
-        "status": record["status"],
-        "file_size_bytes": record["file_size_bytes"],
-        "created_at": record["created_at"],
-        "phase": record["phase"],
-        "is_stub": record["is_stub"],
-        "stub_note": record["stub_note"],
+    public_data = {
+        "document_id": data["document_id"],
+        "filename": data["filename"],
+        "title": data["title"],
+        "upload_type": data["upload_type"],
+        "status": data["status"],
+        "file_size_bytes": data["file_size_bytes"],
+        "pages_count": data["pages_count"],
+        "sections_count": data["sections_count"],
+        "created_at": data["created_at"],
+        "phase": data["phase"],
+        "is_stub": data["is_stub"],
+        "processing_note": data["processing_note"],
+        "warnings": data.get("warnings", []),
     }
-    return success_response(request=request, data=data, message="Document upload stored by BE-2 database stub")
+    return success_response(request=request, data=public_data, message="Document uploaded and text extracted")
 
 
 @router.post("/text")
 async def submit_document_text(request: Request, payload: TextSubmissionRequest, db: Session = Depends(get_db)):
-    record = create_text_document(title=payload.title, text=payload.text, db=db)
-    data = {
-        "document_id": record["document_id"],
-        "title": record["title"],
-        "upload_type": record["upload_type"],
-        "status": record["status"],
-        "created_at": record["created_at"],
-        "phase": record["phase"],
-        "is_stub": record["is_stub"],
-        "stub_note": record["stub_note"],
+    data = create_text_document(title=payload.title, text=payload.text, db=db)
+    public_data = {
+        "document_id": data["document_id"],
+        "title": data["title"],
+        "upload_type": data["upload_type"],
+        "status": data["status"],
+        "pages_count": data["pages_count"],
+        "sections_count": data["sections_count"],
+        "created_at": data["created_at"],
+        "phase": data["phase"],
+        "is_stub": data["is_stub"],
+        "processing_note": data["processing_note"],
     }
-    return success_response(request=request, data=data, message="Text submission stored by BE-2 database stub")
+    return success_response(request=request, data=public_data, message="Text document submitted and processed")
 
 
 @router.get("/{document_id}")
@@ -74,16 +87,34 @@ async def document_metadata(request: Request, document_id: str, db: Session = De
         "pages_count": record["pages_count"],
         "references_count": record["references_count"],
         "claims_count": record["claims_count"],
+        "sections_count": record["sections_count"],
         "created_at": record["created_at"],
         "updated_at": record["updated_at"],
         "phase": record["phase"],
         "is_stub": record["is_stub"],
-        "stub_note": record["stub_note"],
+        "processing_note": record["processing_note"],
     }
-    return success_response(request=request, data=data, message="Document metadata returned from BE-2 database stub")
+    return success_response(request=request, data=data, message="Document metadata returned")
 
 
 @router.get("/{document_id}/status")
 async def document_status(request: Request, document_id: str, db: Session = Depends(get_db)):
     data = get_document_status(document_id, db)
-    return success_response(request=request, data=data, message="Document status returned from BE-2 database stub")
+    return success_response(request=request, data=data, message="Document status returned")
+
+
+@router.get("/{document_id}/sections")
+async def document_sections(
+    request: Request,
+    document_id: str,
+    include_text: bool = Query(default=False, description="Include full section text for developer/debug inspection."),
+    db: Session = Depends(get_db),
+):
+    data = get_document_sections(document_id, db, include_text=include_text)
+    return success_response(request=request, data=data, message="Document sections returned")
+
+
+@router.get("/{document_id}/raw-text")
+async def document_raw_text(request: Request, document_id: str, db: Session = Depends(get_db)):
+    data = get_document_raw_text(document_id, db)
+    return success_response(request=request, data=data, message="Document raw and cleaned text returned")
