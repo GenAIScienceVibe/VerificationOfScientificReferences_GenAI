@@ -8,7 +8,7 @@ Current implementation status:
 - BE-2 — Database Design: implemented
 - BE-3 — Document Upload and Text Processing: implemented
 - BE-4 — Reference and DOI Extraction: implemented
-- BE-4.1 — Reference Boundary, Header/Footer Cleanup, DOI Continuation, and Real-PDF Regression Hardening: implemented
+- BE-4.2 — DOI Attachment, Reference Continuation, and Extraction Quality Hardening: implemented
 - BE-5 to BE-13: intentionally deferred
 
 ## Backend scope
@@ -75,7 +75,7 @@ Frontend, RAG, GenAI, and external academic services must not write directly to 
   - `GET /api/v1/references/{reference_id}`
 - BE-4 reference/DOI tests and fixtures
 
-## Implemented in BE-4.1
+## Implemented in BE-4.2
 
 - hardened references-section boundary detection
 - conservative repeated header/footer/page-artifact cleanup
@@ -122,7 +122,7 @@ APP_NAME="verifAI / RefCheck AI Backend"
 APP_VERSION="1.0.0"
 ENVIRONMENT="local"
 API_PREFIX="/api/v1"
-DATABASE_URL="sqlite:///./data/refcheck_be4.db"
+DATABASE_URL="sqlite:///./data/refcheck_be4_2.db"
 ENABLE_RAW_TEXT_DEBUG_ENDPOINT="false"
 FILE_STORAGE_DIR="./data/uploads"
 MAX_UPLOAD_SIZE_BYTES="10485760"
@@ -221,5 +221,16 @@ See:
 docs/BE2_DATABASE_DESIGN.md
 docs/BE3_DOCUMENT_UPLOAD_AND_TEXT_PROCESSING.md
 docs/BE4_REFERENCE_AND_DOI_EXTRACTION.md
-docs/BE4_1_REFERENCE_HARDENING.md
+docs/BE4_2_REFERENCE_HARDENING.md
+```
+
+
+## BE-4.2 DOI quality endpoints/diagnostics
+
+`POST /api/v1/documents/{document_id}/extract-references` now returns `doi_coverage` and `quality_warnings`. DOI existence validation is still BE-5 and no external metadata service is called in BE-4.2.
+
+Run real-PDF QA:
+
+```bash
+python scripts/qa_real_pdf_api_test.py /path/to/pdf1.pdf /path/to/pdf2.pdf
 ```

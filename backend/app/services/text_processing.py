@@ -62,7 +62,7 @@ PDF_ARTIFACT_PATTERNS = [
     re.compile(r"^\s*TEPIAN\s+Vol\.", re.IGNORECASE),
     re.compile(r"^\s*[pe]-ISSN\b", re.IGNORECASE),
     re.compile(r"^\s*Page\s+\d+\s+of\s+\d+\s*$", re.IGNORECASE),
-    re.compile(r"^\s*\d+\s*$"),
+    re.compile(r"^\s*\d{1,4}\s*$"),
     re.compile(r"^\s*[–—-]\s*\d+\s*[–—-]\s*$"),
     re.compile(r"^\s*https?://journalpedia\.com/?\s*$", re.IGNORECASE),
     re.compile(r"^\s*https?://journalpedia\.com/1/index\.php/jsti/?\s*$", re.IGNORECASE),
@@ -138,28 +138,60 @@ def is_probable_pdf_artifact_line(line: str) -> bool:
     return any(pattern.search(stripped) for pattern in PDF_ARTIFACT_PATTERNS)
 
 
+def _looks_like_author_start_fragment(token: str) -> bool:
+    fragment = token.strip()
+    return bool(
+        re.match(r"^[A-ZÀ-Þ][A-Za-zÀ-ÿ'’\-]+\s*,\s*(?:[A-Z]\.|[A-Z][a-z]+)", fragment)
+        or re.match(r"^[A-ZÀ-Þ][A-Za-zÀ-ÿ'’\-]+\s+(?:[A-Z]\.|[A-Z][a-z]+)", fragment)
+    )
+
+
+def _is_safe_doi_continuation_token(token: str) -> bool:
+    fragment = token.strip().strip("<>")
+    if not fragment:
+        return False
+    if _looks_like_author_start_fragment(fragment):
+        return False
+    # Most true DOI continuations after a PDF line break begin with digits, lower-case
+    # DOI path characters, or a DOI path separator. Capitalized author surnames must
+    # not be joined into the DOI.
+    return bool(re.match(r"^(?:[0-9]|[a-z]|[._/;:()])[-._;()/:+A-Za-z0-9]*", fragment))
+
+
 def repair_doi_line_continuations(text: str) -> str:
     """Repair common PDF line breaks inside DOI strings before extraction.
 
-    This is deliberately conservative: it only joins lines where a DOI prefix or
-    already-started DOI is visible. It does not join arbitrary URL lines.
+    The repair is intentionally conservative. It joins DOI prefixes and DOI body
+    continuations, but refuses to join the next line when it looks like the next
+    reference's author name, preventing results such as
+    ``10.1146/annurev-psych-120710-preacher``.
     """
     repaired = text.replace("\r\n", "\n").replace("\r", "\n")
-    # Prefix split before DOI body: https://doi.org/\n10.... or doi:\n10....
     repaired = re.sub(
         r"(?i)(https?://(?:dx\.)?doi\.org/)[ \t]*\n[ \t]*(10\.)",
         r"\1\2",
         repaired,
     )
     repaired = re.sub(r"(?i)(\bdoi\s*[: ]\s*)[ \t]*\n[ \t]*(10\.)", r"\1\2", repaired)
-    # DOI body split after hyphen, slash, period, colon, or semicolon.
+
     doi_continuation = re.compile(
-        r"(?i)(10\.\d{4,9}/[A-Z0-9][A-Z0-9._;()/:+-]*[-/:;])[ \t]*\n[ \t]*([A-Z0-9][A-Z0-9._;()/:+-]*)"
+        r"(?i)(10\.\d{4,9}/[A-Z0-9][A-Z0-9._;()/:+-]*[-/:;.])[ \t]*\n[ \t]*([^\n\s][^\n]*)"
     )
+
+    def join_if_safe(match: re.Match[str]) -> str:
+        prefix = match.group(1)
+        following_line = match.group(2).strip()
+        if re.match(r"^(?:\[\d+\]|\d+[.)])\s+[A-ZÀ-Þ]", following_line):
+            return f"{prefix}\n{following_line}"
+        first_token = following_line.split()[0].strip() if following_line.split() else following_line
+        if _is_safe_doi_continuation_token(first_token):
+            return f"{prefix}{following_line}"
+        return f"{prefix}\n{following_line}"
+
     previous = None
     while previous != repaired:
         previous = repaired
-        repaired = doi_continuation.sub(r"\1\2", repaired)
+        repaired = doi_continuation.sub(join_if_safe, repaired)
     return repaired
 
 
