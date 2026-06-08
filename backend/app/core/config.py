@@ -31,6 +31,7 @@ class Settings(BaseModel):
     rag_service_url: str | None = Field(default=None, alias="RAG_SERVICE_URL")
     metadata_service_timeout_seconds: float = Field(default=10.0, alias="METADATA_SERVICE_TIMEOUT_SECONDS")
     max_upload_size_bytes: int = Field(default=10 * 1024 * 1024, alias="MAX_UPLOAD_SIZE_BYTES")
+    enable_raw_text_debug_endpoint: bool = Field(default=False, alias="ENABLE_RAW_TEXT_DEBUG_ENDPOINT")
 
     model_config = {
         "populate_by_name": True,
@@ -83,6 +84,7 @@ def _read_env() -> dict[str, object]:
         "RAG_SERVICE_URL",
         "METADATA_SERVICE_TIMEOUT_SECONDS",
         "MAX_UPLOAD_SIZE_BYTES",
+        "ENABLE_RAW_TEXT_DEBUG_ENDPOINT",
     }
     return {key: value for key in keys if (value := os.getenv(key)) is not None}
 

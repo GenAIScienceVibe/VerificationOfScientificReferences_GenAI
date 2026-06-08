@@ -1,17 +1,36 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppException, ErrorCode
-from app.models import Document, DocumentSection, Reference
+from app.models import (
+    ClaimCacheIndex,
+    ClaimReferenceLink,
+    Document,
+    DocumentSection,
+    EvidencePackage,
+    RagRetrievalResult,
+    Reference,
+    SourceMetadata,
+    UserFeedback,
+    VerificationResult,
+)
 from app.models.enums import DocumentStatus, DoiStatus, MetadataStatus
 from app.repositories import DocumentRepository, DocumentSectionRepository, ReferenceRepository
+from app.services.text_processing import (
+    is_post_reference_stop_heading_line,
+    is_probable_pdf_artifact_line,
+    is_reference_heading_line,
+    repair_doi_line_continuations,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +48,27 @@ REFERENCE_HEADING_REGEX = re.compile(
 INLINE_REFERENCE_HEADING_REGEX = re.compile(
     r"(?im)^\s*(references|bibliography|works\s+cited|reference\s+list|literatur|literaturverzeichnis)\s*[:.]?\s+"
 )
-STOP_AFTER_REFERENCES_REGEX = re.compile(
-    r"(?im)^\s*(appendix|appendices|supplementary\s+material|supplemental\s+material|acknowledgements?|acknowledgments?)\s*[:.]?\s*$"
-)
 
 START_NUMBERED_REGEX = re.compile(r"^\s*(?:\[\d+\]|\d+[.)])\s+")
+NUMBERED_AUTHOR_START_REGEX = re.compile(r"^\s*(?:\[\d+\]|\d+[.)])\s+[A-ZÀ-Þ]")
 AUTHOR_YEAR_START_REGEX = re.compile(
-    r"^\s*[A-ZÀ-Þ][A-Za-zÀ-ÿ'’\-]+(?:\s*,\s*[^.]{0,120})?\s*\((?:19|20)\d{2}[a-z]?\)",
+    r"^\s*[A-ZÀ-Þ][A-Za-zÀ-ÿ'’\-]+(?:\s*,\s*[^.]{0,180})?\s*\((?:19|20)\d{2}[a-z]?\)",
     re.UNICODE,
+)
+AUTHOR_COMMA_YEAR_REGEX = re.compile(r"^\s*[A-ZÀ-Þ][A-Za-zÀ-ÿ'’\-]+(?:\s+[A-ZÀ-Þ][A-Za-zÀ-ÿ'’\-]+){0,4}\s*,.{0,260}\b(?:19|20)\d{2}", re.UNICODE)
+
+NOISE_MARKERS = (
+    "welcome to the study",
+    "employment status",
+    "please state",
+    "demographic questions",
+    "ai tool usage",
+    "screenout",
+    "last page",
+    "test510",
+    "base page",
+    "participant information",
+    "thank you for participating",
 )
 
 
@@ -47,6 +79,11 @@ def _iso(value: Any) -> str | None:
         return value.isoformat().replace("+00:00", "Z")
     except AttributeError:
         return str(value)
+
+
+def _normalized_reference_hash(raw_reference: str) -> str:
+    normalized = re.sub(r"\s+", " ", raw_reference.strip().lower())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -64,6 +101,7 @@ class ParsedReference:
     extracted_year: int | None
     extracted_doi: str | None
     doi_status: str
+    normalized_raw_reference_hash: str
 
 
 @dataclass(frozen=True)
@@ -73,17 +111,19 @@ class ReferenceSectionResult:
 
 
 class ReferenceExtractionService:
-    """Deterministic BE-4 reference and DOI extraction service.
+    """Deterministic BE-4.1 reference and DOI extraction service.
 
     This service intentionally does not call CrossRef, OpenAlex, RAG, or GenAI.
-    BE-4 only performs rule-based reference splitting and DOI syntax extraction.
+    It performs local boundary cleanup, reference splitting, and DOI syntax extraction only.
     """
 
     def find_reference_section(self, *, cleaned_text: str | None, sections: list[DocumentSection]) -> ReferenceSectionResult:
         for section in sorted(sections, key=lambda item: item.order_index):
             if section.name and section.name.strip().lower() in {"references", "bibliography", "works cited", "reference list"}:
                 if section.text and section.text.strip():
-                    return ReferenceSectionResult(text=section.text.strip(), source=f"DocumentSection:{section.name}")
+                    trimmed = self.trim_reference_section(section.text.strip())
+                    if trimmed:
+                        return ReferenceSectionResult(text=trimmed, source=f"DocumentSection:{section.name}")
 
         if not cleaned_text or not cleaned_text.strip():
             raise AppException(
@@ -96,7 +136,8 @@ class ReferenceExtractionService:
 
         matches = list(REFERENCE_HEADING_REGEX.finditer(cleaned_text))
         inline_matches = [] if matches else list(INLINE_REFERENCE_HEADING_REGEX.finditer(cleaned_text))
-        if not matches and not inline_matches:
+        candidates = matches or inline_matches
+        if not candidates:
             raise AppException(
                 status_code=422,
                 code=ErrorCode.REFERENCE_SECTION_NOT_FOUND,
@@ -106,11 +147,8 @@ class ReferenceExtractionService:
             )
 
         # Prefer the last reference-like heading because references normally appear near the end.
-        chosen = (matches or inline_matches)[-1]
-        content_start = chosen.end()
-        stop_match = STOP_AFTER_REFERENCES_REGEX.search(cleaned_text, pos=content_start)
-        content_end = stop_match.start() if stop_match else len(cleaned_text)
-        reference_text = cleaned_text[content_start:content_end].strip()
+        chosen = candidates[-1]
+        reference_text = self.trim_reference_section(cleaned_text[chosen.end() :].strip())
         if not reference_text:
             raise AppException(
                 status_code=422,
@@ -119,48 +157,96 @@ class ReferenceExtractionService:
                 detail="A references heading was found, but it did not contain usable reference text.",
                 message="Reference section not found",
             )
-        return ReferenceSectionResult(text=reference_text, source=f"cleaned_text:{chosen.group(1)}")
+        heading = chosen.group(1) if chosen.groups() else "references"
+        return ReferenceSectionResult(text=reference_text, source=f"cleaned_text:{heading}")
+
+    def trim_reference_section(self, text: str) -> str:
+        repaired = repair_doi_line_continuations(text)
+        kept: list[str] = []
+        for line in repaired.replace("\r", "\n").split("\n"):
+            stripped = line.strip()
+            if not stripped:
+                kept.append(line)
+                continue
+            if is_post_reference_stop_heading_line(stripped):
+                break
+            kept.append(line)
+        return "\n".join(kept).strip()
 
     def split_references(self, reference_section_text: str) -> list[str]:
-        normalized = reference_section_text.replace("\r\n", "\n").replace("\r", "\n").strip()
+        normalized = repair_doi_line_continuations(reference_section_text.replace("\r\n", "\n").replace("\r", "\n")).strip()
         normalized = re.sub(r"[\t\f\v ]+", " ", normalized)
         if not normalized:
             return []
 
-        chunks = [chunk.strip() for chunk in re.split(r"\n\s*\n+", normalized) if chunk.strip()]
-        references: list[str] = []
+        lines = [line.strip() for line in normalized.split("\n")]
+        lines = self._drop_heading_and_noise_lines(lines)
+        chunks = self._chunk_reference_lines(lines)
+
+        candidates: list[str] = []
         for chunk in chunks:
-            references.extend(self._split_chunk_by_reference_starts(chunk))
+            for numbered_part in self._split_inline_numbered_references(chunk):
+                candidates.extend(self._split_inline_author_year_references(numbered_part))
 
-        # If a PDF collapsed numbered references into one paragraph, split by inline numbering markers.
-        expanded: list[str] = []
-        for reference in references:
-            inline_parts = self._split_inline_numbered_references(reference)
-            expanded.extend(inline_parts if len(inline_parts) > 1 else [reference])
+        merged: list[str] = []
+        for candidate in (self._normalize_reference_text(item) for item in candidates):
+            if not candidate:
+                continue
+            if self._is_continuation_fragment(candidate) and merged:
+                merged[-1] = self._normalize_reference_text(f"{merged[-1]} {candidate}")
+                continue
+            score = self._candidate_score(candidate)
+            if score >= 3:
+                merged.append(candidate)
+            elif merged and (score >= 1 or self.extract_doi(candidate).doi_status != DoiStatus.MISSING.value):
+                merged[-1] = self._normalize_reference_text(f"{merged[-1]} {candidate}")
+            # else discard clear noise.
+        return [item for item in merged if self._candidate_score(item) >= 3]
 
-        cleaned_refs = [self._normalize_reference_text(item) for item in expanded]
-        return [item for item in cleaned_refs if self._looks_like_reference(item)]
+    def _drop_heading_and_noise_lines(self, lines: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                cleaned.append("")
+                continue
+            if is_reference_heading_line(stripped):
+                continue
+            if is_probable_pdf_artifact_line(stripped):
+                continue
+            if self._is_noise_line(stripped):
+                continue
+            cleaned.append(stripped)
+        return cleaned
 
-    def _split_chunk_by_reference_starts(self, chunk: str) -> list[str]:
-        lines = [line.strip() for line in chunk.split("\n") if line.strip()]
-        if not lines:
-            return []
-
-        refs: list[str] = []
+    def _chunk_reference_lines(self, lines: list[str]) -> list[str]:
+        chunks: list[str] = []
         current: list[str] = []
         for line in lines:
+            if not line:
+                if current:
+                    chunks.append(" ".join(current).strip())
+                    current = []
+                continue
             is_start = self._is_reference_start(line)
-            if current and is_start:
-                refs.append(" ".join(current).strip())
+            previous_line = current[-1].strip() if current else ""
+            previous_continues_author_list = previous_line.endswith(("&", ",", ";")) or previous_line.endswith(", &")
+            if current and is_start and not previous_continues_author_list:
+                chunks.append(" ".join(current).strip())
                 current = [line]
             else:
+                if not current and self._is_continuation_fragment(line):
+                    # Attach a separated DOI/URL/page continuation to the previous candidate when possible.
+                    if chunks:
+                        chunks[-1] = self._normalize_reference_text(f"{chunks[-1]} {line}")
+                    continue
                 current.append(line)
         if current:
-            refs.append(" ".join(current).strip())
-        return refs
+            chunks.append(" ".join(current).strip())
+        return chunks
 
     def _split_inline_numbered_references(self, text: str) -> list[str]:
-        markers = list(re.finditer(r"(?<!\S)(?:\[\d+\]|\d+[.)])\s+", text))
+        markers = list(re.finditer(r"(?<!\S)(?:\[\d+\]|\d+[.)])\s+(?=[A-ZÀ-Þ])", text))
         if len(markers) <= 1:
             return [text]
         parts: list[str] = []
@@ -172,25 +258,101 @@ class ReferenceExtractionService:
                 parts.append(part)
         return parts
 
+
+    def _split_inline_author_year_references(self, text: str) -> list[str]:
+        # Split PDF-collapsed reference runs such as: "... doi. Alfarobi, I. (2024) ...".
+        # The marker requires a surname/comma/year pattern and is ignored at position 0.
+        marker_regex = re.compile(
+            r"(?<!^)(?<=\s)(?=[A-ZÀ-Þ][A-Za-zÀ-ÿ'’\-]+(?:\s+[A-ZÀ-Þ][A-Za-zÀ-ÿ'’\-]+){0,4}\s*,[^()]{0,260}\((?:19|20)\d{2}[a-z]?\))",
+            re.UNICODE,
+        )
+        markers = []
+        for match in marker_regex.finditer(text):
+            start = match.start()
+            # Do not split immediately after a leading numbered/bracketed marker such as "[1] Smith...".
+            if start <= 8 and START_NUMBERED_REGEX.match(text):
+                continue
+            # Do not split inside an author list: "..., & Kurniawan, W. (2024)".
+            prefix_tail = text[max(0, start - 40) : start].strip()
+            if prefix_tail.endswith(("&", ",", ";")) or prefix_tail.endswith(", &") or re.search(r"(?:,|&)\s*$", prefix_tail):
+                continue
+            # A real inline split should normally follow completed reference text.
+            prior = text[:start].strip()
+            if prior and not re.search(r"(?:doi\.org/\S+|10\.\d{4,9}/\S+|[.!?])\s*$", prior):
+                continue
+            markers.append(start)
+        if not markers:
+            return [text]
+        starts = [0] + markers
+        parts: list[str] = []
+        for index, start in enumerate(starts):
+            end = starts[index + 1] if index + 1 < len(starts) else len(text)
+            part = text[start:end].strip()
+            if part:
+                parts.append(part)
+        return parts
+
     def _is_reference_start(self, line: str) -> bool:
-        if START_NUMBERED_REGEX.match(line):
+        if self._is_noise_line(line):
+            return False
+        if NUMBERED_AUTHOR_START_REGEX.match(line):
             return True
         if AUTHOR_YEAR_START_REGEX.match(line):
             return True
-        # APA entries often start with author text and place the year within the first segment.
-        first_segment = line[:180]
-        return bool(re.match(r"^\s*[A-ZÀ-Þ][A-Za-zÀ-ÿ'’\-]+\s*,", first_segment) and YEAR_REGEX.search(first_segment))
+        first_segment = line[:260]
+        return bool(AUTHOR_COMMA_YEAR_REGEX.match(first_segment))
+
+    def _is_noise_line(self, line: str) -> bool:
+        stripped = line.strip()
+        lowered = stripped.lower()
+        if is_probable_pdf_artifact_line(stripped):
+            return True
+        if any(marker in lowered for marker in NOISE_MARKERS):
+            return True
+        if re.fullmatch(r"(?:\d+[.)]\s*)?https?://\S+", stripped, re.IGNORECASE):
+            return True
+        if re.fullmatch(r"(?:\d+[.)]\s*)?(?:p-issn|e-issn).*", stripped, re.IGNORECASE):
+            return True
+        return False
+
+    def _is_continuation_fragment(self, text: str) -> bool:
+        stripped = text.strip()
+        if self._is_noise_line(stripped):
+            return True
+        if re.fullmatch(r"(?:\d+[.)]\s*)?https?://\S+", stripped, re.IGNORECASE):
+            return True
+        if re.fullmatch(r"[A-Za-z\s,]{1,30},\s*\d{1,3}\.?\s+https?://\S+", stripped, re.IGNORECASE):
+            return True
+        if DOI_REGEX.search(stripped) and not YEAR_REGEX.search(stripped) and not self._is_reference_start(stripped) and len(stripped) < 110:
+            return True
+        return False
+
+    def _candidate_score(self, text: str) -> int:
+        score = 0
+        if self._is_noise_line(text):
+            return -5
+        if AUTHOR_YEAR_START_REGEX.match(text) or AUTHOR_COMMA_YEAR_REGEX.match(text):
+            score += 3
+        if NUMBERED_AUTHOR_START_REGEX.match(text):
+            score += 2
+        if YEAR_REGEX.search(text):
+            score += 1
+        if DOI_REGEX.search(text):
+            score += 1
+        if len(text) > 40:
+            score += 1
+        if re.search(r"\.[\s\w\-]{8,}\.", text):
+            score += 1
+        if self._is_continuation_fragment(text):
+            score -= 3
+        return score
 
     def _normalize_reference_text(self, text: str) -> str:
         return re.sub(r"\s+", " ", text).strip()
 
-    def _looks_like_reference(self, text: str) -> bool:
-        if len(text) < 12:
-            return False
-        return bool(YEAR_REGEX.search(text) or DOI_REGEX.search(text) or START_NUMBERED_REGEX.match(text))
-
     def extract_doi(self, raw_reference: str) -> DoiExtractionResult:
-        match = DOI_WITH_PREFIX_REGEX.search(raw_reference)
+        repaired = repair_doi_line_continuations(raw_reference)
+        match = DOI_WITH_PREFIX_REGEX.search(repaired)
         if match:
             doi = self._normalize_doi(match.group(1))
             if self._is_syntactically_valid_doi(doi):
@@ -198,10 +360,9 @@ class ReferenceExtractionService:
             return DoiExtractionResult(extracted_doi=doi or None, doi_status=DoiStatus.MALFORMED.value)
 
         # Only classify as malformed when the text contains a DOI-like marker/prefix or a broken 10.* value.
-        # A sentence like "without a DOI" should be treated as MISSING, not MALFORMED.
-        if DOI_LIKE_REGEX.search(raw_reference) or re.search(
+        if DOI_LIKE_REGEX.search(repaired) or re.search(
             r"(?:doi\s*[: ]\s*10\.|doi\s*[: ]\s*$|doi\.org/|dx\.doi\.org/|\b10\.)",
-            raw_reference,
+            repaired,
             re.IGNORECASE,
         ):
             return DoiExtractionResult(extracted_doi=None, doi_status=DoiStatus.MALFORMED.value)
@@ -211,8 +372,9 @@ class ReferenceExtractionService:
     def _normalize_doi(self, value: str) -> str:
         doi = value.strip().strip("<>")
         doi = re.sub(r"^(?:https?://(?:dx\.)?doi\.org/|doi\s*[: ]\s*)", "", doi, flags=re.IGNORECASE).strip()
-        # Remove obvious sentence punctuation while preserving valid balanced parentheses inside DOI strings.
-        doi = doi.rstrip(".,;")
+        doi = doi.rstrip(",;")
+        # Strip a trailing period only if it is sentence punctuation rather than part of the DOI token.
+        doi = doi.rstrip(".")
         while doi.endswith(")") and doi.count(")") > doi.count("("):
             doi = doi[:-1]
         doi = doi.strip().lower()
@@ -220,6 +382,11 @@ class ReferenceExtractionService:
 
     def _is_syntactically_valid_doi(self, doi: str) -> bool:
         if not doi:
+            return False
+        if doi.endswith(("-", "/", ":")):
+            return False
+        suffix = doi.split("/", 1)[1] if "/" in doi else ""
+        if len(suffix) < 3:
             return False
         return bool(re.fullmatch(r"10\.\d{4,9}/[-._;()/:a-z0-9]+", doi))
 
@@ -238,6 +405,7 @@ class ReferenceExtractionService:
             extracted_year=year,
             extracted_doi=doi_result.extracted_doi,
             doi_status=doi_result.doi_status,
+            normalized_raw_reference_hash=_normalized_reference_hash(cleaned),
         )
 
     def extract_references(self, reference_section_text: str) -> list[ParsedReference]:
@@ -253,8 +421,7 @@ class ReferenceExtractionService:
 
     def _extract_authors(self, text: str) -> str | None:
         item = self._remove_leading_marker(text)
-        # Prefer author segment before APA-style year parentheses.
-        match = re.match(r"^(.{2,240}?)\s*\((?:19|20)\d{2}[a-z]?\)", item)
+        match = re.match(r"^(.{2,300}?)\s*\((?:19|20)\d{2}[a-z]?\)", item)
         if not match:
             return None
         authors = match.group(1).strip().rstrip(".")
@@ -266,8 +433,7 @@ class ReferenceExtractionService:
         if len(after_year) < 2:
             return None
         remainder = after_year[1].strip()
-        # Stop before DOI/URL when possible.
-        remainder = re.split(r"\s+(?:https?://doi\.org/|http://dx\.doi\.org/|doi\s*[: ]\s*)", remainder, maxsplit=1, flags=re.IGNORECASE)[0]
+        remainder = re.split(r"\s+(?:https?://(?:dx\.)?doi\.org/|doi\s*[: ]\s*)", remainder, maxsplit=1, flags=re.IGNORECASE)[0]
         title_candidate = remainder.split(".")[0].strip(" .")
         if not title_candidate or len(title_candidate) < 3:
             return None
@@ -300,7 +466,7 @@ def reference_to_dict(reference: Reference) -> dict[str, Any]:
         "metadata_match_score": reference.metadata_match_score,
         "created_at": _iso(reference.created_at),
         "updated_at": _iso(reference.updated_at),
-        "phase": "BE-4",
+        "phase": "BE-4.1",
         "is_stub": False,
     }
 
@@ -318,9 +484,34 @@ def _get_document_or_raise(document_id: str, db: Session) -> Document:
     return document
 
 
+def _has_downstream_reference_dependencies(document_id: str, db: Session) -> bool:
+    reference_ids = list(db.scalars(select(Reference.id).where(Reference.document_id == document_id)).all())
+    if not reference_ids:
+        return False
+    direct_counts = [
+        db.scalar(select(func.count()).select_from(SourceMetadata).where(SourceMetadata.reference_id.in_(reference_ids))) or 0,
+        db.scalar(select(func.count()).select_from(ClaimReferenceLink).where(ClaimReferenceLink.document_id == document_id)) or 0,
+        db.scalar(select(func.count()).select_from(EvidencePackage).where(EvidencePackage.document_id == document_id)) or 0,
+        db.scalar(select(func.count()).select_from(RagRetrievalResult).where(RagRetrievalResult.document_id == document_id)) or 0,
+        db.scalar(select(func.count()).select_from(VerificationResult).where(VerificationResult.document_id == document_id)) or 0,
+        db.scalar(select(func.count()).select_from(UserFeedback).where(UserFeedback.document_id == document_id)) or 0,
+        db.scalar(select(func.count()).select_from(ClaimCacheIndex).where(ClaimCacheIndex.reference_id.in_(reference_ids))) or 0,
+    ]
+    return any(count > 0 for count in direct_counts)
+
+
 def extract_references_for_document(document_id: str, db: Session, *, request_id: str | None = None) -> dict[str, Any]:
     document = _get_document_or_raise(document_id, db)
     logger.info("reference_extraction_start", extra={"document_id": document_id, "request_id": request_id})
+
+    if _has_downstream_reference_dependencies(document_id, db):
+        raise AppException(
+            status_code=409,
+            code=ErrorCode.REFERENCE_REEXTRACTION_BLOCKED,
+            field="document_id",
+            detail="Reference re-extraction is blocked because downstream metadata, mapping, evidence, verification, feedback, or cache rows already exist.",
+            message="Reference re-extraction blocked",
+        )
 
     sections = DocumentSectionRepository(db).list_for_document(document_id)
     service = ReferenceExtractionService()
@@ -400,10 +591,10 @@ def extract_references_for_document(document_id: str, db: Session, *, request_id
         "doi_summary": summary,
         "status": document.status,
         "section_source": section_result.source,
-        "phase": "BE-4",
+        "phase": "BE-4.1",
         "is_stub": False,
         "processing_note": (
-            "BE-4 deterministic reference and DOI extraction completed. DOI existence validation and metadata lookup are deferred to BE-5."
+            "BE-4.1 deterministic reference boundary cleanup and DOI extraction completed. DOI existence validation and metadata lookup are deferred to BE-5."
         ),
     }
 
@@ -431,7 +622,7 @@ def list_document_references(
         "page": page,
         "page_size": page_size,
         "references": [reference_to_dict(reference) for reference in references],
-        "phase": "BE-4",
+        "phase": "BE-4.1",
         "processing_note": "References are parsed from the document text. Official metadata lookup is not performed until BE-5.",
     }
 

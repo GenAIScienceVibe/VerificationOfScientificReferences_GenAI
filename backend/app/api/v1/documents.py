@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.core.errors import AppException, ErrorCode
 from app.core.responses import success_response
 from app.db.session import get_db
+from app.models.enums import DoiStatus, MetadataStatus
 from app.schemas.documents import TextSubmissionRequest
 from app.services.reference_extraction import extract_references_for_document, list_document_references
 from app.services.document_processing_service import (
@@ -117,7 +118,7 @@ async def document_sections(
 
 @router.get("/{document_id}/raw-text")
 async def document_raw_text(request: Request, document_id: str, db: Session = Depends(get_db)):
-    data = get_document_raw_text(document_id, db)
+    data = get_document_raw_text(document_id, db, enabled=get_settings().enable_raw_text_debug_endpoint)
     return success_response(request=request, data=data, message="Document raw and cleaned text returned")
 
 
@@ -133,13 +134,18 @@ async def extract_document_references(request: Request, document_id: str, db: Se
 async def document_references(
     request: Request,
     document_id: str,
-    doi_status: str | None = Query(default=None, description="Optional DOI status filter, for example FOUND or MISSING."),
-    metadata_status: str | None = Query(default=None, description="Optional metadata status filter, for example NOT_LOOKED_UP."),
+    doi_status: DoiStatus | None = Query(default=None, description="Optional DOI status filter, for example FOUND or MISSING."),
+    metadata_status: MetadataStatus | None = Query(default=None, description="Optional metadata status filter, for example NOT_LOOKED_UP."),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
     data = list_document_references(
-        document_id, db, doi_status=doi_status, metadata_status=metadata_status, page=page, page_size=page_size
+        document_id,
+        db,
+        doi_status=doi_status.value if doi_status else None,
+        metadata_status=metadata_status.value if metadata_status else None,
+        page=page,
+        page_size=page_size,
     )
     return success_response(request=request, data=data, message="Document references returned")

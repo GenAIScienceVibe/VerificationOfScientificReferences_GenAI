@@ -13,7 +13,7 @@ from app.models import Document, DocumentSection
 from app.models.enums import DocumentStatus, UploadType
 from app.repositories import DocumentRepository, DocumentSectionRepository
 from app.services.pdf_text_extraction import PdfTextExtractionService
-from app.services.text_processing import clean_text, detect_basic_sections
+from app.services.text_processing import clean_pdf_pages, clean_text, detect_basic_sections
 
 MIN_TEXT_CHARS = 20
 _ALLOWED_PDF_CONTENT_TYPES = {"application/pdf", "application/x-pdf", "application/octet-stream", ""}
@@ -219,7 +219,7 @@ async def create_uploaded_pdf_document(
 
     try:
         extraction_result = PdfTextExtractionService().extract(storage_path)
-        cleaned = clean_text(extraction_result.raw_text)
+        cleaned = clean_pdf_pages([str(item.get("text", "")) for item in extraction_result.page_texts])
         sections = _persist_sections(document_id=document.id, cleaned_text=cleaned, db=db)
         document.raw_text = extraction_result.raw_text
         document.cleaned_text = cleaned
@@ -230,7 +230,9 @@ async def create_uploaded_pdf_document(
     except AppException as exc:
         document.status = DocumentStatus.FAILED.value
         db.commit()
-        # Keep the saved file and failed DB record for audit/debug, but return standard error wrapper.
+        # Keep the saved file and failed DB record for audit/debug. Surface the id so QA/admins can inspect it.
+        if document.id not in exc.error.detail:
+            exc.error.detail = f"{exc.error.detail} Failed document id: {document.id}."
         raise exc
 
     data = document_to_dict(document)
@@ -322,7 +324,15 @@ def get_document_sections(document_id: str, db: Session, *, include_text: bool =
     }
 
 
-def get_document_raw_text(document_id: str, db: Session) -> dict[str, Any]:
+def get_document_raw_text(document_id: str, db: Session, *, enabled: bool = False) -> dict[str, Any]:
+    if not enabled:
+        raise AppException(
+            status_code=404,
+            code=ErrorCode.DEBUG_ENDPOINT_DISABLED,
+            field="document_id",
+            detail="Raw text debug endpoint is disabled. Set ENABLE_RAW_TEXT_DEBUG_ENDPOINT=true for local QA only.",
+            message="Debug endpoint disabled",
+        )
     document = get_document_or_raise(document_id, db)
     return {
         "document_id": document.id,

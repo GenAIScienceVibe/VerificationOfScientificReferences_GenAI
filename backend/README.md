@@ -8,6 +8,7 @@ Current implementation status:
 - BE-2 — Database Design: implemented
 - BE-3 — Document Upload and Text Processing: implemented
 - BE-4 — Reference and DOI Extraction: implemented
+- BE-4.1 — Reference Boundary, Header/Footer Cleanup, DOI Continuation, and Real-PDF Regression Hardening: implemented
 - BE-5 to BE-13: intentionally deferred
 
 ## Backend scope
@@ -74,6 +75,20 @@ Frontend, RAG, GenAI, and external academic services must not write directly to 
   - `GET /api/v1/references/{reference_id}`
 - BE-4 reference/DOI tests and fixtures
 
+## Implemented in BE-4.1
+
+- hardened references-section boundary detection
+- conservative repeated header/footer/page-artifact cleanup
+- DOI line-continuation repair before extraction
+- stricter malformed DOI detection
+- improved APA/numbered/bracketed/multi-line reference splitting
+- false-positive filtering for URL-only, page-only, footer, and survey artifacts
+- enum validation for `doi_status` and `metadata_status` filters
+- `/raw-text` debug endpoint disabled by default via `ENABLE_RAW_TEXT_DEBUG_ENDPOINT`
+- failed PDF audit visibility by returning failed `document_id` in error detail
+- destructive reference re-extraction blocked when downstream rows already exist
+- sanitized real-PDF regression fixtures and `scripts/qa_real_pdf_api_test.py`
+
 ## Intentionally deferred
 
 The following are not implemented yet:
@@ -108,6 +123,7 @@ APP_VERSION="1.0.0"
 ENVIRONMENT="local"
 API_PREFIX="/api/v1"
 DATABASE_URL="sqlite:///./data/refcheck_be4.db"
+ENABLE_RAW_TEXT_DEBUG_ENDPOINT="false"
 FILE_STORAGE_DIR="./data/uploads"
 MAX_UPLOAD_SIZE_BYTES="10485760"
 GROQ_MODEL="meta-llama/llama-4-scout-17b-16e-instruct"
@@ -182,6 +198,12 @@ curl "http://127.0.0.1:8000/api/v1/documents/{document_id}/references?doi_status
 curl http://127.0.0.1:8000/api/v1/references/{reference_id}
 ```
 
+Run real-PDF QA locally:
+
+```bash
+python scripts/qa_real_pdf_api_test.py /path/to/pdf1.pdf /path/to/pdf2.pdf
+```
+
 ## Run validation
 
 ```bash
@@ -199,4 +221,5 @@ See:
 docs/BE2_DATABASE_DESIGN.md
 docs/BE3_DOCUMENT_UPLOAD_AND_TEXT_PROCESSING.md
 docs/BE4_REFERENCE_AND_DOI_EXTRACTION.md
+docs/BE4_1_REFERENCE_HARDENING.md
 ```

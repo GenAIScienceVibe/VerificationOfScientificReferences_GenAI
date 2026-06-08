@@ -1,0 +1,326 @@
+[
+  {
+    "pdf": "Impact_of_Ease_of_Use_Usefulness_Attitude_and_Trus.pdf",
+    "upload_status_code": 200,
+    "upload": {
+      "success": true,
+      "data": {
+        "document_id": "doc_ac9c6c5801dc",
+        "filename": "Impact_of_Ease_of_Use_Usefulness_Attitude_and_Trus.pdf",
+        "title": "Impact_of_Ease_of_Use_Usefulness_Attitude_and_Trus",
+        "upload_type": "PDF",
+        "status": "TEXT_EXTRACTED",
+        "file_size_bytes": 459749,
+        "pages_count": 10,
+        "sections_count": 3,
+        "created_at": "2026-06-06T05:14:10.086323",
+        "phase": "BE-3",
+        "is_stub": false,
+        "processing_note": "BE-3 document upload and text processing is implemented. Reference extraction, DOI lookup, claims, RAG, GenAI verification, reports, and feedback are deferred to later backend phases.",
+        "warnings": []
+      },
+      "message": "Document uploaded and text extracted",
+      "errors": [],
+      "request_id": "req_a99e8fef880040ab"
+    },
+    "document_id": "doc_ac9c6c5801dc",
+    "sections_status_code": 200,
+    "sections_summary": [
+      {
+        "name": "Title",
+        "chars": 93
+      },
+      {
+        "name": "Body",
+        "chars": 40508
+      },
+      {
+        "name": "References",
+        "chars": 6545
+      }
+    ],
+    "extract_status_code": 200,
+    "extract": {
+      "success": true,
+      "data": {
+        "document_id": "doc_ac9c6c5801dc",
+        "references_count": 23,
+        "doi_summary": {
+          "found": 3,
+          "missing": 20,
+          "malformed": 0
+        },
+        "status": "REFERENCES_EXTRACTED",
+        "section_source": "DocumentSection:References",
+        "phase": "BE-4.1",
+        "is_stub": false,
+        "processing_note": "BE-4.1 deterministic reference boundary cleanup and DOI extraction completed. DOI existence validation and metadata lookup are deferred to BE-5."
+      },
+      "message": "References and DOI values extracted",
+      "errors": [],
+      "request_id": "req_bbcc91ee32104a99"
+    },
+    "references_status_code": 200,
+    "references_total": 23,
+    "doi_found_total": 3,
+    "doi_missing_total": 20,
+    "doi_malformed_total": 0,
+    "bad_marker_references": [],
+    "bad_found_dois": [],
+    "first_references": [
+      {
+        "reference_id": "ref_2d24f9916a04",
+        "document_id": "doc_ac9c6c5801dc",
+        "reference_key": "Afif_Muktafa_2024",
+        "raw_reference": "Afif, I. R., Muktafa, M. Z., Naim, A., Nurlisa, A. T., & Ayuningtyas, S. M. (2024). Pengaruh ChatGPT Terhadap Proses Pembelajaran Mahasiswa di Universitas Muhammadiyah Ponorogo. Jurnal Sistem Dan Teknologi Informasi (JSTI), 6(3), 133–",
+        "extracted_title": "Pengaruh ChatGPT Terhadap Proses Pembelajaran Mahasiswa di Universitas Muhammadiyah Ponorogo",
+        "extracted_authors": "Afif, I. R., Muktafa, M. Z., Naim, A., Nurlisa, A. T., & Ayuningtyas, S. M",
+        "extracted_year": 2024,
+        "extracted_doi": null,
+        "doi_status": "MISSING",
+        "metadata_status": "NOT_LOOKED_UP",
+        "metadata_match_score": null,
+        "created_at": "2026-06-06T05:14:10.350621",
+        "updated_at": "2026-06-06T05:14:10.350623",
+        "phase": "BE-4.1",
+        "is_stub": false
+      },
+      {
+        "reference_id": "ref_2a9438814e1f",
+        "document_id": "doc_ac9c6c5801dc",
+        "reference_key": "Akhyar_2023",
+        "raw_reference": "Akhyar, R. M. (2023). Penerapan Aloritma Naive Bayes Untuk Membantu Mahasiswa Dalam Memprediksi Pengambilan Mata Kuliah (Studi Kasus: Prodi Teknologi Informasi Unimor Angkatan Tahun 2020). Journal of Information and Technology Unimor (JITU), 3(1), 11–18. https://doi.org/10.32938/jitu.v3i1.3953",
+        "extracted_title": "Penerapan Aloritma Naive Bayes Untuk Membantu Mahasiswa Dalam Memprediksi Pengambilan Mata Kuliah (Studi Kasus: Prodi Teknologi Informasi Unimor Angkatan Tahun 2020)",
+        "extracted_authors": "Akhyar, R. M",
+        "extracted_year": 2023,
+        "extracted_doi": "10.32938/jitu.v3i1.3953",
+        "doi_status": "FOUND",
+        "metadata_status": "NOT_LOOKED_UP",
+        "metadata_match_score": null,
+        "created_at": "2026-06-06T05:14:10.350652",
+        "updated_at": "2026-06-06T05:14:10.350652",
+        "phase": "BE-4.1",
+        "is_stub": false
+      },
+      {
+        "reference_id": "ref_71d33367163e",
+        "document_id": "doc_ac9c6c5801dc",
+        "reference_key": "Alfarobi_Wira_2024",
+        "raw_reference": "Alfarobi, I., Wira Hadi, S., Nur Rais, A., & Kurniawan, W. (2024). Analisa Penerimaan Tekhnologi Artificial Intelligence Generative Dengan Menggunakan Metode UTAUT 2. KESATRIA: Jurnal Penerapan Sistem Informasi (Komputer & Manajemen), 5(1), 195–201. https://doi.org/10.30645/kesatria.v5i1.329",
+        "extracted_title": "Analisa Penerimaan Tekhnologi Artificial Intelligence Generative Dengan Menggunakan Metode UTAUT 2",
+        "extracted_authors": "Alfarobi, I., Wira Hadi, S., Nur Rais, A., & Kurniawan, W",
+        "extracted_year": 2024,
+        "extracted_doi": "10.30645/kesatria.v5i1.329",
+        "doi_status": "FOUND",
+        "metadata_status": "NOT_LOOKED_UP",
+        "metadata_match_score": null,
+        "created_at": "2026-06-06T05:14:10.350660",
+        "updated_at": "2026-06-06T05:14:10.350661",
+        "phase": "BE-4.1",
+        "is_stub": false
+      },
+      {
+        "reference_id": "ref_be60d0f0d272",
+        "document_id": "doc_ac9c6c5801dc",
+        "reference_key": "Ali_Hariyati_2022",
+        "raw_reference": "Ali, M. M., Hariyati, T., Pratiwi, M. Y., & Afifah, S. (2022). Metodologi Penelitian Kuantitatif dan Penerapannya dalam Penelitian. Education Journal : Penelitian Ibnu Rusyd Kotabumi, 2(2), 1–6. Arif Setia Sandi A, Soedijono, B., & Nasiri, A. (2021). Pengaruh Kegunaan dan Kemudahan Terhadap Sikap Penggunaan Dengan Metode TAM Pada Sistem Informasi Magang. IT Journal Research and Development (ITJRD), 5(2), 109–117.",
+        "extracted_title": "Metodologi Penelitian Kuantitatif dan Penerapannya dalam Penelitian",
+        "extracted_authors": "Ali, M. M., Hariyati, T., Pratiwi, M. Y., & Afifah, S",
+        "extracted_year": 2022,
+        "extracted_doi": null,
+        "doi_status": "MISSING",
+        "metadata_status": "NOT_LOOKED_UP",
+        "metadata_match_score": null,
+        "created_at": "2026-06-06T05:14:10.350669",
+        "updated_at": "2026-06-06T05:14:10.350669",
+        "phase": "BE-4.1",
+        "is_stub": false
+      },
+      {
+        "reference_id": "ref_ee466a9be2cc",
+        "document_id": "doc_ac9c6c5801dc",
+        "reference_key": "Bhaskar_Misra_2024",
+        "raw_reference": "Bhaskar, P., Misra, P., & Chopra, G. (2024). Shall I use ChatGPT? A study on perceived trust and perceived risk towards ChatGPT usage by teachers at higher education institutions. The International Journal of",
+        "extracted_title": "Shall I use ChatGPT? A study on perceived trust and perceived risk towards ChatGPT usage by teachers at higher education institutions",
+        "extracted_authors": "Bhaskar, P., Misra, P., & Chopra, G",
+        "extracted_year": 2024,
+        "extracted_doi": null,
+        "doi_status": "MISSING",
+        "metadata_status": "NOT_LOOKED_UP",
+        "metadata_match_score": null,
+        "created_at": "2026-06-06T05:14:10.350677",
+        "updated_at": "2026-06-06T05:14:10.350677",
+        "phase": "BE-4.1",
+        "is_stub": false
+      }
+    ]
+  },
+  {
+    "pdf": "SeminarPaper_20.01..pdf",
+    "upload_status_code": 200,
+    "upload": {
+      "success": true,
+      "data": {
+        "document_id": "doc_7920107d1640",
+        "filename": "SeminarPaper_20.01..pdf",
+        "title": "SeminarPaper_20.01.",
+        "upload_type": "PDF",
+        "status": "TEXT_EXTRACTED",
+        "file_size_bytes": 790102,
+        "pages_count": 29,
+        "sections_count": 6,
+        "created_at": "2026-06-06T05:14:10.402032",
+        "phase": "BE-3",
+        "is_stub": false,
+        "processing_note": "BE-3 document upload and text processing is implemented. Reference extraction, DOI lookup, claims, RAG, GenAI verification, reports, and feedback are deferred to later backend phases.",
+        "warnings": []
+      },
+      "message": "Document uploaded and text extracted",
+      "errors": [],
+      "request_id": "req_1e60e333ca214ce2"
+    },
+    "document_id": "doc_7920107d1640",
+    "sections_status_code": 200,
+    "sections_summary": [
+      {
+        "name": "Title",
+        "chars": 24
+      },
+      {
+        "name": "Body",
+        "chars": 425
+      },
+      {
+        "name": "Abstract",
+        "chars": 4478
+      },
+      {
+        "name": "Introduction",
+        "chars": 1094
+      },
+      {
+        "name": "Discussion",
+        "chars": 5784
+      },
+      {
+        "name": "References",
+        "chars": 7759
+      }
+    ],
+    "extract_status_code": 200,
+    "extract": {
+      "success": true,
+      "data": {
+        "document_id": "doc_7920107d1640",
+        "references_count": 38,
+        "doi_summary": {
+          "found": 11,
+          "missing": 27,
+          "malformed": 0
+        },
+        "status": "REFERENCES_EXTRACTED",
+        "section_source": "DocumentSection:References",
+        "phase": "BE-4.1",
+        "is_stub": false,
+        "processing_note": "BE-4.1 deterministic reference boundary cleanup and DOI extraction completed. DOI existence validation and metadata lookup are deferred to BE-5."
+      },
+      "message": "References and DOI values extracted",
+      "errors": [],
+      "request_id": "req_081a6b9a9be64c9a"
+    },
+    "references_status_code": 200,
+    "references_total": 38,
+    "doi_found_total": 11,
+    "doi_missing_total": 27,
+    "doi_malformed_total": 0,
+    "bad_marker_references": [],
+    "bad_found_dois": [],
+    "first_references": [
+      {
+        "reference_id": "ref_848191e17d26",
+        "document_id": "doc_7920107d1640",
+        "reference_key": "Bauer_Erdogan_2025",
+        "raw_reference": "Bauer, T. N., Erdogan, B., Ellis, A. M., Truxillo, D. M., Brady, G. M., & Bodner, T. (2025). New horizons for newcomer organizational socialization: A review, meta-analysis, and future research directions. Journal of Management, 51(1), 344-382.",
+        "extracted_title": "New horizons for newcomer organizational socialization: A review, meta-analysis, and future research directions",
+        "extracted_authors": "Bauer, T. N., Erdogan, B., Ellis, A. M., Truxillo, D. M., Brady, G. M., & Bodner, T",
+        "extracted_year": 2025,
+        "extracted_doi": null,
+        "doi_status": "MISSING",
+        "metadata_status": "NOT_LOOKED_UP",
+        "metadata_match_score": null,
+        "created_at": "2026-06-06T05:14:10.548597",
+        "updated_at": "2026-06-06T05:14:10.548599",
+        "phase": "BE-4.1",
+        "is_stub": false
+      },
+      {
+        "reference_id": "ref_25fdb48d0f10",
+        "document_id": "doc_7920107d1640",
+        "reference_key": "Bucher_Schenk_2024",
+        "raw_reference": "Bucher, A., Schenk, B., Dolata, M., & Schwabe, G. (2024). When Generative AI Meets Workplace Learning: Creating A Realistic & Motivating Learning Experience With A Generative PCA. Thirty-Second European Conference on Information Systems (ECIS 2024). https://doi.org/10.48550/arXiv.2405.15561",
+        "extracted_title": "When Generative AI Meets Workplace Learning: Creating A Realistic & Motivating Learning Experience With A Generative PCA",
+        "extracted_authors": "Bucher, A., Schenk, B., Dolata, M., & Schwabe, G",
+        "extracted_year": 2024,
+        "extracted_doi": "10.48550/arxiv.2405.15561",
+        "doi_status": "FOUND",
+        "metadata_status": "NOT_LOOKED_UP",
+        "metadata_match_score": null,
+        "created_at": "2026-06-06T05:14:10.548618",
+        "updated_at": "2026-06-06T05:14:10.548618",
+        "phase": "BE-4.1",
+        "is_stub": false
+      },
+      {
+        "reference_id": "ref_1959a75eeb1a",
+        "document_id": "doc_7920107d1640",
+        "reference_key": "Cheikh-Ammar_Roy_2024",
+        "raw_reference": "Cheikh-Ammar, M., Roy, M. C., & Roy, M. J. (2024). Fostering Competency Development Through Knowledge Sharing Capabilities in Onboarding. International Journal of Knowledge Management, 20(1). https://doi.org/10.4018/IJKM.336278",
+        "extracted_title": "Fostering Competency Development Through Knowledge Sharing Capabilities in Onboarding",
+        "extracted_authors": "Cheikh-Ammar, M., Roy, M. C., & Roy, M. J",
+        "extracted_year": 2024,
+        "extracted_doi": "10.4018/ijkm.336278",
+        "doi_status": "FOUND",
+        "metadata_status": "NOT_LOOKED_UP",
+        "metadata_match_score": null,
+        "created_at": "2026-06-06T05:14:10.548625",
+        "updated_at": "2026-06-06T05:14:10.548625",
+        "phase": "BE-4.1",
+        "is_stub": false
+      },
+      {
+        "reference_id": "ref_1852d3a5e2c9",
+        "document_id": "doc_7920107d1640",
+        "reference_key": "Cohen_1988",
+        "raw_reference": "Cohen, J. (1988). Statistical power analysis for the behavioral sciences (2nd ed.). Lawrence Erlbaum Associates.",
+        "extracted_title": "Statistical power analysis for the behavioral sciences (2nd ed",
+        "extracted_authors": "Cohen, J",
+        "extracted_year": 1988,
+        "extracted_doi": null,
+        "doi_status": "MISSING",
+        "metadata_status": "NOT_LOOKED_UP",
+        "metadata_match_score": null,
+        "created_at": "2026-06-06T05:14:10.548631",
+        "updated_at": "2026-06-06T05:14:10.548631",
+        "phase": "BE-4.1",
+        "is_stub": false
+      },
+      {
+        "reference_id": "ref_85d08ba7929c",
+        "document_id": "doc_7920107d1640",
+        "reference_key": "Cohen_Kamarck_1983",
+        "raw_reference": "Cohen, S., Kamarck, T., & Mermelstein, R. (1983). A global measure of perceived stress. Journal of Health and Social Behavior, 24(4), 385–396.",
+        "extracted_title": "A global measure of perceived stress",
+        "extracted_authors": "Cohen, S., Kamarck, T., & Mermelstein, R",
+        "extracted_year": 1983,
+        "extracted_doi": null,
+        "doi_status": "MISSING",
+        "metadata_status": "NOT_LOOKED_UP",
+        "metadata_match_score": null,
+        "created_at": "2026-06-06T05:14:10.548637",
+        "updated_at": "2026-06-06T05:14:10.548638",
+        "phase": "BE-4.1",
+        "is_stub": false
+      }
+    ]
+  }
+]

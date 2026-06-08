@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
 os.environ.setdefault("DATABASE_URL", "sqlite:///./data/test_refcheck_be4.db")
 os.environ.setdefault("FILE_STORAGE_DIR", "./data/test_uploads_be4")
 os.environ.setdefault("MAX_UPLOAD_SIZE_BYTES", str(2 * 1024 * 1024))
+os.environ.setdefault("ENABLE_RAW_TEXT_DEBUG_ENDPOINT", "true")
 
 import pytest  # noqa: E402
 
