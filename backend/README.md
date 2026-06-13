@@ -287,3 +287,25 @@ python scripts/validate_uploaded_pdfs_be5.py --reset-db --attempt-live-metadata 
 ```
 
 Live metadata lookup requires internet/DNS access. In restricted environments, unit tests use mocked CrossRef responses.
+
+## BE-6 — Claim and Citation Management
+
+This package includes BE-6 claim/citation management. After BE-3 document processing, BE4.2 reference/DOI extraction, and optional BE-5 DOI metadata lookup, run:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/extract-claims \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"citation_linked_only"}'
+```
+
+Then inspect:
+
+```text
+GET /api/v1/documents/{document_id}/claims
+GET /api/v1/documents/{document_id}/citations
+GET /api/v1/documents/{document_id}/claim-reference-links
+GET /api/v1/claims/{claim_id}
+GET /api/v1/claim-reference-links/{link_id}
+```
+
+BE-6 does not verify claim support. Evidence building, RAG, GenAI verification, safety scoring, and reports remain later phases.

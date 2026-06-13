@@ -28,6 +28,9 @@ class Settings(BaseModel):
     file_storage_dir: Path = Field(default=Path("./data/uploads"), alias="FILE_STORAGE_DIR")
     groq_api_key: str | None = Field(default=None, alias="GROQ_API_KEY")
     groq_model: str = Field(default="meta-llama/llama-4-scout-17b-16e-instruct", alias="GROQ_MODEL")
+    genai_provider: str = Field(default="groq", alias="GENAI_PROVIDER")
+    claim_extraction_mode: str = Field(default="local_deterministic", alias="CLAIM_EXTRACTION_MODE")
+    claim_extraction_prompt_version: str = Field(default="be6-claim-extraction-v1", alias="CLAIM_EXTRACTION_PROMPT_VERSION")
     rag_service_url: str | None = Field(default=None, alias="RAG_SERVICE_URL")
     metadata_service_timeout_seconds: float = Field(default=10.0, alias="METADATA_SERVICE_TIMEOUT_SECONDS")
     metadata_lookup_enabled: bool = Field(default=True, alias="METADATA_LOOKUP_ENABLED")
@@ -88,6 +91,9 @@ def _read_env() -> dict[str, object]:
         "FILE_STORAGE_DIR",
         "GROQ_API_KEY",
         "GROQ_MODEL",
+        "GENAI_PROVIDER",
+        "CLAIM_EXTRACTION_MODE",
+        "CLAIM_EXTRACTION_PROMPT_VERSION",
         "RAG_SERVICE_URL",
         "METADATA_SERVICE_TIMEOUT_SECONDS",
         "METADATA_LOOKUP_ENABLED",

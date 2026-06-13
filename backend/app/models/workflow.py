@@ -184,7 +184,7 @@ class ClaimReferenceLink(TimestampMixin, SoftDeleteMixin, Base):
     document_id: Mapped[str] = mapped_column(String(64), ForeignKey("documents.id"), nullable=False)
     claim_id: Mapped[str] = mapped_column(String(64), ForeignKey("claims.id"), nullable=False, index=True)
     citation_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("citations.id"), nullable=True)
-    reference_id: Mapped[str] = mapped_column(String(64), ForeignKey("references.id"), nullable=False, index=True)
+    reference_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("references.id"), nullable=True, index=True)
     mapping_status: Mapped[str] = mapped_column(String(64), nullable=False, default=MappingStatus.UNCERTAIN.value)
     mapping_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     mapping_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -192,7 +192,7 @@ class ClaimReferenceLink(TimestampMixin, SoftDeleteMixin, Base):
     document: Mapped[Document] = relationship(back_populates="claim_reference_links")
     claim: Mapped[Claim] = relationship(back_populates="reference_links")
     citation: Mapped[Citation | None] = relationship(back_populates="claim_links")
-    reference: Mapped[Reference] = relationship(back_populates="claim_links")
+    reference: Mapped[Reference | None] = relationship(back_populates="claim_links")
 
 
 class EvidencePackage(TimestampMixin, SoftDeleteMixin, Base):
