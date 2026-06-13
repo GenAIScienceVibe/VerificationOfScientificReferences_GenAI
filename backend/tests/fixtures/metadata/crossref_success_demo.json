@@ -1,0 +1,13 @@
+{
+  "status": "ok",
+  "message": {
+    "DOI": "10.1234/demo.2024",
+    "title": ["Demo Article"],
+    "author": [{"given": "Jane", "family": "Smith"}],
+    "issued": {"date-parts": [[2024]]},
+    "container-title": ["Journal of Demo Studies"],
+    "publisher": "Demo Publisher",
+    "abstract": "<jats:p>This is a mocked CrossRef abstract.</jats:p>",
+    "URL": "https://doi.org/10.1234/demo.2024"
+  }
+}

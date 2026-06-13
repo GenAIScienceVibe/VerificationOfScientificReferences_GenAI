@@ -544,7 +544,46 @@ class ReferenceExtractionService:
 
     def extract_references(self, reference_section_text: str) -> list[ParsedReference]:
         raw_references = self.split_references(reference_section_text)
+        raw_references = self._split_orphan_doi_tails(raw_references)
         return [self.parse_reference(raw_reference, index=index) for index, raw_reference in enumerate(raw_references, start=1)]
+
+    def _split_orphan_doi_tails(self, raw_references: list[str]) -> list[str]:
+        """Prevent PDF-extracted DOI-only tails from being attached to the prior reference.
+
+        Some PDFs lose the author/title line of the final reference but keep a standalone
+        DOI URL on the next line. If this DOI remains appended to the previous reference,
+        downstream BE-5 would verify the wrong DOI for the wrong reference. The safer
+        behavior is to keep the main reference intact and preserve each extra DOI as an
+        orphan DOI-only reference that needs later human/metadata review.
+        """
+        expanded: list[str] = []
+        for raw in raw_references:
+            matches = list(DOI_WITH_PREFIX_REGEX.finditer(raw))
+            if len(matches) <= 1:
+                expanded.append(raw)
+                continue
+
+            split_points: list[int] = []
+            previous = matches[0]
+            for match in matches[1:]:
+                between = raw[previous.end() : match.start()]
+                if between.strip() == "":
+                    split_points.append(match.start())
+                previous = match
+
+            if not split_points:
+                expanded.append(raw)
+                continue
+
+            first_end = split_points[0]
+            main = raw[:first_end].strip()
+            if main:
+                expanded.append(main)
+            tail = raw[first_end:].strip()
+            for tail_match in DOI_WITH_PREFIX_REGEX.finditer(tail):
+                doi_text = tail_match.group(0).strip()
+                expanded.append(f"Unattached DOI-only reference from PDF text extraction. {doi_text}")
+        return expanded
 
     def _remove_leading_marker(self, text: str) -> str:
         return START_NUMBERED_REGEX.sub("", text, count=1).strip()

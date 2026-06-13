@@ -234,3 +234,56 @@ Run real-PDF QA:
 ```bash
 python scripts/qa_real_pdf_api_test.py /path/to/pdf1.pdf /path/to/pdf2.pdf
 ```
+
+## BE-5 - DOI Metadata Lookup
+
+BE-5 builds on the stable BE4.2 baseline and adds backend-controlled DOI metadata lookup.
+
+### New endpoints
+
+```text
+POST /api/v1/references/{reference_id}/verify-doi
+POST /api/v1/documents/{document_id}/verify-dois
+GET  /api/v1/references/{reference_id}/metadata
+```
+
+### Metadata configuration
+
+```env
+METADATA_LOOKUP_ENABLED=true
+CROSSREF_BASE_URL=https://api.crossref.org
+DOI_RESOLVER_BASE_URL=https://doi.org
+OPENALEX_BASE_URL=https://api.openalex.org
+METADATA_SERVICE_TIMEOUT_SECONDS=10
+METADATA_MAX_RETRIES=2
+CROSSREF_MAILTO=
+METADATA_USER_AGENT=verifai-refcheck-backend/1.0.0
+```
+
+### Typical BE-5 flow
+
+```bash
+python scripts/init_db.py
+uvicorn app.main:app --reload
+```
+
+1. Upload PDF or submit text.
+2. Extract references.
+3. Verify one reference DOI or all document DOIs.
+4. Retrieve stored metadata.
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/references/{reference_id}/verify-doi
+curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/verify-dois
+curl http://127.0.0.1:8000/api/v1/references/{reference_id}/metadata
+```
+
+BE-5 does not perform claim extraction, citation mapping, RAG retrieval, GenAI verification, full-text retrieval, report generation, or final support scoring.
+
+### Uploaded PDF validation helper
+
+```bash
+python scripts/validate_uploaded_pdfs_be5.py --reset-db --attempt-live-metadata /path/to/paper1.pdf /path/to/paper2.pdf
+```
+
+Live metadata lookup requires internet/DNS access. In restricted environments, unit tests use mocked CrossRef responses.

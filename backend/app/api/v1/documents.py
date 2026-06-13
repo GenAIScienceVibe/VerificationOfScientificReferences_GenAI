@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.enums import DoiStatus, MetadataStatus
 from app.schemas.documents import TextSubmissionRequest
 from app.services.reference_extraction import extract_references_for_document, list_document_references
+from app.services.doi_metadata_lookup import MetadataLookupService
 from app.services.document_processing_service import (
     create_text_document,
     create_uploaded_pdf_document,
@@ -128,6 +129,16 @@ async def extract_document_references(request: Request, document_id: str, db: Se
         document_id, db, request_id=getattr(request.state, "request_id", None)
     )
     return success_response(request=request, data=data, message="References and DOI values extracted")
+
+
+@router.post("/{document_id}/verify-dois")
+async def verify_document_dois(request: Request, document_id: str, db: Session = Depends(get_db)):
+    data = MetadataLookupService().verify_document_dois(
+        document_id,
+        db,
+        request_id=getattr(request.state, "request_id", None),
+    )
+    return success_response(request=request, data=data, message="Document DOI metadata lookup completed")
 
 
 @router.get("/{document_id}/references")

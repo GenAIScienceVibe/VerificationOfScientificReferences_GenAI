@@ -128,6 +128,7 @@ class SourceMetadata(TimestampMixin, SoftDeleteMixin, Base):
     title_match: Mapped[float | None] = mapped_column(Float, nullable=True)
     author_match: Mapped[float | None] = mapped_column(Float, nullable=True)
     year_match: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    doi_match: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     metadata_match_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     reference: Mapped[Reference] = relationship(back_populates="metadata_records")
