@@ -167,7 +167,7 @@ class TestEmbedChunks:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             mock_client.embeddings.create.return_value = make_api_response(3)
-            os.environ["OPENAI_API_KEY"] = "test-key"
+            os.environ["OPENROUTER_API_KEY"] = "test-key"
 
             result = embed_chunks(make_input(3))
 
@@ -178,7 +178,7 @@ class TestEmbedChunks:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             mock_client.embeddings.create.return_value = make_api_response(5)
-            os.environ["OPENAI_API_KEY"] = "test-key"
+            os.environ["OPENROUTER_API_KEY"] = "test-key"
 
             result = embed_chunks(make_input(5))
 
@@ -190,7 +190,7 @@ class TestEmbedChunks:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             mock_client.embeddings.create.return_value = make_api_response(1)
-            os.environ["OPENAI_API_KEY"] = "test-key"
+            os.environ["OPENROUTER_API_KEY"] = "test-key"
 
             result = embed_chunks(make_input(1, doi="10.9999/example"))
 
@@ -201,7 +201,7 @@ class TestEmbedChunks:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             mock_client.embeddings.create.return_value = make_api_response(1)
-            os.environ["OPENAI_API_KEY"] = "test-key"
+            os.environ["OPENROUTER_API_KEY"] = "test-key"
 
             result = embed_chunks(make_input(1))
 
@@ -212,7 +212,7 @@ class TestEmbedChunks:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             mock_client.embeddings.create.return_value = make_api_response(1)
-            os.environ["OPENAI_API_KEY"] = "test-key"
+            os.environ["OPENROUTER_API_KEY"] = "test-key"
 
             result = embed_chunks(make_input(1))
 
@@ -223,7 +223,7 @@ class TestEmbedChunks:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             mock_client.embeddings.create.return_value = make_api_response(3)
-            os.environ["OPENAI_API_KEY"] = "test-key"
+            os.environ["OPENROUTER_API_KEY"] = "test-key"
 
             result = embed_chunks(make_input(3))
 
@@ -240,7 +240,7 @@ class TestEmbedChunks:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             mock_client.embeddings.create.return_value = make_api_response(3)
-            os.environ["OPENAI_API_KEY"] = "test-key"
+            os.environ["OPENROUTER_API_KEY"] = "test-key"
 
             result = embed_chunks(inp)
 
@@ -252,7 +252,7 @@ class TestEmbedChunks:
         with patch("rag.retrieval.embedder.OpenAI") as MockOpenAI:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
-            os.environ["OPENAI_API_KEY"] = "test-key"
+            os.environ["OPENROUTER_API_KEY"] = "test-key"
 
             result = embed_chunks(EmbedderInput(chunks=[], doi="10.0000/test"))
 
@@ -273,7 +273,7 @@ class TestEmbedChunks:
                 make_api_response(BATCH_SIZE),
                 make_api_response(50),
             ]
-            os.environ["OPENAI_API_KEY"] = "test-key"
+            os.environ["OPENROUTER_API_KEY"] = "test-key"
 
             result = embed_chunks(make_input(n))
 
@@ -281,16 +281,16 @@ class TestEmbedChunks:
         assert result.total_embedded == n
 
     def test_raises_environment_error_without_api_key(self):
-        """embed_chunks must raise EnvironmentError if OPENAI_API_KEY is absent."""
+        """embed_chunks must raise EnvironmentError if OPENROUTER_API_KEY is absent."""
         # Remove the key from the environment for this test.
-        env_backup = os.environ.pop("OPENAI_API_KEY", None)
+        env_backup = os.environ.pop("OPENROUTER_API_KEY", None)
         try:
-            with pytest.raises(EnvironmentError, match="OPENAI_API_KEY"):
+            with pytest.raises(EnvironmentError, match="OPENROUTER_API_KEY"):
                 embed_chunks(make_input(1))
         finally:
             # Restore so other tests are not affected.
             if env_backup is not None:
-                os.environ["OPENAI_API_KEY"] = env_backup
+                os.environ["OPENROUTER_API_KEY"] = env_backup
 
     def test_order_of_embedded_chunks_matches_input_order(self):
         """Embeddings must come back in the same order as the input chunks."""
@@ -311,7 +311,7 @@ class TestEmbedChunks:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             mock_client.embeddings.create.return_value = mock_response
-            os.environ["OPENAI_API_KEY"] = "test-key"
+            os.environ["OPENROUTER_API_KEY"] = "test-key"
 
             result = embed_chunks(inp)
 

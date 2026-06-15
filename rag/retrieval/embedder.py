@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-EMBEDDING_MODEL = "text-embedding-3-small"
+EMBEDDING_MODEL = "openai/text-embedding-3-small"
 EMBEDDING_DIMENSIONS = 1536
 
 # Number of chunks sent in a single API call. OpenAI allows up to 2048 inputs
@@ -92,18 +92,18 @@ def _embed_batch(client: OpenAI, texts: list[str]) -> list[list[float]]:
 
 def _build_client() -> OpenAI:
     """
-    Build and return an OpenAI client using the OPENAI_API_KEY env var.
+    Build and return an OpenAI-compatible client pointed at OpenRouter.
 
-    Raises EnvironmentError if the key is not set, with a clear message
-    so developers know exactly what is missing.
+    Raises EnvironmentError if OPENROUTER_API_KEY is not set, with a clear
+    message so developers know exactly what is missing.
     """
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
     if not api_key:
         raise EnvironmentError(
-            "OPENAI_API_KEY is not set. Add it to your .env file and ensure "
-            "python-dotenv is loaded before calling embed_chunks()."
+            "OPENROUTER_API_KEY is not set. Add it to your .env file."
         )
-    return OpenAI(api_key=api_key)
+    return OpenAI(api_key=api_key, base_url=base_url)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
