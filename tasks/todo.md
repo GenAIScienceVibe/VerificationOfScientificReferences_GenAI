@@ -22,17 +22,23 @@
 
 ---
 
-### SCRUM-179: Chunking (`rag/ingestion/chunker.py`) — NEXT
+### SCRUM-179: Chunking (`rag/ingestion/chunker.py`)
 
-- [ ] Detect sections using heading patterns
-- [ ] Normalize section names with SECTION_MAP
-- [ ] Skip sections in SKIP_SECTIONS list
-- [ ] Split paragraphs within each section
-- [ ] Apply 512-token window for large paragraphs
-- [ ] Tag every chunk with section + priority + metadata
-- [ ] Fallback: blind chunking if no sections detected
-- [ ] Write unit tests in `tests/rag/test_chunker.py`
-- [ ] Commit on `feature/rag-ingestion`
+- [x] Add `ChunkMetadata`, `ChunkerInput`, `ChunkerOutput` to `models.py`
+- [x] Write `rag/ingestion/chunker.py` — section-aware chunking
+  - [x] `_looks_like_heading` / `_is_heading` — heading detection with context
+  - [x] `normalize_section_name` — SECTION_MAP lookup with prefix stripping
+  - [x] `should_skip_section` — SKIP_SECTIONS filter
+  - [x] `split_into_sections` — full text → list of (name, content) pairs
+  - [x] `_merge_short_paragraphs` — merge paragraphs < 50 tokens
+  - [x] `_chunk_section` — RecursiveCharacterTextSplitter + metadata tagging
+  - [x] `chunk_text` — orchestrator with fallback detection
+- [x] Write `tests/rag/test_chunker.py` — 72 unit tests
+- [x] Run tests — **72/72 passed** (102/102 total across both modules)
+- [x] Write `docs/rag/chunker.md` — module documentation
+- [x] Commit on `rag_dec_zac`
+
+**Status: COMPLETE ✓**
 
 ---
 
@@ -40,8 +46,8 @@
 
 | ID        | Module              | Branch                  | Status  |
 |-----------|---------------------|-------------------------|---------|
-| SCRUM-178 | cleaner.py          | feature/rag-ingestion   | ✓ Done  |
-| SCRUM-179 | chunker.py          | feature/rag-ingestion   | Pending |
+| SCRUM-178 | cleaner.py          | rag_dec_zac             | ✓ Done  |
+| SCRUM-179 | chunker.py          | rag_dec_zac             | ✓ Done  |
 | SCRUM-180 | embedder.py         | feature/rag-retrieval   | Pending |
 | SCRUM-186 | vector_store.py     | feature/rag-retrieval   | Pending |
 | SCRUM-184 | benchmark.py        | feature/rag-retrieval   | Pending |

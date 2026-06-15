@@ -46,3 +46,41 @@ class CleanerOutput(BaseModel):
     )
     original_length: int = Field(..., description="Character count of the raw input")
     cleaned_length: int = Field(..., description="Character count after cleaning")
+
+
+# ── Chunker models ────────────────────────────────────────────────────────────
+
+
+class ChunkMetadata(BaseModel):
+    """A single text chunk with all metadata required by downstream steps."""
+
+    chunk_id: str = Field(..., description="Unique ID: {doi_slug}_chunk_{index:03d}")
+    section: str = Field(..., description="Normalised section name, e.g. 'results'")
+    priority: float = Field(..., description="Section weight used during retrieval scoring")
+    chunk_index: int = Field(..., description="Zero-based position of this chunk in the paper")
+    paper_doi: str = Field(..., description="DOI of the source paper")
+    evidence_type: str = Field(..., description="'FULL_TEXT' or 'ABSTRACT'")
+    chunk_text: str = Field(..., description="The actual text content of this chunk")
+    token_count: int = Field(..., description="Number of tokens in chunk_text (cl100k_base)")
+
+
+class ChunkerInput(BaseModel):
+    """Input to the chunking step — mirrors the relevant fields of CleanerOutput."""
+
+    clean_text: str = Field(..., description="Cleaned plain text from the cleaner")
+    doi: str = Field(..., description="DOI of the source paper")
+    evidence_availability: EvidenceAvailability = Field(
+        ..., description="Determines the evidence_type label on each chunk"
+    )
+
+
+class ChunkerOutput(BaseModel):
+    """Output from the chunking step, ready for embedding."""
+
+    doi: str = Field(..., description="DOI of the source paper")
+    chunks: list[ChunkMetadata] = Field(..., description="Ordered list of all chunks")
+    total_chunks: int = Field(..., description="Total number of chunks produced")
+    sections_found: list[str] = Field(..., description="Unique section names detected")
+    fallback_used: bool = Field(
+        ..., description="True when no headings were detected and blind chunking was applied"
+    )
