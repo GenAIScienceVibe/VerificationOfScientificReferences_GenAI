@@ -42,13 +42,33 @@
 
 ---
 
+---
+
+### SCRUM-186: Vector Store (`rag/retrieval/vector_store.py`)
+
+- [x] Add `VectorStoreInput`, `RetrievedChunk`, `VectorStoreOutput` to `rag/retrieval/models.py`
+- [x] Write `rag/retrieval/vector_store.py` — FAISS-based cosine search with section weighting
+  - [x] `_to_float32` — convert list[list[float]] to float32 numpy array
+  - [x] `_normalise` — L2-normalise a copy of a float32 matrix
+  - [x] `_get_section_weight` — look up section priority from SECTION_WEIGHTS
+  - [x] `_build_index` — build an in-memory IndexFlatIP from normalised vectors
+  - [x] `search` — orchestrator: build index → oversample search → apply weights → re-rank → return top-k
+- [x] Write `tests/rag/test_vector_store.py` — 29 unit tests (real FAISS, no mocking)
+- [x] Run tests — **29/29 passed** (147/147 total across all modules)
+- [x] Write `docs/rag/vector_store.md` — module documentation
+- [x] Installed `numpy` and `faiss-cpu` (were missing from environment)
+
+**Status: COMPLETE ✓**
+
+---
+
 ## Upcoming Tasks
 
 | ID        | Module              | Branch                  | Status  |
 |-----------|---------------------|-------------------------|---------|
-| SCRUM-178 | cleaner.py          | rag_dec_zac             | ✓ Done  |
-| SCRUM-179 | chunker.py          | rag_dec_zac             | ✓ Done  |
-| SCRUM-180 | embedder.py         | rag_dec_zac             | ✓ Done  |
-| SCRUM-186 | vector_store.py     | rag_dec_zac             | Pending |
+| SCRUM-178 | cleaner.py          | rag_dev_zac             | ✓ Done  |
+| SCRUM-179 | chunker.py          | rag_dev_zac             | ✓ Done  |
+| SCRUM-180 | embedder.py         | rag_dev_zac             | ✓ Done  |
+| SCRUM-186 | vector_store.py     | rag_dev_zac             | ✓ Done  |
 | SCRUM-184 | benchmark.py        | feature/rag-retrieval   | Pending |
 | SCRUM-185 | latency.py          | feature/rag-retrieval   | Pending |
