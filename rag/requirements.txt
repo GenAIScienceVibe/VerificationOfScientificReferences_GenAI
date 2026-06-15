@@ -1,0 +1,19 @@
+# RAG sub-group dependencies — verifAi (TUM Campus Heilbronn)
+# Install with: pip install -r rag/requirements.txt
+
+# Text splitting and token counting
+langchain-text-splitters==1.1.2
+tiktoken==0.13.0
+
+# Embedding and vector search
+openai==2.41.1
+faiss-cpu==1.14.3
+numpy==2.4.6
+
+# Keyword search and reranking
+rank-bm25
+flashrank
+
+# Data validation and config
+pydantic==2.13.4
+python-dotenv==1.2.2

@@ -62,6 +62,30 @@
 
 ---
 
+---
+
+### SCRUM-184: Retrieval Benchmark (`rag/evaluation/benchmark.py`)
+
+- [x] Create `rag/evaluation/__init__.py`
+- [x] Write `rag/evaluation/benchmark.py` — hit@3 accuracy evaluation script
+  - [x] Pydantic models: `BenchmarkCase`, `TopChunkPreview`, `CaseResult`, `BenchmarkReport`
+  - [x] `BENCHMARK_CASES` — 5 synthetic papers with known claim-evidence pairs
+  - [x] `_build_client` — OpenRouter client builder
+  - [x] `_embed_text` — embed a single claim string
+  - [x] `_check_hit` — whitespace-normalised substring match against top-K chunks
+  - [x] `_run_case` — full pipeline (clean → chunk → embed → search) for one case
+  - [x] `_save_report` — write JSON report with configurable output path
+  - [x] `run_benchmark` — orchestrator with error handling + console summary
+- [x] Write `tests/rag/test_benchmark.py` — 22 unit tests (no API calls)
+- [x] Run tests — **22/22 passed** (169/169 total across all modules)
+- [x] Write `docs/rag/benchmark.md` — module documentation
+- [x] Installed `python-dotenv` (was missing from environment)
+- [x] Fixed `_check_hit` to normalise whitespace before matching (source text line-wraps inside evidence phrases)
+
+**Status: COMPLETE ✓**
+
+---
+
 ## Upcoming Tasks
 
 | ID        | Module              | Branch                  | Status  |
@@ -70,5 +94,5 @@
 | SCRUM-179 | chunker.py          | rag_dev_zac             | ✓ Done  |
 | SCRUM-180 | embedder.py         | rag_dev_zac             | ✓ Done  |
 | SCRUM-186 | vector_store.py     | rag_dev_zac             | ✓ Done  |
-| SCRUM-184 | benchmark.py        | feature/rag-retrieval   | Pending |
-| SCRUM-185 | latency.py          | feature/rag-retrieval   | Pending |
+| SCRUM-184 | benchmark.py        | rag_dev_zac             | ✓ Done  |
+| SCRUM-185 | latency.py          | rag_dev_zac             | Pending |
