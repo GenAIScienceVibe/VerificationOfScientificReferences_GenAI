@@ -70,9 +70,59 @@ NOTE: PostgreSQL / SQLAlchemy are NOT our responsibility — backend owns all st
 ## ENVIRONMENT VARIABLES
 All secrets go in `.env` file (never commit this file). Use `.env.example` as template.
 ```
-OPENAI_API_KEY=your_key_here
-GROQ_API_KEY=your_key_here
-DATABASE_URL=postgresql://user:password@localhost:5432/verifai
+OPENROUTER_API_KEY=your_openrouter_key_here
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+```
+
+## API CONFIGURATION — IMPORTANT
+We use OpenRouter as our API provider. OpenRouter gives access to all models
+through one single API key and one base URL.
+
+NEVER call OpenAI or Groq directly. Always use OpenRouter.
+
+### How to initialize the client in code:
+```python
+import openai
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+client = openai.OpenAI(
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+    base_url=os.getenv("OPENROUTER_BASE_URL")
+)
+```
+
+### Model names to use (via OpenRouter):
+```python
+# Embedding model
+EMBEDDING_MODEL = "openai/text-embedding-3-small"
+
+# LLM for verification
+LLM_MODEL = "meta-llama/llama-4-scout"
+```
+
+### Example embedding call:
+```python
+response = client.embeddings.create(
+    model="openai/text-embedding-3-small",
+    input="exercise reduces heart disease by 35%"
+)
+vector = response.data[0].embedding
+```
+
+### Example LLM call:
+```python
+response = client.chat.completions.create(
+    model="meta-llama/llama-4-scout",
+    temperature=0,
+    messages=[
+        {"role": "system", "content": "You are a citation verifier."},
+        {"role": "user", "content": prompt}
+    ]
+)
+verdict = response.choices[0].message.content
 ```
 
 ---
