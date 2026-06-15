@@ -86,6 +86,28 @@
 
 ---
 
+---
+
+### SCRUM-185: Latency & Cost (`rag/evaluation/latency.py`)
+
+- [x] Write `rag/evaluation/latency.py` — embedding latency and cost profiler
+  - [x] Pydantic models: `CallResult`, `BatchCallResult`, `LatencyStats`, `LatencyReport`
+  - [x] `TEST_CHUNKS` — 10 synthetic scientific text chunks of varying length
+  - [x] `_build_client` — OpenRouter client builder
+  - [x] `_count_tokens` — tiktoken cl100k_base token counter
+  - [x] `_embed_single` — single-chunk API call with wall-clock timing
+  - [x] `_embed_batch` — all-chunks-in-one-request API call with timing
+  - [x] `_compute_stats` — min, max, mean, median, p95, stdev over latencies
+  - [x] `_save_report` — write JSON report with configurable output path
+  - [x] `run_latency_profile` — orchestrator: 10 individual calls + 1 batch call + stats
+- [x] Write `tests/rag/test_latency.py` — 43 unit tests (no API calls)
+- [x] Run tests — **43/43 passed** (212/212 total across all modules)
+- [x] Write `docs/rag/latency.md` — module documentation
+
+**Status: COMPLETE ✓**
+
+---
+
 ## Upcoming Tasks
 
 | ID        | Module              | Branch                  | Status  |
@@ -95,4 +117,4 @@
 | SCRUM-180 | embedder.py         | rag_dev_zac             | ✓ Done  |
 | SCRUM-186 | vector_store.py     | rag_dev_zac             | ✓ Done  |
 | SCRUM-184 | benchmark.py        | rag_dev_zac             | ✓ Done  |
-| SCRUM-185 | latency.py          | rag_dev_zac             | Pending |
+| SCRUM-185 | latency.py          | rag_dev_zac             | ✓ Done  |

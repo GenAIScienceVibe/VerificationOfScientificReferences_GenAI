@@ -1,0 +1,94 @@
+{
+  "embedding_model": "openai/text-embedding-3-small",
+  "timestamp": "2026-06-15T15:14:48.164094+00:00",
+  "num_individual_calls": 10,
+  "total_tokens_individual": 631,
+  "total_cost_individual_usd": 0.00001262,
+  "avg_cost_per_call_usd": 1.26e-6,
+  "estimated_cost_per_paper_usd": 0.000126,
+  "latency_stats": {
+    "min_ms": 323.99,
+    "max_ms": 2471.94,
+    "mean_ms": 670.72,
+    "median_ms": 347.22,
+    "p95_ms": 2471.94,
+    "stdev_ms": 711.61
+  },
+  "batch_comparison": {
+    "total_tokens": 631,
+    "latency_ms": 653.41,
+    "cost_usd": 0.00001262
+  },
+  "individual_calls": [
+    {
+      "call_index": 1,
+      "chunk_preview": "This study investigates the effect of aerobic exercise on cardiovascular health.",
+      "token_count": 12,
+      "latency_ms": 2471.94,
+      "cost_usd": 2.4e-7
+    },
+    {
+      "call_index": 2,
+      "chunk_preview": "Participants were randomly assigned to either a structured exercise programme co",
+      "token_count": 58,
+      "latency_ms": 342.89,
+      "cost_usd": 1.16e-6
+    },
+    {
+      "call_index": 3,
+      "chunk_preview": "After 24 months, the intervention group exhibited a 35 percent reduction in comp",
+      "token_count": 58,
+      "latency_ms": 334.87,
+      "cost_usd": 1.16e-6
+    },
+    {
+      "call_index": 4,
+      "chunk_preview": "A 35 percent risk reduction is clinically meaningful and consistent with prior m",
+      "token_count": 61,
+      "latency_ms": 373.44,
+      "cost_usd": 1.22e-6
+    },
+    {
+      "call_index": 5,
+      "chunk_preview": "Patients receiving daily vitamin D supplementation exhibited a significant incre",
+      "token_count": 59,
+      "latency_ms": 349.14,
+      "cost_usd": 1.18e-6
+    },
+    {
+      "call_index": 6,
+      "chunk_preview": "Subjects who underwent 24 hours of total sleep deprivation showed significant im",
+      "token_count": 56,
+      "latency_ms": 452.74,
+      "cost_usd": 1.12e-6
+    },
+    {
+      "call_index": 7,
+      "chunk_preview": "Implementation of enhanced hand hygiene protocols led to a 40 percent reduction ",
+      "token_count": 51,
+      "latency_ms": 345.3,
+      "cost_usd": 1.02e-6
+    },
+    {
+      "call_index": 8,
+      "chunk_preview": "After 10 years of follow-up, elderly adults who adhered strictly to a Mediterran",
+      "token_count": 59,
+      "latency_ms": 323.99,
+      "cost_usd": 1.18e-6
+    },
+    {
+      "call_index": 9,
+      "chunk_preview": "A total of 4,500 community-dwelling adults aged 65 and above were enrolled at ba",
+      "token_count": 155,
+      "latency_ms": 1384.88,
+      "cost_usd": 3.1e-6
+    },
+    {
+      "call_index": 10,
+      "chunk_preview": "Structured aerobic exercise substantially reduces cardiovascular disease risk. H",
+      "token_count": 62,
+      "latency_ms": 328.05,
+      "cost_usd": 1.24e-6
+    }
+  ]
+}
