@@ -48,7 +48,7 @@
 |-----------|---------------------|-------------------------|---------|
 | SCRUM-178 | cleaner.py          | rag_dec_zac             | ✓ Done  |
 | SCRUM-179 | chunker.py          | rag_dec_zac             | ✓ Done  |
-| SCRUM-180 | embedder.py         | feature/rag-retrieval   | Pending |
-| SCRUM-186 | vector_store.py     | feature/rag-retrieval   | Pending |
+| SCRUM-180 | embedder.py         | rag_dec_zac             | ✓ Done  |
+| SCRUM-186 | vector_store.py     | rag_dec_zac             | Pending |
 | SCRUM-184 | benchmark.py        | feature/rag-retrieval   | Pending |
 | SCRUM-185 | latency.py          | feature/rag-retrieval   | Pending |
