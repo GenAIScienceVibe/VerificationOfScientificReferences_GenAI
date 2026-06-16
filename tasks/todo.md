@@ -157,6 +157,22 @@
 
 ---
 
+### SCRUM-193: Prompt Template + LLM Call (`rag/prompts/verifier.py`)
+
+- [x] Add `jinja2==3.1.6` to `rag/requirements.txt` (was missing despite being in tech stack) and install it
+- [x] Write `rag/prompts/templates/verify.j2` — claim + citation type + DOI + chunks (chunk_id, section, chunk_text), instructs JSON-only output matching VerificationOutput shape, handles empty chunks list
+- [x] Write `rag/prompts/verifier.py`
+  - [x] `_build_client` — OpenRouter client builder (lazy, mirrors embedder.py/classifier.py)
+  - [x] `render_prompt` — pure function, renders verify.j2 from VerificationInput
+  - [x] `generate_verdict` — one LLM call at temperature=0 (via LLM_TEMPERATURE), returns raw response text (no parsing — that's validator.py, SCRUM-253)
+- [x] Write `tests/rag/test_verifier.py` — 13 unit tests (render_prompt tested directly, generate_verdict with mocked LLM)
+- [x] Run tests — **13/13 passed** (276/276 total across all modules)
+- [x] Write `docs/rag/verifier.md` — module documentation
+
+**Status: COMPLETE ✓**
+
+---
+
 ## Upcoming Tasks
 
 | ID        | Module              | Branch                  | Status  |
@@ -170,7 +186,7 @@
 | SCRUM-194 | verification/models.py | rag_dev_zac           | ✓ Done  |
 | SCRUM-254 | prompts/config.py    | rag_dev_zac             | ✓ Done  |
 | SCRUM-252 | classifier.py        | rag_dev_zac             | ✓ Done  |
-| SCRUM-193 | verifier.py           | rag_dev_zac             | Pending |
+| SCRUM-193 | verifier.py           | rag_dev_zac             | ✓ Done  |
 | SCRUM-195 | verify.j2 CoT          | rag_dev_zac             | Pending |
 | SCRUM-196 | confidence + review flag | rag_dev_zac          | Pending |
 | SCRUM-253 | validator.py           | rag_dev_zac             | Pending |

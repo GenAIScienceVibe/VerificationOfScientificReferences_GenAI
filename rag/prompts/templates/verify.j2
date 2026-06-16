@@ -1,0 +1,30 @@
+You are verifying whether a scientific claim is supported by its cited source.
+
+CLAIM:
+{{ claim_text }}
+
+CITATION TYPE: {{ citation_type }}
+SOURCE DOI: {{ doi }}
+
+SOURCE EVIDENCE:
+{% if chunks %}
+{% for chunk in chunks %}
+[{{ chunk.chunk_id }}] (section: {{ chunk.section }})
+{{ chunk.chunk_text }}
+
+{% endfor %}
+{% else %}
+No evidence chunks were retrieved for this source.
+{% endif %}
+Compare the claim against the source evidence above and decide whether the
+evidence supports the claim.
+
+Respond with ONLY a single valid JSON object, no other text, no markdown
+fences, in exactly this shape:
+{
+  "verdict": "SUPPORTED" | "PARTIALLY_SUPPORTED" | "NOT_SUPPORTED" | "INSUFFICIENT_EVIDENCE" | "NEEDS_HUMAN_REVIEW",
+  "confidence": <float between 0.0 and 1.0>,
+  "explanation": "<your reasoning>",
+  "evidence_used": ["<chunk_id>", "..."],
+  "limitations": "<caveats about the evidence, or null if none>"
+}
