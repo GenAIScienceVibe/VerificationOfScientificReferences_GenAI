@@ -384,6 +384,18 @@ rag/evaluation/
 ├── __init__.py
 ├── benchmark.py       ← SCRUM-184: retrieval accuracy benchmark
 └── latency.py         ← SCRUM-185: latency + cost per embedding call
+
+rag/prompts/
+├── __init__.py
+├── classifier.py      ← SCRUM-252: citation type classification
+├── verifier.py        ← SCRUM-193/195/196: prompt + LLM call + confidence
+└── templates/
+    └── verify.j2      ← Jinja2 prompt template with chain-of-thought
+
+rag/verification/
+├── __init__.py
+├── models.py          ← SCRUM-194: Pydantic output schema
+└── validator.py       ← SCRUM-253: LLM JSON output validation
 ```
 
 ---
@@ -444,6 +456,68 @@ Build a script that:
 - Calculates cost per call (OpenAI pricing: $0.02 per 1M tokens)
 - Reports average latency and estimated cost per paper
 - Saves results to data/evaluation/latency_results.json
+
+---
+
+## SCRUM-192: Prompt Engineering Tasks
+Work through these subtasks in order, one at a time.
+
+### Task 7 — SCRUM-194: Output Schema (rag/verification/models.py)
+Build Pydantic models that define the exact output structure:
+- 5 verdict labels: SUPPORTED, PARTIALLY_SUPPORTED, NOT_SUPPORTED, INSUFFICIENT_EVIDENCE, NEEDS_HUMAN_REVIEW
+- Fields: verdict, confidence (float 0-1), explanation (str), human_review_required (bool)
+- VerificationInput model: claim_text, citation_type, chunks, doi
+- VerificationOutput model: all verdict fields above
+- Write unit tests in tests/rag/test_verification_models.py
+
+### Task 8 — SCRUM-254: Temperature=0 (enforce across all LLM calls)
+- Audit all existing LLM calls in the codebase
+- Ensure temperature=0 is set on every single LLM call
+- Add to any new LLM calls going forward
+- Document in code comments why temperature=0 is required
+
+### Task 9 — SCRUM-252: Citation Type Classifier (rag/prompts/classifier.py)
+Build a module that:
+- Takes a clean claim text as input
+- Makes one LLM call via OpenRouter to classify the citation type
+- Returns one of: RESULT_COMPARISON, METHOD, BACKGROUND, MOTIVATION, EXTENSION, FUTURE_WORK
+- Uses temperature=0
+- Falls back to BACKGROUND if classification fails
+- Write unit tests with mocked LLM response in tests/rag/test_classifier.py
+
+### Task 10 — SCRUM-193: Prompt Template + LLM Call (rag/prompts/verifier.py)
+Build the core verification module that:
+- Uses Jinja2 template for the prompt (stored in rag/prompts/templates/verify.j2)
+- Template inputs: clean claim + citation type + top chunks with section labels
+- Calls Groq/Llama 4 Scout via OpenRouter: model="meta-llama/llama-4-scout"
+- temperature=0 on all calls
+- Returns raw LLM response for Pydantic validation
+- Write unit tests with mocked LLM response in tests/rag/test_verifier.py
+
+### Task 11 — SCRUM-195: Chain-of-Thought (inside verify.j2 template)
+Update the Jinja2 template to include chain-of-thought instructions:
+- LLM must first state what the claim says
+- Then state what the source evidence says
+- Then compare the two
+- Then give the verdict
+- Reasoning must appear in the explanation field
+- Update tests to verify reasoning is present in output
+
+### Task 12 — SCRUM-196: Confidence Score + Human Review Flag (rag/prompts/verifier.py)
+Add logic that:
+- Extracts confidence score (0-1) from LLM output
+- Sets human_review_required=True when: confidence < 0.5 OR verdict = PARTIALLY_SUPPORTED
+- Sets human_review_required=True when: low_confidence=True from vector store
+- Write tests for all human_review_required trigger conditions
+
+### Task 13 — SCRUM-253: Pydantic Output Validation (rag/verification/validator.py)
+Build a validation module that:
+- Takes raw LLM JSON response as string
+- Parses and validates against VerificationOutput Pydantic model
+- Handles malformed JSON gracefully — returns NEEDS_HUMAN_REVIEW if parsing fails
+- Handles missing fields — returns NEEDS_HUMAN_REVIEW if required fields absent
+- Logs all validation failures for debugging
+- Write tests for valid output, malformed JSON, and missing fields
 
 ---
 
