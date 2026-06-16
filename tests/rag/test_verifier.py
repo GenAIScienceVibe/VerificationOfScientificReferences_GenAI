@@ -116,6 +116,28 @@ def test_render_prompt_lists_all_five_verdict_labels():
         assert label in prompt
 
 
+# ── Chain-of-thought instructions (SCRUM-195) ───────────────────────────────
+
+
+def test_render_prompt_instructs_step_by_step_reasoning():
+    prompt = render_prompt(make_input())
+    assert "step by step" in prompt
+
+
+def test_render_prompt_requires_four_part_reasoning_structure():
+    prompt = render_prompt(make_input())
+    assert "What the claim says" in prompt
+    assert "What the source evidence says" in prompt
+    assert "Comparison" in prompt
+    assert "Verdict reasoning" in prompt
+
+
+def test_render_prompt_requires_reasoning_inside_explanation_field():
+    prompt = render_prompt(make_input())
+    assert '"explanation"' in prompt
+    assert "four-step reasoning" in prompt
+
+
 # ── generate_verdict — success path ─────────────────────────────────────────
 
 
@@ -129,6 +151,30 @@ def test_generate_verdict_returns_raw_llm_content(mock_openai_cls):
     result = generate_verdict(make_input())
 
     assert result == FAKE_JSON_VERDICT
+
+
+@patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"})
+@patch("rag.prompts.verifier.OpenAI")
+def test_generate_verdict_preserves_four_step_reasoning_in_explanation(mock_openai_cls):
+    """generate_verdict must not strip or alter the LLM's chain-of-thought reasoning."""
+    cot_response = (
+        '{"verdict": "PARTIALLY_SUPPORTED", "confidence": 0.72, '
+        '"explanation": "1. What the claim says: exercise reduces risk by 35%. '
+        '2. What the source evidence says: a 28% reduction was observed. '
+        '3. Comparison: the source reports a smaller effect than claimed. '
+        '4. Verdict reasoning: partial match, so PARTIALLY_SUPPORTED.", '
+        '"evidence_used": ["10_1234_example_2019_chunk_000"], "limitations": null}'
+    )
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = fake_response(cot_response)
+    mock_openai_cls.return_value = mock_client
+
+    result = generate_verdict(make_input())
+
+    assert "What the claim says" in result
+    assert "What the source evidence says" in result
+    assert "Comparison" in result
+    assert "Verdict reasoning" in result
 
 
 @patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"})

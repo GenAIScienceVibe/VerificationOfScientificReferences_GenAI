@@ -95,5 +95,18 @@ Inputs: `claim_text`, `citation_type`, `doi`, `chunks` (each with `chunk_id`,
 for this source." when `chunks` is empty, so the verifier can still be
 called for an `INSUFFICIENT_EVIDENCE` case without a template error.
 
-Chain-of-thought reasoning instructions will be added to this template in
-SCRUM-195 (Task 11).
+### Chain-of-thought reasoning (SCRUM-195)
+
+The template instructs the LLM to reason step by step **inside the
+`explanation` field**, in exactly four steps, before giving its verdict:
+
+1. What the claim says — restate the claim.
+2. What the source evidence says — summarise the relevant evidence.
+3. Comparison — where the claim and evidence agree or diverge.
+4. Verdict reasoning — why that comparison leads to the chosen verdict.
+
+The reasoning must live inside `explanation` rather than as free text
+outside the JSON object, because the system prompt requires a JSON-only
+response (no commentary outside the object) — this keeps `validator.py`
+(SCRUM-253) able to `json.loads()` the raw response directly without
+having to strip out a separate reasoning block first.

@@ -173,6 +173,22 @@
 
 ---
 
+### SCRUM-195: Chain-of-Thought (`rag/prompts/templates/verify.j2`)
+
+- [x] Updated `verify.j2` to require step-by-step reasoning inside the `explanation` field:
+  1. What the claim says, 2. What the source evidence says, 3. Comparison, 4. Verdict reasoning
+- [x] Updated `docs/rag/verifier.md` with the chain-of-thought section
+- [x] Added 4 new tests to `tests/rag/test_verifier.py`
+  - [x] `test_render_prompt_instructs_step_by_step_reasoning`
+  - [x] `test_render_prompt_requires_four_part_reasoning_structure`
+  - [x] `test_render_prompt_requires_reasoning_inside_explanation_field`
+  - [x] `test_generate_verdict_preserves_four_step_reasoning_in_explanation`
+- [x] Run tests — **17/17 passed** in test_verifier.py (280/280 total across all modules)
+
+**Status: COMPLETE ✓**
+
+---
+
 ## Upcoming Tasks
 
 | ID        | Module              | Branch                  | Status  |
@@ -187,6 +203,6 @@
 | SCRUM-254 | prompts/config.py    | rag_dev_zac             | ✓ Done  |
 | SCRUM-252 | classifier.py        | rag_dev_zac             | ✓ Done  |
 | SCRUM-193 | verifier.py           | rag_dev_zac             | ✓ Done  |
-| SCRUM-195 | verify.j2 CoT          | rag_dev_zac             | Pending |
+| SCRUM-195 | verify.j2 CoT          | rag_dev_zac             | ✓ Done  |
 | SCRUM-196 | confidence + review flag | rag_dev_zac          | Pending |
 | SCRUM-253 | validator.py           | rag_dev_zac             | Pending |
