@@ -263,3 +263,21 @@ Notable decisions worth remembering:
 | SCRUM-195 | verify.j2 CoT          | rag_dev_zac             | ✓ Done  |
 | SCRUM-196 | confidence + review flag | rag_dev_zac          | ✓ Done  |
 | SCRUM-253 | validator.py           | rag_dev_zac             | ✓ Done  |
+
+---
+
+## Integration: Backend Handoff Layer (`rag/api.py`)
+
+- [x] Write `rag/api.py` — two callable functions for the backend, no HTTP endpoints
+  - [x] `retrieve_evidence()` — wraps cleaner → chunker → embedder → vector_store (Door 1)
+  - [x] `verify_claim()` — wraps classifier → verifier → validator (Door 2)
+  - [x] Request/response Pydantic models matching the CLAUDE.md JSON contracts literally (field names like `support_status` differ from our internal `verdict`, so these are new models, not reused internal ones)
+  - [x] INVALID/UNRESOLVABLE doi_status short-circuits both doors before any pipeline call
+  - [x] Pipeline exceptions in either door are caught and converted to a safe fallback (`FAILED` / `NEEDS_HUMAN_REVIEW`) — neither function raises
+  - [x] `low_confidence` bridge in `verify_claim()`: Door 2 only gives `overall_similarity_score` (a float, not a flag), so the same `SIMILARITY_THRESHOLD` from `vector_store.py` is reapplied to derive it
+- [x] Write `tests/rag/test_api.py` — 12 unit tests (pipeline functions mocked at the `rag.api` import boundary)
+- [x] Run tests — **323/323 passed** across all modules
+- [x] Write `docs/rag/api.md` — explains the handoff layer to Jona and Sanilka in plain language
+- [x] **Known gap documented**: Door 1 only wraps dense FAISS retrieval — `bm25_retriever.py` and `hybrid_retriever.py` (mentioned in CLAUDE.md's file naming conventions) don't exist yet, so true hybrid retrieval + FlashRank reranking isn't wired in. `retrieve_evidence()`'s contract won't need to change when those land — only its internal Step 5.
+
+**Status: COMPLETE ✓**
