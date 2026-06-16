@@ -210,6 +210,42 @@
 
 ---
 
+### SCRUM-253: Pydantic Output Validation (`rag/verification/validator.py`)
+
+- [x] Write `rag/verification/validator.py`
+  - [x] `_fallback_output` — builds a valid NEEDS_HUMAN_REVIEW VerificationOutput
+  - [x] `validate_output` — parses raw LLM JSON via attach_human_review_flag (reused from verifier.py, SCRUM-196), then constructs VerificationOutput; catches JSONDecodeError, KeyError, and pydantic ValidationError, logging each and falling back to NEEDS_HUMAN_REVIEW
+- [x] Write `tests/rag/test_validator.py` — 14 unit tests
+  - [x] valid output (SUPPORTED, PARTIALLY_SUPPORTED, low_confidence flag, default fields)
+  - [x] malformed JSON (incl. empty string) + logging
+  - [x] missing required fields (verdict, confidence, explanation) + logging
+  - [x] schema mismatches (unrecognised verdict label, out-of-range confidence) + logging
+- [x] Run tests — **14/14 passed** (311/311 total across all modules)
+- [x] Write `docs/rag/validator.md` — module documentation
+
+**Status: COMPLETE ✓**
+
+---
+
+## SCRUM-192: Prompt Engineering — Sprint Review
+
+All 7 subtasks (Tasks 7–13) complete: output schema, temperature audit,
+citation classifier, prompt template + LLM call, chain-of-thought, confidence
++ human review flag, and Pydantic output validation. 311/311 tests passing.
+
+The Door 2 pipeline is now fully wired end to end:
+`VerificationInput` → `classify_citation_type()` → `generate_verdict()`
+(CoT prompt, temp=0) → `attach_human_review_flag()` → `validate_output()`
+→ `VerificationOutput`.
+
+Notable decisions worth remembering:
+- `rag/prompts/config.py` centralises `LLM_TEMPERATURE` so no call site can drift.
+- The `human_review_required` rule lives once in `verifier.py` and is reused by `validator.py` — not duplicated.
+- Chain-of-thought reasoning lives inside the `explanation` JSON field, not as separate output text, to keep the JSON-only response contract intact.
+- `validator.py` never raises — every failure mode collapses to a safe `NEEDS_HUMAN_REVIEW` output.
+
+---
+
 ## Upcoming Tasks
 
 | ID        | Module              | Branch                  | Status  |
@@ -226,4 +262,4 @@
 | SCRUM-193 | verifier.py           | rag_dev_zac             | ✓ Done  |
 | SCRUM-195 | verify.j2 CoT          | rag_dev_zac             | ✓ Done  |
 | SCRUM-196 | confidence + review flag | rag_dev_zac          | ✓ Done  |
-| SCRUM-253 | validator.py           | rag_dev_zac             | Pending |
+| SCRUM-253 | validator.py           | rag_dev_zac             | ✓ Done  |
