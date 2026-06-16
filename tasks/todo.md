@@ -141,6 +141,22 @@
 
 ---
 
+### SCRUM-252: Citation Type Classifier (`rag/prompts/classifier.py`)
+
+- [x] Write `rag/prompts/classifier.py`
+  - [x] `CitationType` enum — 6 labels (RESULT_COMPARISON, METHOD, BACKGROUND, MOTIVATION, EXTENSION, FUTURE_WORK)
+  - [x] `SYSTEM_PROMPT` — instructs LLM to output exactly one label
+  - [x] `_build_client` — OpenRouter client builder (lazy, mirrors embedder.py)
+  - [x] `_parse_label` — strict parsing, raises ValueError on unknown label
+  - [x] `classify_citation_type` — one LLM call at temperature=0 (via LLM_TEMPERATURE), falls back to BACKGROUND on any failure
+- [x] Write `tests/rag/test_classifier.py` — 18 unit tests (mocked LLM responses, no real API calls)
+- [x] Run tests — **18/18 passed** (263/263 total across all modules)
+- [x] Write `docs/rag/classifier.md` — module documentation
+
+**Status: COMPLETE ✓**
+
+---
+
 ## Upcoming Tasks
 
 | ID        | Module              | Branch                  | Status  |
@@ -153,7 +169,7 @@
 | SCRUM-185 | latency.py          | rag_dev_zac             | ✓ Done  |
 | SCRUM-194 | verification/models.py | rag_dev_zac           | ✓ Done  |
 | SCRUM-254 | prompts/config.py    | rag_dev_zac             | ✓ Done  |
-| SCRUM-252 | classifier.py        | rag_dev_zac             | Pending |
+| SCRUM-252 | classifier.py        | rag_dev_zac             | ✓ Done  |
 | SCRUM-193 | verifier.py           | rag_dev_zac             | Pending |
 | SCRUM-195 | verify.j2 CoT          | rag_dev_zac             | Pending |
 | SCRUM-196 | confidence + review flag | rag_dev_zac          | Pending |
