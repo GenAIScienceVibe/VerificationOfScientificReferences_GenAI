@@ -125,6 +125,22 @@
 
 ---
 
+### SCRUM-254: Temperature=0 Audit (`rag/prompts/config.py`)
+
+- [x] Audit all existing LLM calls in the codebase
+  - Found only `embeddings.create()` in `rag/retrieval/embedder.py` — embeddings API has no `temperature` param, so N/A
+  - `classifier.py` (SCRUM-252) and `verifier.py` (SCRUM-193) not yet built — no chat-completion call sites exist yet
+- [x] Create `rag/prompts/__init__.py`
+- [x] Write `rag/prompts/config.py` — `LLM_TEMPERATURE = 0` shared constant with rationale comment
+- [x] Write `tests/rag/test_prompts_config.py` — 2 unit tests
+- [x] Run tests — **2/2 passed** (245/245 total across all modules)
+- [x] Write `docs/rag/prompts_config.md` — module documentation
+- [x] Future modules (classifier.py, verifier.py) must import `LLM_TEMPERATURE` instead of hardcoding `0`
+
+**Status: COMPLETE ✓**
+
+---
+
 ## Upcoming Tasks
 
 | ID        | Module              | Branch                  | Status  |
@@ -136,7 +152,7 @@
 | SCRUM-184 | benchmark.py        | rag_dev_zac             | ✓ Done  |
 | SCRUM-185 | latency.py          | rag_dev_zac             | ✓ Done  |
 | SCRUM-194 | verification/models.py | rag_dev_zac           | ✓ Done  |
-| SCRUM-254 | temperature=0 audit | rag_dev_zac             | Next    |
+| SCRUM-254 | prompts/config.py    | rag_dev_zac             | ✓ Done  |
 | SCRUM-252 | classifier.py        | rag_dev_zac             | Pending |
 | SCRUM-193 | verifier.py           | rag_dev_zac             | Pending |
 | SCRUM-195 | verify.j2 CoT          | rag_dev_zac             | Pending |
