@@ -108,6 +108,23 @@
 
 ---
 
+---
+
+### SCRUM-194: Output Schema (`rag/verification/models.py`)
+
+- [x] Create `rag/verification/__init__.py`
+- [x] Write `rag/verification/models.py`
+  - [x] `Verdict` enum — 5 labels matching backend schema exactly
+  - [x] `VerificationInput` — claim_text, citation_type, chunks, doi
+  - [x] `VerificationOutput` — verdict, confidence (0–1), explanation, evidence_used, limitations, human_review_required
+- [x] Write `tests/rag/test_verification_models.py` — 23 unit tests
+- [x] Run tests — **23/23 passed** (243/243 total across all modules)
+- [x] Write `docs/rag/verification_models.md` — module documentation
+
+**Status: COMPLETE ✓**
+
+---
+
 ## Upcoming Tasks
 
 | ID        | Module              | Branch                  | Status  |
@@ -118,3 +135,10 @@
 | SCRUM-186 | vector_store.py     | rag_dev_zac             | ✓ Done  |
 | SCRUM-184 | benchmark.py        | rag_dev_zac             | ✓ Done  |
 | SCRUM-185 | latency.py          | rag_dev_zac             | ✓ Done  |
+| SCRUM-194 | verification/models.py | rag_dev_zac           | ✓ Done  |
+| SCRUM-254 | temperature=0 audit | rag_dev_zac             | Next    |
+| SCRUM-252 | classifier.py        | rag_dev_zac             | Pending |
+| SCRUM-193 | verifier.py           | rag_dev_zac             | Pending |
+| SCRUM-195 | verify.j2 CoT          | rag_dev_zac             | Pending |
+| SCRUM-196 | confidence + review flag | rag_dev_zac          | Pending |
+| SCRUM-253 | validator.py           | rag_dev_zac             | Pending |
