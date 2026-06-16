@@ -42,6 +42,32 @@ raw_response = generate_verdict(VerificationInput(
 
 ---
 
+## Confidence score + human review flag (SCRUM-196)
+
+```python
+from rag.prompts.verifier import generate_verdict, attach_human_review_flag
+
+raw_json = generate_verdict(verification_input)
+result = attach_human_review_flag(raw_json, low_confidence=vector_store_output.low_confidence)
+# result is a dict: {..., "human_review_required": True/False}
+```
+
+`compute_human_review_required(verdict, confidence, low_confidence)` applies
+the rule from CLAUDE.md — `human_review_required` is `True` when **any** of:
+
+- `confidence < 0.5` (`HUMAN_REVIEW_CONFIDENCE_THRESHOLD`)
+- `verdict == PARTIALLY_SUPPORTED`
+- `low_confidence` is `True` (carried over from the vector store's
+  `VectorStoreOutput.low_confidence` flag, set when the best retrieved
+  chunk scored below the retrieval similarity threshold)
+
+`attach_human_review_flag(raw_json, low_confidence)` is the thin glue step:
+it `json.loads()`s the raw LLM response, reads `verdict` and `confidence`,
+and injects the computed flag. It deliberately does **not** handle malformed
+JSON or missing fields gracefully — it raises `json.JSONDecodeError` /
+`KeyError` on those, because graceful fallback to `NEEDS_HUMAN_REVIEW` on
+bad input is `validator.py`'s job (SCRUM-253), not this module's.
+
 ## Key design decisions
 
 ### `render_prompt()` is a pure function
@@ -87,6 +113,7 @@ them is explicitly validator.py's job (SCRUM-253), not this module's.
 | `TEMPLATES_DIR` | `Path(__file__).parent / "templates"` | Directory Jinja2 loads templates from |
 | `TEMPLATE_NAME` | `"verify.j2"` | Template file rendered by `render_prompt()` |
 | `SYSTEM_PROMPT` | str | Instructs the LLM to respond with JSON only |
+| `HUMAN_REVIEW_CONFIDENCE_THRESHOLD` | `0.5` | Confidence below this triggers human review |
 
 ## Template: `templates/verify.j2`
 

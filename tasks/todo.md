@@ -189,6 +189,27 @@
 
 ---
 
+### SCRUM-196: Confidence Score + Human Review Flag (`rag/prompts/verifier.py`)
+
+- [x] Add `HUMAN_REVIEW_CONFIDENCE_THRESHOLD = 0.5` constant
+- [x] Add `compute_human_review_required(verdict, confidence, low_confidence=False)` — pure function, applies the 3 OR conditions from CLAUDE.md
+- [x] Add `attach_human_review_flag(raw_json, low_confidence=False)` — parses raw LLM JSON, injects the flag (does NOT handle malformed JSON/missing fields gracefully — that's validator.py, SCRUM-253)
+- [x] Add 17 new tests to `tests/rag/test_verifier.py` covering all trigger conditions:
+  - [x] no trigger → False
+  - [x] confidence < 0.5 → True
+  - [x] confidence == 0.5 (boundary) → False
+  - [x] verdict == PARTIALLY_SUPPORTED (enum and string) → True
+  - [x] low_confidence=True → True
+  - [x] multiple triggers at once → True
+  - [x] other verdicts with high confidence → False
+  - [x] attach_human_review_flag success + malformed JSON + missing field cases
+- [x] Run tests — **34/34 passed** in test_verifier.py (297/297 total across all modules)
+- [x] Update `docs/rag/verifier.md` with the confidence/human-review section
+
+**Status: COMPLETE ✓**
+
+---
+
 ## Upcoming Tasks
 
 | ID        | Module              | Branch                  | Status  |
@@ -204,5 +225,5 @@
 | SCRUM-252 | classifier.py        | rag_dev_zac             | ✓ Done  |
 | SCRUM-193 | verifier.py           | rag_dev_zac             | ✓ Done  |
 | SCRUM-195 | verify.j2 CoT          | rag_dev_zac             | ✓ Done  |
-| SCRUM-196 | confidence + review flag | rag_dev_zac          | Pending |
+| SCRUM-196 | confidence + review flag | rag_dev_zac          | ✓ Done  |
 | SCRUM-253 | validator.py           | rag_dev_zac             | Pending |

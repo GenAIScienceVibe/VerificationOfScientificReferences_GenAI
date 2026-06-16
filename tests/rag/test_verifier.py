@@ -5,15 +5,23 @@ render_prompt() is tested directly (pure function, no mocking needed).
 generate_verdict() mocks the OpenAI client so no real API calls are made.
 """
 
+import json
 import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from rag.ingestion.models import ChunkMetadata
-from rag.prompts.verifier import LLM_MODEL, generate_verdict, render_prompt
+from rag.prompts.verifier import (
+    HUMAN_REVIEW_CONFIDENCE_THRESHOLD,
+    LLM_MODEL,
+    attach_human_review_flag,
+    compute_human_review_required,
+    generate_verdict,
+    render_prompt,
+)
 from rag.prompts.config import LLM_TEMPERATURE
-from rag.verification.models import VerificationInput
+from rag.verification.models import Verdict, VerificationInput
 
 
 # ── Fixtures and helpers ──────────────────────────────────────────────────────
@@ -228,3 +236,102 @@ def test_generate_verdict_propagates_api_errors(mock_openai_cls):
 
     with pytest.raises(RuntimeError):
         generate_verdict(make_input())
+
+
+# ── compute_human_review_required (SCRUM-196) ───────────────────────────────
+
+
+def test_human_review_not_required_when_no_trigger_present():
+    assert compute_human_review_required(Verdict.SUPPORTED, 0.9, low_confidence=False) is False
+
+
+def test_human_review_required_when_confidence_below_threshold():
+    assert compute_human_review_required(Verdict.SUPPORTED, 0.49, low_confidence=False) is True
+
+
+def test_human_review_not_required_at_exact_threshold():
+    """confidence == threshold should NOT trigger — only strictly below."""
+    assert (
+        compute_human_review_required(
+            Verdict.SUPPORTED, HUMAN_REVIEW_CONFIDENCE_THRESHOLD, low_confidence=False
+        )
+        is False
+    )
+
+
+def test_human_review_required_when_verdict_is_partially_supported():
+    assert compute_human_review_required(Verdict.PARTIALLY_SUPPORTED, 0.95, low_confidence=False) is True
+
+
+def test_human_review_required_when_verdict_is_partially_supported_as_string():
+    assert compute_human_review_required("PARTIALLY_SUPPORTED", 0.95, low_confidence=False) is True
+
+
+def test_human_review_required_when_low_confidence_flag_set():
+    assert compute_human_review_required(Verdict.SUPPORTED, 0.95, low_confidence=True) is True
+
+
+def test_human_review_required_when_multiple_triggers_present():
+    assert compute_human_review_required(Verdict.PARTIALLY_SUPPORTED, 0.2, low_confidence=True) is True
+
+
+@pytest.mark.parametrize(
+    "verdict",
+    [
+        Verdict.SUPPORTED,
+        Verdict.NOT_SUPPORTED,
+        Verdict.INSUFFICIENT_EVIDENCE,
+        Verdict.NEEDS_HUMAN_REVIEW,
+    ],
+)
+def test_human_review_not_required_for_other_verdicts_with_high_confidence(verdict):
+    assert compute_human_review_required(verdict, 0.9, low_confidence=False) is False
+
+
+# ── attach_human_review_flag (SCRUM-196) ────────────────────────────────────
+
+
+def test_attach_human_review_flag_sets_true_for_low_confidence_response():
+    raw_json = json.dumps({"verdict": "SUPPORTED", "confidence": 0.3, "explanation": "x"})
+
+    result = attach_human_review_flag(raw_json)
+
+    assert result["human_review_required"] is True
+    assert result["verdict"] == "SUPPORTED"
+    assert result["confidence"] == 0.3
+
+
+def test_attach_human_review_flag_sets_false_when_no_trigger():
+    raw_json = json.dumps({"verdict": "SUPPORTED", "confidence": 0.95, "explanation": "x"})
+
+    result = attach_human_review_flag(raw_json)
+
+    assert result["human_review_required"] is False
+
+
+def test_attach_human_review_flag_sets_true_for_partially_supported():
+    raw_json = json.dumps({"verdict": "PARTIALLY_SUPPORTED", "confidence": 0.95, "explanation": "x"})
+
+    result = attach_human_review_flag(raw_json)
+
+    assert result["human_review_required"] is True
+
+
+def test_attach_human_review_flag_sets_true_when_vector_store_low_confidence():
+    raw_json = json.dumps({"verdict": "SUPPORTED", "confidence": 0.95, "explanation": "x"})
+
+    result = attach_human_review_flag(raw_json, low_confidence=True)
+
+    assert result["human_review_required"] is True
+
+
+def test_attach_human_review_flag_raises_on_malformed_json():
+    with pytest.raises(json.JSONDecodeError):
+        attach_human_review_flag("not valid json")
+
+
+def test_attach_human_review_flag_raises_on_missing_confidence():
+    raw_json = json.dumps({"verdict": "SUPPORTED", "explanation": "x"})
+
+    with pytest.raises(KeyError):
+        attach_human_review_flag(raw_json)
