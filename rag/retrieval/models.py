@@ -95,3 +95,11 @@ class VectorStoreOutput(BaseModel):
     retrieved_k: int = Field(
         ..., description="Number of chunks actually returned (may be < top_k if index is small)"
     )
+    low_confidence: bool = Field(
+        default=False,
+        description="True when the best chunk's weighted_score is below SIMILARITY_THRESHOLD",
+    )
+    warning: str | None = Field(
+        default=None,
+        description="Human-readable warning explaining why low_confidence is True",
+    )

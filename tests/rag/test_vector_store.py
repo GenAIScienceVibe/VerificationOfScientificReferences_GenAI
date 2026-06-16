@@ -27,8 +27,10 @@ from rag.retrieval.models import (
 )
 from rag.retrieval.vector_store import (
     DEFAULT_WEIGHT,
+    LOW_CONFIDENCE_WARNING,
     OVERSAMPLE_FACTOR,
     SECTION_WEIGHTS,
+    SIMILARITY_THRESHOLD,
     _build_index,
     _get_section_weight,
     _normalise,
@@ -346,3 +348,90 @@ class TestSearch:
 
         assert result.top_chunks[0].chunk.section == "results"
         assert result.top_chunks[1].chunk.section == "related_work"
+
+
+# ── Similarity threshold check ──────────────────────────────────────────────────
+
+
+class TestSimilarityThreshold:
+    def test_threshold_constant_value(self):
+        assert SIMILARITY_THRESHOLD == 0.5
+
+    def test_high_similarity_sets_low_confidence_false(self):
+        """An exact-match chunk (cosine 1.0, weight 1.0) clears the threshold easily."""
+        chunk = make_embedded_chunk(0, section="abstract", embedding=unit_vec(0))
+        query = unit_vec(0)
+
+        result = search(make_search_input([chunk], query=query, top_k=1))
+
+        assert result.top_chunks[0].weighted_score >= SIMILARITY_THRESHOLD
+        assert result.low_confidence is False
+        assert result.warning is None
+
+    def test_low_similarity_sets_low_confidence_true(self):
+        """An orthogonal chunk (cosine ≈ 0) falls far below the threshold.
+
+        Chunk embedding is orthogonal to the query, so raw cosine ≈ 0 and
+        weighted_score ≈ 0, well under SIMILARITY_THRESHOLD (0.5).
+        """
+        chunk = make_embedded_chunk(0, section="abstract", embedding=unit_vec(1))
+        query = unit_vec(0)
+
+        result = search(make_search_input([chunk], query=query, top_k=1))
+
+        assert result.top_chunks[0].weighted_score < SIMILARITY_THRESHOLD
+        assert result.low_confidence is True
+        assert result.warning == LOW_CONFIDENCE_WARNING
+
+    def test_low_confidence_warning_message_text(self):
+        chunk = make_embedded_chunk(0, section="abstract", embedding=unit_vec(1))
+        query = unit_vec(0)
+
+        result = search(make_search_input([chunk], query=query, top_k=1))
+
+        assert result.warning == (
+            "Best chunk similarity below threshold — evidence may be insufficient"
+        )
+
+    def test_borderline_score_just_above_threshold_is_not_flagged(self):
+        """A 45° angle gives cosine ≈ 0.707; with weight 1.0 this clears 0.5."""
+        half = 1.0 / math.sqrt(2)
+        diagonal = [half, half] + [0.0] * (TEST_DIM - 2)
+
+        chunk = make_embedded_chunk(0, section="abstract", embedding=diagonal)
+        query = unit_vec(0)
+
+        result = search(make_search_input([chunk], query=query, top_k=1))
+
+        assert result.top_chunks[0].weighted_score > SIMILARITY_THRESHOLD
+        assert result.low_confidence is False
+        assert result.warning is None
+
+    def test_only_best_chunk_score_determines_flag(self):
+        """Even if lower-ranked chunks are weak, a strong top chunk keeps low_confidence False."""
+        strong_chunk = make_embedded_chunk(0, section="abstract", embedding=unit_vec(0))
+        weak_chunk = make_embedded_chunk(1, section="abstract", embedding=unit_vec(1))
+        query = unit_vec(0)
+
+        result = search(make_search_input([strong_chunk, weak_chunk], query=query, top_k=2))
+
+        assert result.top_chunks[0].chunk.chunk_id == strong_chunk.chunk.chunk_id
+        assert result.low_confidence is False
+        assert result.warning is None
+
+    def test_empty_chunks_does_not_set_low_confidence(self):
+        """No chunks to score means low_confidence stays False (no evidence claim made here)."""
+        result = search(make_search_input([]))
+        assert result.low_confidence is False
+        assert result.warning is None
+
+    def test_low_confidence_field_defaults_false_on_model(self):
+        """VectorStoreOutput constructed without low_confidence defaults to False/None."""
+        output = VectorStoreOutput(
+            doi=TEST_DOI,
+            top_chunks=[],
+            total_indexed=0,
+            retrieved_k=0,
+        )
+        assert output.low_confidence is False
+        assert output.warning is None

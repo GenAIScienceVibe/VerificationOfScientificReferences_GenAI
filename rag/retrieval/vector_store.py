@@ -58,6 +58,16 @@ DEFAULT_WEIGHT: float = 1.0
 # Oversampling gives the re-ranking step enough material to change the order.
 OVERSAMPLE_FACTOR: int = 3
 
+# Minimum weighted_score the best-ranked chunk must reach for the retrieval
+# to be considered usable evidence. Below this, we flag low_confidence=True
+# so the caller can short-circuit to INSUFFICIENT_EVIDENCE instead of sending
+# weak evidence to the LLM.
+SIMILARITY_THRESHOLD: float = 0.5
+
+LOW_CONFIDENCE_WARNING: str = (
+    "Best chunk similarity below threshold — evidence may be insufficient"
+)
+
 
 # ── Private helpers ────────────────────────────────────────────────────────────
 
@@ -119,7 +129,9 @@ def search(input_data: VectorStoreInput) -> VectorStoreOutput:
       5. Search with an oversampled k (top_k × OVERSAMPLE_FACTOR).
       6. Multiply each raw cosine score by its section priority weight.
       7. Sort candidates by weighted score descending, take the final top-k.
-      8. Return VectorStoreOutput — the FAISS index is then discarded.
+      8. Check the best chunk's weighted_score against SIMILARITY_THRESHOLD;
+         flag low_confidence=True if it falls short.
+      9. Return VectorStoreOutput — the FAISS index is then discarded.
 
     Args:
         input_data: VectorStoreInput containing an EmbedderOutput, the query
@@ -203,9 +215,25 @@ def search(input_data: VectorStoreInput) -> VectorStoreOutput:
         doi, total_indexed, len(final_chunks), candidate_k,
     )
 
+    # ── 6. Similarity threshold check ──────────────────────────────────────────
+
+    # If the best-ranked chunk doesn't clear SIMILARITY_THRESHOLD, the evidence
+    # is too weak to be useful — flag it so the caller can skip LLM verification.
+    low_confidence = False
+    warning: str | None = None
+    if final_chunks and final_chunks[0].weighted_score < SIMILARITY_THRESHOLD:
+        low_confidence = True
+        warning = LOW_CONFIDENCE_WARNING
+        logger.warning(
+            "DOI %s — best weighted_score %.4f below threshold %.2f. %s",
+            doi, final_chunks[0].weighted_score, SIMILARITY_THRESHOLD, warning,
+        )
+
     return VectorStoreOutput(
         doi=doi,
         top_chunks=final_chunks,
         total_indexed=total_indexed,
         retrieved_k=len(final_chunks),
+        low_confidence=low_confidence,
+        warning=warning,
     )
