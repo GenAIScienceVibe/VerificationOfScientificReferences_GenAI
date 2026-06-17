@@ -437,25 +437,30 @@ class ReferenceExtractionService:
         return re.sub(r"\s+", " ", text).strip()
 
     def extract_doi(self, raw_reference: str) -> DoiExtractionResult:
-        repaired = repair_doi_line_continuations(raw_reference)
-        repaired = self._separate_doi_author_collisions(repaired)
-        for match in DOI_WITH_PREFIX_REGEX.finditer(repaired):
-            doi = self._normalize_doi(match.group(1))
-            if self._looks_author_contaminated_doi(doi, repaired):
+            raw_reference = re.sub(
+                r"(?i)(https?://(?:dx\.)?doi\.org/10\.\d{4,9}/)\s+([^\s])",
+                r"\1\2",
+                raw_reference,
+            )
+            repaired = repair_doi_line_continuations(raw_reference)
+            repaired = self._separate_doi_author_collisions(repaired)
+            for match in DOI_WITH_PREFIX_REGEX.finditer(repaired):
+                doi = self._normalize_doi(match.group(1))
+                if self._looks_author_contaminated_doi(doi, repaired):
+                    return DoiExtractionResult(extracted_doi=None, doi_status=DoiStatus.MALFORMED.value)
+                if self._is_syntactically_valid_doi(doi):
+                    return DoiExtractionResult(extracted_doi=doi, doi_status=DoiStatus.FOUND.value)
+                if doi:
+                    return DoiExtractionResult(extracted_doi=doi, doi_status=DoiStatus.MALFORMED.value)
+
+            if DOI_LIKE_REGEX.search(repaired) or re.search(
+                r"(?:doi\s*[: ]\s*10\.|doi\s*[: ]\s*$|doi\.org/|dx\.doi\.org/|\b10\.)",
+                repaired,
+                re.IGNORECASE,
+            ):
                 return DoiExtractionResult(extracted_doi=None, doi_status=DoiStatus.MALFORMED.value)
-            if self._is_syntactically_valid_doi(doi):
-                return DoiExtractionResult(extracted_doi=doi, doi_status=DoiStatus.FOUND.value)
-            if doi:
-                return DoiExtractionResult(extracted_doi=doi, doi_status=DoiStatus.MALFORMED.value)
 
-        if DOI_LIKE_REGEX.search(repaired) or re.search(
-            r"(?:doi\s*[: ]\s*10\.|doi\s*[: ]\s*$|doi\.org/|dx\.doi\.org/|\b10\.)",
-            repaired,
-            re.IGNORECASE,
-        ):
-            return DoiExtractionResult(extracted_doi=None, doi_status=DoiStatus.MALFORMED.value)
-
-        return DoiExtractionResult(extracted_doi=None, doi_status=DoiStatus.MISSING.value)
+            return DoiExtractionResult(extracted_doi=None, doi_status=DoiStatus.MISSING.value)
 
     def extract_doi_inventory(self, text: str) -> list[str]:
         repaired = repair_doi_line_continuations(text)

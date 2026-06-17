@@ -51,7 +51,10 @@ class ErrorCode(StrEnum):
     GENAI_INVALID_JSON = "GENAI_INVALID_JSON"
     GENAI_LOW_CONFIDENCE = "GENAI_LOW_CONFIDENCE"
 
-
+    # BE-7 evidence package errors.
+    CLAIMS_NOT_FOUND = "CLAIMS_NOT_FOUND"
+    EVIDENCE_PACKAGE_NOT_FOUND = "EVIDENCE_PACKAGE_NOT_FOUND"
+    
 class AppException(Exception):
     """Known application exception returned using the standard API wrapper."""
 
