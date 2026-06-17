@@ -1,8 +1,10 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 
 function LoadingPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const fileName = location.state?.fileName || "research_paper.pdf"
   const [progress, setProgress] = useState(0)
   const [currentStep, setCurrentStep] = useState(0)
 
@@ -18,8 +20,8 @@ function LoadingPage() {
       setProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval)
-          setTimeout(() => navigate('/error'), 500)
-          return 100
+setTimeout(() => navigate('/results', { state: { fileName } }), 500)        
+  return 100
         }
         return prev + 1
       })
@@ -35,9 +37,12 @@ function LoadingPage() {
   }, [progress])
 
   const getStatus = (i) => {
-    const threshold = i * (100 / 3)
-    if (progress >= threshold + (100 / 3)) return "done"
-    if (progress >= threshold) return "active"
+    if (i === 0) {
+      return progress >= (100/3) ? "done" : "active"
+    }
+    const segmentSize = 100 / 3
+    const lineEnd = i * segmentSize
+    if (progress >= lineEnd) return "done"
     return "pending"
   }
 
@@ -51,8 +56,23 @@ function LoadingPage() {
   }
 
   return (
-    <div style={{ background: "#f5f5f5", display: "flex", justifyContent: "center", padding: "40px 24px 80px" }}>
-      <div style={{ background: "white", borderRadius: "16px", padding: "48px 56px", maxWidth: "600px", width: "100%", textAlign: "center", boxShadow: "0 2px 16px rgba(0,0,0,0.07)" }}>
+    <div style={{
+      display: "flex", justifyContent: "center",
+      padding: "20px 24px 80px",
+      marginTop: "-80px",
+      paddingTop: "80px",
+      position: "relative",
+      backgroundImage: `url('/src/assets/background.png')`,
+      backgroundSize: "60%",
+      backgroundPosition: "center 350px",
+      backgroundRepeat: "no-repeat"
+    }}>
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+        background: "rgba(245,245,245,0.9)"
+      }} />
+
+      <div style={{ background: "white", borderRadius: "16px", padding: "48px 56px", maxWidth: "600px", width: "100%", textAlign: "center", boxShadow: "0 2px 16px rgba(0,0,0,0.07)", position: "relative", zIndex: 1 }}>
 
         <div style={{ marginBottom: "24px" }}>
           <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -72,7 +92,7 @@ function LoadingPage() {
         </h2>
 
         <span style={{ background: "#f0f2f5", borderRadius: "20px", padding: "6px 16px", fontSize: "13px", color: "#444", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-          📄 research_paper.pdf
+          📄 {fileName}
         </span>
 
         <p style={{ color: "#888", margin: "20px 0 28px", fontSize: "15px", lineHeight: "1.6" }}>
@@ -86,10 +106,10 @@ function LoadingPage() {
           <span style={{ fontSize: "15px", fontWeight: "600", color: "#111", minWidth: "40px" }}>{progress}%</span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "flex-start", marginBottom: "36px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", marginBottom: "36px", justifyContent: "space-between" }}>
           {steps.map((step, i) => (
-            <div key={step.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
+            <div key={step.id} style={{ display: "flex", alignItems: "flex-start", flex: i < steps.length - 1 ? 1 : "0 0 40px" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "40px" }}>
                 <div style={{
                   width: "40px", height: "40px", borderRadius: "50%", border: "2px solid",
                   borderColor: getStatus(i) === "pending" ? "#ccc" : "#1a3a6b",
@@ -100,21 +120,21 @@ function LoadingPage() {
                 }}>
                   {getStatus(i) === "done" ? "✓" : step.id}
                 </div>
-                {i < steps.length - 1 && (
-                  <div style={{ flex: 1, height: "2px", background: "#e0e0e0", position: "relative", overflow: "hidden" }}>
-                    <div style={{
-                      position: "absolute", top: 0, left: 0, height: "2px",
-                      background: "#1a3a6b",
-                      width: getLineWidth(i),
-                      transition: "width 0.1s linear"
-                    }} />
-                  </div>
-                )}
+                <span style={{ fontSize: "12px", fontWeight: "600", marginTop: "10px", color: "#222", textAlign: "center", width: "80px" }}>{step.label}</span>
+                <span style={{ fontSize: "11px", color: getStatus(i) === "active" ? "#1a3a6b" : "#999", marginTop: "2px", textAlign: "center" }}>
+                  {getStatus(i) === "done" ? "Completed" : getStatus(i) === "active" ? "In progress" : "Pending"}
+                </span>
               </div>
-              <span style={{ fontSize: "12px", fontWeight: "600", marginTop: "10px", color: "#222" }}>{step.label}</span>
-              <span style={{ fontSize: "11px", color: getStatus(i) === "active" ? "#1a3a6b" : "#999", marginTop: "2px" }}>
-                {i < currentStep ? "Completed" : i === currentStep ? "In progress" : "Pending"}
-              </span>
+              {i < steps.length - 1 && (
+                <div style={{ flex: 1, height: "2px", background: "#e0e0e0", position: "relative", overflow: "hidden", marginTop: "19px" }}>
+                  <div style={{
+                    position: "absolute", top: 0, left: 0, height: "2px",
+                    background: "#1a3a6b",
+                    width: getLineWidth(i),
+                    transition: "width 0.1s linear"
+                  }} />
+                </div>
+              )}
             </div>
           ))}
         </div>

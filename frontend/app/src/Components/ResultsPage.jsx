@@ -1,8 +1,11 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useState } from 'react'
+import jsPDF from 'jspdf'
 
 function ResultsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const fileName = location.state?.fileName || "research_paper.pdf"
   const [activeFilter, setActiveFilter] = useState('All')
 
   const claims = [
@@ -71,19 +74,53 @@ function ResultsPage() {
     return "#dc2626"
   }
 
+  const handleDownload = () => {
+    const doc = new jsPDF()
+    let y = 20
+
+    doc.setFontSize(18)
+    doc.setFont(undefined, 'bold')
+    doc.text('Verification Report', 14, y)
+    y += 10
+
+    doc.setFontSize(11)
+    doc.setFont(undefined, 'normal')
+    doc.text(`File: ${fileName}`, 14, y)
+    y += 8
+    doc.text('Credibility Score: 72% - Partially Reliable', 14, y)
+    y += 12
+
+    claims.forEach((claim) => {
+      if (y > 260) {
+        doc.addPage()
+        y = 20
+      }
+      doc.setFont(undefined, 'bold')
+      doc.text(`Claim ${claim.id} - ${statusConfig[claim.status].label}`, 14, y)
+      y += 7
+
+      doc.setFont(undefined, 'normal')
+      const claimLines = doc.splitTextToSize(claim.text, 180)
+      doc.text(claimLines, 14, y)
+      y += claimLines.length * 6 + 2
+
+      doc.setFont(undefined, 'italic')
+      const reasoningLines = doc.splitTextToSize(`AI reasoning: ${claim.reasoning}`, 180)
+      doc.text(reasoningLines, 14, y)
+      y += reasoningLines.length * 6 + 2
+
+      doc.setFont(undefined, 'normal')
+      doc.text(`Confidence: ${claim.confidence}`, 14, y)
+      y += 12
+    })
+
+    doc.save(`verifai_report_${fileName.replace('.pdf', '')}.pdf`)
+  }
+
   return (
-    <div style={{ background: "#f5f5f5", minHeight: "100vh" }}>
+    <div style={{ background: "#f5f5f5", minHeight: "100vh", padding: "32px 40px" }}>
 
-      <div style={{ background: "white", borderBottom: "1px solid #eee", padding: "12px 40px", display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-        <button onClick={() => navigate('/')} style={{ border: "1px solid #ccc", background: "white", borderRadius: "8px", padding: "8px 20px", cursor: "pointer", fontSize: "14px" }}>
-          New document
-        </button>
-        <a href="#" download style={{ border: "1px solid #ccc", background: "white", borderRadius: "8px", padding: "8px 20px", cursor: "pointer", fontSize: "14px", textDecoration: "none", color: "#444" }}>
-          Download PDF
-        </a>
-      </div>
-
-      <div style={{ display: "flex", gap: "24px", padding: "32px 40px", maxWidth: "1200px", margin: "0 auto" }}>
+      <div style={{ display: "flex", gap: "24px", maxWidth: "1200px", margin: "0 auto" }}>
 
         <div style={{ width: "280px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "16px" }}>
 
@@ -134,22 +171,27 @@ function ResultsPage() {
           <div style={{ background: "white", borderRadius: "12px", padding: "16px 24px", border: "1px solid #e0e0e0", display: "flex", alignItems: "center", gap: "12px" }}>
             <div style={{ background: "#eef2ff", borderRadius: "8px", padding: "10px", fontSize: "20px" }}>📄</div>
             <div>
-              <p style={{ fontSize: "14px", fontWeight: "600", color: "#111" }}>research_paper.pdf</p>
+              <p style={{ fontSize: "14px", fontWeight: "600", color: "#111" }}>{fileName}</p>
               <p style={{ fontSize: "12px", color: "#888" }}>17 claims processed just now</p>
             </div>
           </div>
 
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
             <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "12px" }}>EXPORT</p>
-            <a href="#" download style={{ width: "100%", background: "#1a3a6b", color: "white", border: "none", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600", display: "block", textAlign: "center", textDecoration: "none" }}>
+            <button onClick={handleDownload} style={{ width: "100%", background: "#1a3a6b", color: "white", border: "none", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>
               Download PDF report
-            </a>
+            </button>
           </div>
 
         </div>
 
         <div style={{ flex: 1 }}>
-          <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#111", marginBottom: "8px" }}>Verification Results</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#111", margin: 0 }}>Verification Results</h2>
+            <button onClick={() => navigate('/')} style={{ border: "1px solid #ccc", background: "white", borderRadius: "8px", padding: "8px 20px", cursor: "pointer", fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}>
+              ← New document
+            </button>
+          </div>
           <p style={{ color: "#888", fontSize: "14px", marginBottom: "20px" }}>17 claims checked · 10 DOIs resolved · 2 unresolvable</p>
 
           <div style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>

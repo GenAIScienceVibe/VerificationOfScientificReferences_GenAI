@@ -17,7 +17,7 @@ function UploadPage() {
 }}>
     <div style={{
   position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-  background: "rgba(245,245,245,0.83)"
+  background: "rgba(245,245,245,0.9)"
 }} />
 
       <div style={{ maxWidth: "900px", width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
@@ -34,34 +34,31 @@ function UploadPage() {
           Upload a research paper or text, and we'll automatically check whether each claim is truly supported by its cited source.
         </p>
 
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-start", marginBottom: "56px" }}>
-          {[
-            { id: 1, label: "Upload your PDF" },
-            { id: 2, label: "We fetch every cited source" },
-            { id: 3, label: "AI checks each claim" },
-            { id: 4, label: "Get a full report" },
-          ].map((step, i) => (
-            <div key={step.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
-                {i > 0 && <div style={{ flex: 1, height: "2px", background: "#c5cfe0" }} />}
-                <div style={{
-                  width: "52px", height: "52px", borderRadius: "50%",
-                  background: "#1a3a6b", color: "white",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontWeight: "700", fontSize: "18px", flexShrink: 0
-                }}>
-                  {step.id}
-                </div>
-                {i < 3 && <div style={{ flex: 1, height: "2px", background: "#c5cfe0" }} />}
-              </div>
-              <div style={{ width: "100%", marginTop: "14px", textAlign: "center" }}>
-                <span style={{ fontSize: "13px", color: "#555", lineHeight: "1.5", display: "block" }}>
-                  {step.label}
-                </span>
-              </div>
-            </div>
-          ))}
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-start", marginBottom: "56px", maxWidth: "700px", margin: "0 auto 56px" }}>
+  {[
+    { id: 1, label: "Upload your PDF" },
+    { id: 2, label: "We fetch every cited source" },
+    { id: 3, label: "AI checks each claim" },
+    { id: 4, label: "Get a full report" },
+  ].map((step, i) => (
+    <div key={step.id} style={{ display: "flex", alignItems: "flex-start", flex: i < 3 ? 1 : "0 0 auto" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "52px" }}>
+        <div style={{
+          width: "52px", height: "52px", borderRadius: "50%",
+          background: "#1a3a6b", color: "white",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontWeight: "700", fontSize: "18px", flexShrink: 0
+        }}>
+          {step.id}
         </div>
+        <span style={{ fontSize: "13px", color: "#555", lineHeight: "1.5", textAlign: "center", marginTop: "14px", width: "110px" }}>
+          {step.label}
+        </span>
+      </div>
+      {i < 3 && <div style={{ flex: 1, height: "2px", background: "#c5cfe0", marginTop: "26px" }} />}
+    </div>
+  ))}
+</div>
 
         <div style={{
           background: "white", borderRadius: "16px", padding: "60px 48px",
@@ -82,12 +79,17 @@ function UploadPage() {
           </p>
 
           <input
-            type="file"
-            accept=".pdf"
-            id="fileInput"
-            style={{ display: "none" }}
-            onChange={() => navigate('/loading')}
-          />
+  type="file"
+  accept=".pdf"
+  id="fileInput"
+  style={{ display: "none" }}
+  onChange={(e) => {
+    const file = e.target.files[0]
+    if (file) {
+      navigate('/loading', { state: { fileName: file.name } })
+    }
+  }}
+/> 
 
           <button
             onClick={() => document.getElementById('fileInput').click()}

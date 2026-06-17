@@ -4,10 +4,25 @@ function ErrorPage() {
   const navigate = useNavigate()
 
   return (
-<div style={{ background: "#f5f5f5", display: "flex", justifyContent: "center", padding: "40px 24px 80px" }}>      <div style={{ background: "white", borderRadius: "16px", padding: "48px 56px", maxWidth: "600px", width: "100%", textAlign: "center", boxShadow: "0 2px 16px rgba(0,0,0,0.07)" }}>
+    <div style={{
+  display: "flex", justifyContent: "center",
+  padding: "20px 24px 80px",
+  position: "relative",
+  backgroundImage: `url('/src/assets/background.png')`,
+  backgroundSize: "60%",
+  backgroundPosition: "center 350px",
+  backgroundRepeat: "no-repeat",
+  minHeight: "600px"
+}}>
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+        background: "rgba(245,245,245,0.9)"
+      }} />
+
+      <div style={{ background: "white", borderRadius: "16px", padding: "48px 56px", maxWidth: "600px", width: "100%", textAlign: "center", boxShadow: "0 2px 16px rgba(0,0,0,0.07)", position: "relative", zIndex: 1 }}>
 
         <div style={{ marginBottom: "24px" }}>
-          <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+          <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="12" y="8" width="40" height="52" rx="4" fill="#e8edf5" stroke="#c5cfe0" strokeWidth="1.5"/>
             <line x1="20" y1="22" x2="44" y2="22" stroke="#a0aec0" strokeWidth="2" strokeLinecap="round"/>
             <line x1="20" y1="30" x2="44" y2="30" stroke="#a0aec0" strokeWidth="2" strokeLinecap="round"/>
@@ -35,18 +50,18 @@ function ErrorPage() {
             style={{
               background: "#1a3a6b", color: "white", border: "none",
               borderRadius: "10px", padding: "12px 24px", cursor: "pointer",
-              fontSize: "14px", fontWeight: "600", display: "flex", alignItems: "center", gap: "8px"
+              fontSize: "14px", fontWeight: "600"
             }}>
-            ↻ Try again
+            Try again
           </button>
           <button
             onClick={() => navigate('/')}
             style={{
               background: "white", color: "#444", border: "1px solid #ccc",
               borderRadius: "10px", padding: "12px 24px", cursor: "pointer",
-              fontSize: "14px", display: "flex", alignItems: "center", gap: "8px"
+              fontSize: "14px"
             }}>
-            ↑ Upload new file
+            Upload new file
           </button>
         </div>
 
