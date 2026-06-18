@@ -12,8 +12,7 @@ function Header() {
         <img src={logo} alt="verifAi logo" style={{ height: "120px", cursor: "pointer", marginTop: "-20px", marginBottom: "-20px" }} />
       </Link>
       <nav>
-        <a href="#" style={{ color: "#1a3a6b", textDecoration: "none", fontSize: "16px", fontWeight: "500" }}>How it works</a>
-      </nav>
+<Link to="/how-it-works" style={{ color: "#1a3a6b", textDecoration: "none", fontSize: "15px", fontWeight: "500" }}>How it works</Link>      </nav>
     </header>
   )
 }

@@ -5,6 +5,7 @@ import UploadPage from './Components/UploadPage'
 import LoadingPage from './Components/LoadingPage'
 import ErrorPage from './Components/ErrorPage'
 import ResultsPage from './Components/ResultsPage'
+import HowItWorksPage from './Components/HowItWorksPage'
 import background from './assets/background.png'
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
               <Route path="/loading" element={<LoadingPage />} />
               <Route path="/error" element={<ErrorPage />} />
               <Route path="/results" element={<ResultsPage />} />
+              <Route path="/how-it-works" element={<HowItWorksPage />} />
             </Routes>
           </div>
         </div>
