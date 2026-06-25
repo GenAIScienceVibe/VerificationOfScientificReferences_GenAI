@@ -338,4 +338,31 @@ Notable decisions worth remembering:
 - [x] Updated `docs/rag/hybrid_retriever.md` with the FlashRank section
 - [x] Commit: `[RAG] SCRUM-259: add FlashRank neural reranking`
 
-**Status: COMPLETE ✓ — Task 4 (SCRUM-260) on hold pending Saqer's go-ahead**
+**Status: COMPLETE ✓**
+
+---
+
+### SCRUM-260: Plug Hybrid Retriever into `rag/api.py`
+
+Design note: `RetrieveEvidenceResponse.similarity_score` /
+`overall_similarity_score` carry the score Door 2's `human_review_required`
+logic later compares against `vector_store.SIMILARITY_THRESHOLD = 0.5`. RRF
+scores (~0.016 range) are NOT the same scale as cosine similarity, so they
+never reach the response — only `rerank_score` (FlashRank's 0–1 relevance
+probability, same shape as the cosine score it replaces) or, when FlashRank
+itself failed, a fallback to the chunk's original dense weighted_score.
+
+- [x] In `rag/api.py`, replaced Step 5 of `retrieve_evidence()`:
+  - [x] Added `RETRIEVAL_CANDIDATE_K = DOOR1_TOP_K * 3` constant
+  - [x] Dense search now requests `top_k=RETRIEVAL_CANDIDATE_K`
+  - [x] Added `bm25_search(Bm25RetrieverInput(chunks=chunker_output.chunks, query=request.claim_text, top_k=RETRIEVAL_CANDIDATE_K))`
+  - [x] Added `merge(HybridRetrieverInput(dense_results=vector_output, bm25_results=bm25_output, claim=request.claim_text, top_k=DOOR1_TOP_K))`
+  - [x] `dense_weighted_by_id` lookup dict + `_similarity_score()` helper implementing the rerank-score-preferred, dense-fallback rule
+  - [x] Empty-results check moved to the hybrid output
+- [x] Updated module docstring — removed the "known gap" paragraph
+- [x] Updated `tests/rag/test_api.py` — mocked `bm25_search`/`merge` in all Door 1 tests, added a dedicated fallback test for `rerank_score=None`
+- [x] Run tests — **350/350 passed** across all modules
+- [x] Updated `docs/rag/api.md` — hybrid retrieval section + score-scale design note
+- [x] Commit: `[RAG] SCRUM-260: plug hybrid retrieval into api.py`
+
+**Status: COMPLETE ✓ — hybrid retrieval sprint finished**

@@ -9,7 +9,7 @@ shapes documented in `CLAUDE.md`:
 
 | Function | Wraps | CLAUDE.md section |
 |---|---|---|
-| `retrieve_evidence()` | cleaner → chunker → embedder → vector store | "Door 1 — RAG Retrieval" |
+| `retrieve_evidence()` | cleaner → chunker → embedder → hybrid retrieval (dense + BM25 → RRF → FlashRank) | "Door 1 — RAG Retrieval" |
 | `verify_claim()` | citation classifier → prompt/LLM call → output validator | "Door 2 — LLM Verification" |
 
 Call them directly from your FastAPI route handlers; everything in
@@ -73,15 +73,18 @@ Mirrors CLAUDE.md's Door 1 input exactly:
 - Cleaning/chunking yields zero chunks (e.g. empty source text) → `"FAILED"`.
 - Anything in the pipeline throws (missing API key, a transient OpenRouter error, etc.) → caught and logged, response is `"FAILED"`. **We never raise an exception out of this function.**
 
-### Known limitation: dense retrieval only
+### Hybrid retrieval is now active
 
-CLAUDE.md describes Door 1 retrieval as hybrid (dense FAISS search + BM25
-keyword search, reranked by FlashRank). Only the dense FAISS step
-(`rag/retrieval/vector_store.py`) exists today — the BM25 and reranking
-modules haven't been built yet. `retrieve_evidence()` currently wraps the
-dense-only pipeline. The contract above will not change when BM25/
-reranking are added later; only the internal "Step 5" of `retrieve_evidence()`
-will be swapped out.
+Door 1 retrieval is hybrid, as CLAUDE.md describes: dense FAISS search
+(`rag/retrieval/vector_store.py`) and BM25 keyword search
+(`rag/retrieval/bm25_retriever.py`) each retrieve `RETRIEVAL_CANDIDATE_K`
+(`DOOR1_TOP_K × 3`) candidates, which `rag/retrieval/hybrid_retriever.py`
+then merges via Reciprocal Rank Fusion and reranks with FlashRank down to
+the final `DOOR1_TOP_K` chunks. `similarity_score` in the response prefers
+FlashRank's relevance score (0–1, same scale as the dense cosine score it
+replaces) and falls back to the chunk's dense weighted score on the rare
+path where FlashRank reranking itself failed — this keeps the value on a
+consistent scale for Door 2's similarity threshold check (see below).
 
 ---
 
@@ -150,6 +153,22 @@ because `verify.j2` prints each chunk's section label. `verify_claim()`
 fills the missing fields with neutral placeholders (`section="unknown"`,
 `priority=1.0`, `paper_doi=""`, `evidence_type="UNKNOWN"`) — these only
 affect the prompt's section annotation, never the verdict logic itself.
+
+### Keeping `similarity_score` on a consistent 0–1 scale across retrieval methods
+
+`hybrid_retriever.py`'s RRF score (`~1/60`, scale-free rank fusion) and
+FlashRank's `rerank_score` (a 0–1 relevance probability) are not
+interchangeable with the dense cosine-weighted score `similarity_score`
+used to carry historically — and `verify_claim()`'s
+`human_review_required` logic reuses `vector_store.SIMILARITY_THRESHOLD =
+0.5` directly against whatever value `overall_similarity_score` carries.
+Swapping in the RRF score directly would have silently broken that
+threshold (RRF scores are always far below 0.5). `retrieve_evidence()`
+resolves this by preferring `rerank_score` — which is on the same 0–1
+relevance scale as the cosine score it replaces — and falling back to the
+chunk's original dense weighted score only when FlashRank itself failed.
+RRF's score never reaches the response; it exists purely to decide
+*ranking*, not the reported confidence value.
 
 ### Reusing `embed_chunks()` to embed a single string
 

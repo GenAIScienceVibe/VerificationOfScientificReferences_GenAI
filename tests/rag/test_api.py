@@ -3,13 +3,13 @@ Unit tests for rag/api.py — the backend integration handoff layer.
 
 These tests mock the pipeline functions that retrieve_evidence() and
 verify_claim() wire together (clean_text, chunk_text, embed_chunks, search,
-classify_citation_type, generate_verdict) at the points where rag.api
-imports them, so each test exercises api.py's own orchestration logic
-(branching, field mapping, fallback handling) rather than re-testing the
-modules those functions belong to — those already have their own test
-suites. validate_output() is left unmocked in the success path so the
-full Door 2 chain (LLM string -> validated VerificationOutput -> response
-model) is exercised end to end.
+bm25_search, merge, classify_citation_type, generate_verdict) at the points
+where rag.api imports them, so each test exercises api.py's own
+orchestration logic (branching, field mapping, fallback handling) rather
+than re-testing the modules those functions belong to — those already have
+their own test suites. validate_output() is left unmocked in the success
+path so the full Door 2 chain (LLM string -> validated VerificationOutput
+-> response model) is exercised end to end.
 """
 
 from unittest.mock import patch
@@ -34,7 +34,16 @@ from rag.ingestion.models import (
     SourceEvidence,
 )
 from rag.prompts.classifier import CitationType
-from rag.retrieval.models import EmbeddedChunk, EmbedderOutput, RetrievedChunk, VectorStoreOutput
+from rag.retrieval.models import (
+    Bm25RetrievedChunk,
+    Bm25RetrieverOutput,
+    EmbeddedChunk,
+    EmbedderOutput,
+    HybridRetrievedChunk,
+    HybridRetrieverOutput,
+    RetrievedChunk,
+    VectorStoreOutput,
+)
 from rag.verification.models import Verdict
 
 
@@ -123,12 +132,26 @@ def test_retrieve_evidence_success():
         retrieved_k=2,
         low_confidence=False,
     )
+    bm25_output = Bm25RetrieverOutput(top_chunks=[], total_indexed=2, retrieved_k=0)
+    hybrid_output = HybridRetrieverOutput(
+        top_chunks=[
+            HybridRetrievedChunk(
+                chunk=chunk1, rrf_score=0.02, dense_rank=1, bm25_rank=None, rerank_score=0.9, rank=1
+            ),
+            HybridRetrievedChunk(
+                chunk=chunk2, rrf_score=0.01, dense_rank=2, bm25_rank=None, rerank_score=0.7, rank=2
+            ),
+        ],
+        total_unique=2,
+    )
 
     with (
         patch("rag.api.clean_text") as mock_clean,
         patch("rag.api.chunk_text") as mock_chunk,
         patch("rag.api.embed_chunks", side_effect=fake_embed_chunks),
         patch("rag.api.search", return_value=vector_output),
+        patch("rag.api.bm25_search", return_value=bm25_output),
+        patch("rag.api.merge", return_value=hybrid_output),
     ):
         mock_clean.return_value = CleanerOutput(
             clean_text="cleaned text",
@@ -157,6 +180,55 @@ def test_retrieve_evidence_success():
     assert response.retrieval_confidence == pytest.approx(0.8)
 
 
+def test_retrieve_evidence_success_falls_back_to_dense_score_when_rerank_missing():
+    """When FlashRank reranking failed (rerank_score is None), similarity_score
+    falls back to the chunk's dense weighted_score instead of going unscored."""
+    chunk1 = make_chunk(0)
+    vector_output = VectorStoreOutput(
+        doi="10.1234/example.2019.001",
+        top_chunks=[RetrievedChunk(chunk=chunk1, raw_score=0.65, weighted_score=0.65, rank=1)],
+        total_indexed=1,
+        retrieved_k=1,
+    )
+    bm25_output = Bm25RetrieverOutput(top_chunks=[], total_indexed=1, retrieved_k=0)
+    hybrid_output = HybridRetrieverOutput(
+        top_chunks=[
+            HybridRetrievedChunk(
+                chunk=chunk1, rrf_score=0.016, dense_rank=1, bm25_rank=None, rerank_score=None, rank=1
+            ),
+        ],
+        total_unique=1,
+    )
+
+    with (
+        patch("rag.api.clean_text") as mock_clean,
+        patch("rag.api.chunk_text") as mock_chunk,
+        patch("rag.api.embed_chunks", side_effect=fake_embed_chunks),
+        patch("rag.api.search", return_value=vector_output),
+        patch("rag.api.bm25_search", return_value=bm25_output),
+        patch("rag.api.merge", return_value=hybrid_output),
+    ):
+        mock_clean.return_value = CleanerOutput(
+            clean_text="cleaned text",
+            doi="10.1234/example.2019.001",
+            evidence_availability=EvidenceAvailability.ABSTRACT_AVAILABLE,
+            original_length=20,
+            cleaned_length=12,
+        )
+        mock_chunk.return_value = ChunkerOutput(
+            doi="10.1234/example.2019.001",
+            chunks=[chunk1],
+            total_chunks=1,
+            sections_found=["results"],
+            fallback_used=False,
+        )
+
+        response = retrieve_evidence(make_door1_request())
+
+    assert response.top_chunks[0].similarity_score == 0.65
+    assert response.overall_similarity_score == 0.65
+
+
 def test_retrieve_evidence_invalid_doi_skips_pipeline():
     """INVALID doi_status returns FAILED immediately without touching the pipeline."""
     with patch("rag.api.clean_text", side_effect=AssertionError("pipeline must not run")):
@@ -175,12 +247,14 @@ def test_retrieve_evidence_unresolvable_doi_skips_pipeline():
 
 
 def test_retrieve_evidence_no_chunks_returns_failed():
-    """Zero chunks from chunk_text() returns FAILED without calling embed_chunks/search."""
+    """Zero chunks from chunk_text() returns FAILED without calling embed_chunks/search/bm25/merge."""
     with (
         patch("rag.api.clean_text") as mock_clean,
         patch("rag.api.chunk_text") as mock_chunk,
         patch("rag.api.embed_chunks") as mock_embed,
         patch("rag.api.search") as mock_search,
+        patch("rag.api.bm25_search") as mock_bm25,
+        patch("rag.api.merge") as mock_merge,
     ):
         mock_clean.return_value = CleanerOutput(
             clean_text="",
@@ -201,6 +275,8 @@ def test_retrieve_evidence_no_chunks_returns_failed():
 
         mock_embed.assert_not_called()
         mock_search.assert_not_called()
+        mock_bm25.assert_not_called()
+        mock_merge.assert_not_called()
 
     assert response.retrieval_status == RetrievalStatus.FAILED
 
@@ -213,6 +289,8 @@ def test_retrieve_evidence_pipeline_exception_returns_failed():
         patch("rag.api.chunk_text") as mock_chunk,
         patch("rag.api.embed_chunks", side_effect=EnvironmentError("OPENROUTER_API_KEY is not set")),
         patch("rag.api.search") as mock_search,
+        patch("rag.api.bm25_search") as mock_bm25,
+        patch("rag.api.merge") as mock_merge,
     ):
         mock_clean.return_value = CleanerOutput(
             clean_text="cleaned text",
@@ -232,22 +310,28 @@ def test_retrieve_evidence_pipeline_exception_returns_failed():
         response = retrieve_evidence(make_door1_request())
 
         mock_search.assert_not_called()
+        mock_bm25.assert_not_called()
+        mock_merge.assert_not_called()
 
     assert response.retrieval_status == RetrievalStatus.FAILED
 
 
-def test_retrieve_evidence_empty_search_results_returns_failed():
-    """search() returning zero top_chunks (e.g. empty index) returns FAILED."""
+def test_retrieve_evidence_empty_hybrid_results_returns_failed():
+    """merge() returning zero top_chunks (e.g. both retrievers empty) returns FAILED."""
     chunk1 = make_chunk(0)
-    empty_vector_output = VectorStoreOutput(
+    vector_output = VectorStoreOutput(
         doi="10.1234/example.2019.001", top_chunks=[], total_indexed=0, retrieved_k=0
     )
+    bm25_output = Bm25RetrieverOutput(top_chunks=[], total_indexed=0, retrieved_k=0)
+    empty_hybrid_output = HybridRetrieverOutput(top_chunks=[], total_unique=0)
 
     with (
         patch("rag.api.clean_text") as mock_clean,
         patch("rag.api.chunk_text") as mock_chunk,
         patch("rag.api.embed_chunks", side_effect=fake_embed_chunks),
-        patch("rag.api.search", return_value=empty_vector_output),
+        patch("rag.api.search", return_value=vector_output),
+        patch("rag.api.bm25_search", return_value=bm25_output),
+        patch("rag.api.merge", return_value=empty_hybrid_output),
     ):
         mock_clean.return_value = CleanerOutput(
             clean_text="cleaned text",

@@ -13,12 +13,10 @@ contracts documented in CLAUDE.md ("What we receive" / "What we return" for
 each door) exactly, so the backend can serialise/deserialise them directly
 at the FastAPI boundary.
 
-Known gap: CLAUDE.md describes Door 1 retrieval as "hybrid" (dense + BM25
-keyword search + FlashRank reranking). Only the dense FAISS retrieval step
-(rag/retrieval/vector_store.py) is implemented so far — rag/retrieval/
-bm25_retriever.py and hybrid_retriever.py do not exist yet. retrieve_evidence()
-therefore wraps the dense-only pipeline. Once the BM25 and reranking modules
-land, only the single "Step 5" block below needs to change.
+Door 1 retrieval is hybrid: dense FAISS search (vector_store.py) and BM25
+keyword search (bm25_retriever.py) each oversample candidates, which are
+then merged via Reciprocal Rank Fusion and reranked by FlashRank
+(hybrid_retriever.py). See retrieve_evidence()'s Step 5 for the wiring.
 """
 
 import logging
@@ -37,8 +35,10 @@ from rag.ingestion.models import (
 from rag.prompts.classifier import classify_citation_type
 from rag.prompts.config import LLM_TEMPERATURE
 from rag.prompts.verifier import generate_verdict
+from rag.retrieval.bm25_retriever import search as bm25_search
 from rag.retrieval.embedder import embed_chunks
-from rag.retrieval.models import EmbedderInput, VectorStoreInput
+from rag.retrieval.hybrid_retriever import merge
+from rag.retrieval.models import Bm25RetrieverInput, EmbedderInput, HybridRetrieverInput, VectorStoreInput
 from rag.retrieval.vector_store import SIMILARITY_THRESHOLD, search
 from rag.verification.models import Verdict, VerificationInput
 from rag.verification.validator import validate_output
@@ -49,6 +49,11 @@ logger = logging.getLogger(__name__)
 
 # Number of top chunks returned to the backend from Door 1.
 DOOR1_TOP_K = 5
+
+# Candidates each retriever (dense + BM25) fetches before RRF/FlashRank
+# narrow the pool down to DOOR1_TOP_K, mirroring the oversample-then-rerank
+# shape already used inside vector_store.py and hybrid_retriever.py.
+RETRIEVAL_CANDIDATE_K = DOOR1_TOP_K * 3
 
 
 # ── Shared request/response models ───────────────────────────────────────────
@@ -248,18 +253,21 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
         2. chunk_text()   — section-aware, token-bounded chunking.
         3. embed_chunks() — embed every source chunk.
         4. _embed_single_text() — embed the claim with the same model.
-        5. search()       — temporary FAISS index, cosine similarity,
-                             section-priority re-ranking (dense retrieval only;
-                             see module docstring for the BM25/reranking gap).
+        5. Hybrid retrieval — dense search() and BM25 bm25_search() each
+           oversample RETRIEVAL_CANDIDATE_K candidates, then merge()
+           combines them via Reciprocal Rank Fusion and reranks the top
+           pool with FlashRank, narrowing down to DOOR1_TOP_K chunks.
 
     Returns:
         RetrieveEvidenceResponse with:
           - retrieval_status: SUCCEEDED if at least one chunk was retrieved,
             FAILED otherwise.
-          - top_chunks: up to DOOR1_TOP_K chunks, each with its section-
-            weighted similarity score.
-          - overall_similarity_score: the best-ranked chunk's weighted score.
-          - retrieval_confidence: the average weighted score across all
+          - top_chunks: up to DOOR1_TOP_K chunks, each with a similarity_score
+            (FlashRank's relevance score when reranking succeeded, otherwise
+            the chunk's dense cosine-weighted score as a fallback — both are
+            on the same 0-1 scale that Door 2's SIMILARITY_THRESHOLD expects).
+          - overall_similarity_score: the best-ranked chunk's similarity_score.
+          - retrieval_confidence: the average similarity_score across all
             returned chunks.
 
     Edge cases handled:
@@ -267,10 +275,12 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
           skips the pipeline entirely (no cleaning, chunking, or API calls).
         - Cleaning/chunking produces zero chunks (e.g. empty or all-skip-
           listed source text) -> returns FAILED.
-        - Embedding or vector search raises any exception (e.g. missing
-          OPENROUTER_API_KEY, a transient API error) -> logged and converted
-          to FAILED rather than propagating to the backend.
-        - No chunks survive the vector search -> returns FAILED.
+        - Embedding, vector search, BM25 search, or merging raises any
+          exception (e.g. missing OPENROUTER_API_KEY, a transient API error)
+          -> logged and converted to FAILED rather than propagating to the
+          backend. (FlashRank specifically never raises out of merge() — it
+          falls back to RRF-only ordering internally; see hybrid_retriever.py.)
+        - No chunks survive hybrid retrieval -> returns FAILED.
     """
     if request.doi_status in UNUSABLE_DOI_STATUSES:
         logger.warning(
@@ -311,13 +321,28 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
         # Step 4: embed the claim with the same embedding model.
         claim_embedding = _embed_single_text(request.claim_text, request.doi)
 
-        # Step 5: dense retrieval — temporary FAISS index, cosine similarity,
-        # section-priority re-ranking. (BM25 + FlashRank reranking are not
-        # yet implemented; see module docstring.)
+        # Step 5: hybrid retrieval — dense FAISS search and BM25 keyword
+        # search each oversample candidates, then merge() combines them via
+        # RRF and reranks the top pool with FlashRank.
         vector_output = search(
             VectorStoreInput(
                 embedder_output=embedder_output,
                 query_embedding=claim_embedding,
+                top_k=RETRIEVAL_CANDIDATE_K,
+            )
+        )
+        bm25_output = bm25_search(
+            Bm25RetrieverInput(
+                chunks=chunker_output.chunks,
+                query=request.claim_text,
+                top_k=RETRIEVAL_CANDIDATE_K,
+            )
+        )
+        hybrid_output = merge(
+            HybridRetrieverInput(
+                dense_results=vector_output,
+                bm25_results=bm25_output,
+                claim=request.claim_text,
                 top_k=DOOR1_TOP_K,
             )
         )
@@ -329,31 +354,41 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
         )
         return _failed_retrieval(request)
 
-    if not vector_output.top_chunks:
+    if not hybrid_output.top_chunks:
         logger.warning(
-            "claim_id=%s reference_id=%s — vector search returned zero chunks.",
+            "claim_id=%s reference_id=%s — hybrid retrieval returned zero chunks.",
             request.claim_id, request.reference_id,
         )
         return _failed_retrieval(request)
 
+    # similarity_score prefers FlashRank's relevance score (0-1, same scale
+    # Door 2's SIMILARITY_THRESHOLD expects); falls back to the chunk's dense
+    # cosine-weighted score on the rare path where reranking itself failed.
+    dense_weighted_by_id = {rc.chunk.chunk_id: rc.weighted_score for rc in vector_output.top_chunks}
+
+    def _similarity_score(hc) -> float:
+        if hc.rerank_score is not None:
+            return hc.rerank_score
+        return dense_weighted_by_id.get(hc.chunk.chunk_id, 0.0)
+
     top_chunks = [
         TopChunkResult(
-            chunk_id=rc.chunk.chunk_id,
-            chunk_text=rc.chunk.chunk_text,
-            similarity_score=rc.weighted_score,
-            evidence_type=rc.chunk.evidence_type,
+            chunk_id=hc.chunk.chunk_id,
+            chunk_text=hc.chunk.chunk_text,
+            similarity_score=_similarity_score(hc),
+            evidence_type=hc.chunk.evidence_type,
         )
-        for rc in vector_output.top_chunks
+        for hc in hybrid_output.top_chunks
     ]
-    weighted_scores = [rc.weighted_score for rc in vector_output.top_chunks]
+    similarity_scores = [_similarity_score(hc) for hc in hybrid_output.top_chunks]
 
     return RetrieveEvidenceResponse(
         claim_id=request.claim_id,
         reference_id=request.reference_id,
         retrieval_status=RetrievalStatus.SUCCEEDED,
         top_chunks=top_chunks,
-        overall_similarity_score=weighted_scores[0],
-        retrieval_confidence=round(sum(weighted_scores) / len(weighted_scores), 6),
+        overall_similarity_score=similarity_scores[0],
+        retrieval_confidence=round(sum(similarity_scores) / len(similarity_scores), 6),
     )
 
 
