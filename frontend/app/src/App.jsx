@@ -7,6 +7,7 @@ import ErrorPage from './Components/ErrorPage'
 import ResultsPage from './Components/ResultsPage'
 import HowItWorksPage from './Components/HowItWorksPage'
 import background from './assets/background.png'
+import CitationGraph from './Components/CitationGraph'
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
               <Route path="/error" element={<ErrorPage />} />
               <Route path="/results" element={<ResultsPage />} />
               <Route path="/how-it-works" element={<HowItWorksPage />} />
+              <Route path="/citation-graph" element={<CitationGraph />} />
             </Routes>
           </div>
         </div>

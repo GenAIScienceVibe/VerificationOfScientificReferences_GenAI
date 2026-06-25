@@ -1,12 +1,15 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import jsPDF from 'jspdf'
+import CitationGraph from './CitationGraph'
 
 function ResultsPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const fileName = location.state?.fileName || "research_paper.pdf"
   const [activeFilter, setActiveFilter] = useState('All')
+  const [activeView, setActiveView] = useState('overview')
+  const [citationFilter, setCitationFilter] = useState('all')
 
   const claims = [
     {
@@ -52,11 +55,11 @@ function ResultsPage() {
   }
 
   const filters = [
-    { label: "All", color: "#1a3a6b", border: "#1a3a6b" },
-    { label: "Supported", color: "#16a34a", border: "#86efac" },
-    { label: "Partial", color: "#d97706", border: "#fcd34d" },
-    { label: "Unsupported", color: "#dc2626", border: "#fca5a5" },
-    { label: "Hallucinated", color: "#6b21a8", border: "#d8b4fe" },
+    { label: "All", key: "all", color: "#1a3a6b", border: "#1a3a6b" },
+    { label: "Supported", key: "supported", color: "#16a34a", border: "#86efac" },
+    { label: "Partial", key: "partial", color: "#d97706", border: "#fcd34d" },
+    { label: "Unsupported", key: "unsupported", color: "#dc2626", border: "#fca5a5" },
+    { label: "Hallucinated", key: "hallucinated", color: "#6b21a8", border: "#d8b4fe" },
   ]
 
   const filteredClaims = claims.filter(claim => {
@@ -177,6 +180,32 @@ function ResultsPage() {
           </div>
 
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
+            <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "12px" }}>VIEW</p>
+            <div style={{ display: "flex", border: "1px solid #1a3a6b", borderRadius: "8px", overflow: "hidden" }}>
+              <button
+                onClick={() => setActiveView('overview')}
+                style={{
+                  flex: 1, padding: "10px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: "700",
+                  background: activeView === 'overview' ? "#1a3a6b" : "white",
+                  color: activeView === 'overview' ? "white" : "#1a3a6b",
+                }}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveView('citation')}
+                style={{
+                  flex: 1, padding: "10px", border: "none", borderLeft: "1px solid #1a3a6b", cursor: "pointer", fontSize: "14px", fontWeight: "700",
+                  background: activeView === 'citation' ? "#1a3a6b" : "white",
+                  color: activeView === 'citation' ? "white" : "#1a3a6b",
+                }}
+              >
+                Network Graph
+              </button>
+            </div>
+          </div>
+
+          <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
             <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "12px" }}>EXPORT</p>
             <button onClick={handleDownload} style={{ width: "100%", background: "#1a3a6b", color: "white", border: "none", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>
               Download PDF report
@@ -194,73 +223,100 @@ function ResultsPage() {
           </div>
           <p style={{ color: "#888", fontSize: "14px", marginBottom: "20px" }}>17 claims checked · 10 DOIs resolved · 2 unresolvable</p>
 
-          <div style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>
-            {filters.map((filter) => (
-              <button
-                key={filter.label}
-                onClick={() => setActiveFilter(filter.label)}
-                style={{
-                  padding: "8px 16px", borderRadius: "99px", fontSize: "13px", fontWeight: "600", cursor: "pointer",
-                  background: activeFilter === filter.label ? filter.color : "white",
-                  color: activeFilter === filter.label ? "white" : filter.color,
-                  border: `1px solid ${filter.border}`
-                }}>
-                {filter.label}
-              </button>
-            ))}
-          </div>
+          {activeView === 'overview' && (
+            <>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>
+                {filters.map((filter) => (
+                  <button
+                    key={filter.label}
+                    onClick={() => setActiveFilter(filter.label)}
+                    style={{
+                      padding: "8px 16px", borderRadius: "99px", fontSize: "13px", fontWeight: "600", cursor: "pointer",
+                      background: activeFilter === filter.label ? filter.color : "white",
+                      color: activeFilter === filter.label ? "white" : filter.color,
+                      border: `1px solid ${filter.border}`
+                    }}>
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            {filteredClaims.map(claim => {
-              const config = statusConfig[claim.status]
-              return (
-                <div key={claim.id} style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                    <span style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px" }}>CLAIM {claim.id}</span>
-                    <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}` }}>
-                      {config.label}
-                    </span>
-                  </div>
-
-                  <p style={{ fontSize: "14px", color: "#333", marginBottom: "16px", lineHeight: "1.6" }}>{claim.text}</p>
-
-                  <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-                    <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
-                      {claim.source}
-                    </span>
-                    <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
-                      DOI resolved
-                    </span>
-                  </div>
-
-                  <div style={{ background: "#f8f8f8", borderRadius: "8px", padding: "16px", marginBottom: claim.warning ? "12px" : "16px" }}>
-                    <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "8px" }}>AI REASONING</p>
-                    <p style={{ fontSize: "13px", color: "#444", lineHeight: "1.6" }}>{claim.reasoning}</p>
-                  </div>
-
-                  {claim.warning && (
-                    <div style={{ background: "#fffbeb", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
-                      <p style={{ fontSize: "13px", color: "#d97706", lineHeight: "1.5" }}>{claim.warning}</p>
-                    </div>
-                  )}
-
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={{ fontSize: "12px", color: "#888" }}>Confidence</span>
-                      <div style={{ width: "80px", height: "6px", background: "#e0e0e0", borderRadius: "99px", overflow: "hidden" }}>
-                        <div style={{ width: `${claim.confidence * 100}%`, height: "6px", background: getConfidenceColor(claim.confidence), borderRadius: "99px" }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {filteredClaims.map(claim => {
+                  const config = statusConfig[claim.status]
+                  return (
+                    <div key={claim.id} style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                        <span style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px" }}>CLAIM {claim.id}</span>
+                        <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}` }}>
+                          {config.label}
+                        </span>
                       </div>
-                      <span style={{ fontSize: "12px", color: "#888" }}>{claim.confidence}</span>
-                    </div>
-                    <button style={{ fontSize: "12px", color: "#888", background: "none", border: "none", cursor: "pointer" }}>
-                      Show source passage
-                    </button>
-                  </div>
 
-                </div>
-              )
-            })}
-          </div>
+                      <p style={{ fontSize: "14px", color: "#333", marginBottom: "16px", lineHeight: "1.6" }}>{claim.text}</p>
+
+                      <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+                        <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
+                          {claim.source}
+                        </span>
+                        <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
+                          DOI resolved
+                        </span>
+                      </div>
+
+                      <div style={{ background: "#f8f8f8", borderRadius: "8px", padding: "16px", marginBottom: claim.warning ? "12px" : "16px" }}>
+                        <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "8px" }}>AI REASONING</p>
+                        <p style={{ fontSize: "13px", color: "#444", lineHeight: "1.6" }}>{claim.reasoning}</p>
+                      </div>
+
+                      {claim.warning && (
+                        <div style={{ background: "#fffbeb", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
+                          <p style={{ fontSize: "13px", color: "#d97706", lineHeight: "1.5" }}>{claim.warning}</p>
+                        </div>
+                      )}
+
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "12px", color: "#888" }}>Confidence</span>
+                          <div style={{ width: "80px", height: "6px", background: "#e0e0e0", borderRadius: "99px", overflow: "hidden" }}>
+                            <div style={{ width: `${claim.confidence * 100}%`, height: "6px", background: getConfidenceColor(claim.confidence), borderRadius: "99px" }} />
+                          </div>
+                          <span style={{ fontSize: "12px", color: "#888" }}>{claim.confidence}</span>
+                        </div>
+                        <button style={{ fontSize: "12px", color: "#888", background: "none", border: "none", cursor: "pointer" }}>
+                          Show source passage
+                        </button>
+                      </div>
+
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+
+          {activeView === 'citation' && (
+            <>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>
+                {filters.map((filter) => (
+                  <button
+                    key={filter.key}
+                    onClick={() => setCitationFilter(filter.key)}
+                    style={{
+                      padding: "8px 16px", borderRadius: "99px", fontSize: "13px", fontWeight: "600", cursor: "pointer",
+                      background: citationFilter === filter.key ? filter.color : "white",
+                      color: citationFilter === filter.key ? "white" : filter.color,
+                      border: `1px solid ${filter.border}`
+                    }}>
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+
+              <CitationGraph claims={claims} statusConfig={statusConfig} documentLabel={fileName} statusFilter={citationFilter} />
+            </>
+          )}
+
         </div>
       </div>
     </div>
