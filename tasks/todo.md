@@ -303,3 +303,22 @@ Notable decisions worth remembering:
 - [x] Commit: `[RAG] SCRUM-257: implement BM25 keyword retriever`
 
 **Status: COMPLETE ✓**
+
+---
+
+### SCRUM-258: Hybrid Retrieval Merger (`rag/retrieval/hybrid_retriever.py`)
+
+- [x] Added `HybridRetrieverInput`, `HybridRetrievedChunk`, `HybridRetrieverOutput` to `rag/retrieval/models.py`
+- [x] Wrote `rag/retrieval/hybrid_retriever.py`:
+  - [x] `RRF_K = 60` constant (standard RRF smoothing constant; dampens the impact of rank 1 vs rank 2 so one retriever can't dominate)
+  - [x] `_rrf_score(rank: int) -> float` — `1 / (RRF_K + rank)`
+  - [x] `merge(input_data: HybridRetrieverInput) -> HybridRetrieverOutput` — dedupes by `chunk.chunk_id`, sums RRF contributions from whichever ranker(s) found each chunk (no penalty if absent from one), sorts by combined `rrf_score` descending, takes top_k
+  - [x] Empty-input fallback returns empty `HybridRetrieverOutput`
+- [x] Wrote `tests/rag/test_hybrid_retriever.py` — 10 unit tests (RRF math, empty inputs, dedup, score combination, ranking precedence, top_k limiting)
+- [x] Run tests — **10/10 passed** (345/345 total across all modules)
+- [x] Wrote `docs/rag/hybrid_retriever.md`
+- [x] Commit: `[RAG] SCRUM-258: implement hybrid retrieval with RRF merging`
+
+**Status: COMPLETE ✓ — Task 3 (SCRUM-259) on hold pending Saqer's go-ahead**
+
+**Status: COMPLETE ✓**

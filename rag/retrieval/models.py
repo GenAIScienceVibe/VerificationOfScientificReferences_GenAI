@@ -141,3 +141,45 @@ class Bm25RetrieverOutput(BaseModel):
     retrieved_k: int = Field(
         ..., description="Number of chunks actually returned (may be < top_k if index is small)"
     )
+
+
+# ── Hybrid retriever models ───────────────────────────────────────────────────
+
+
+class HybridRetrieverInput(BaseModel):
+    """Input to the hybrid retrieval merge step."""
+
+    dense_results: VectorStoreOutput = Field(
+        ..., description="Output from vector_store.search() (dense FAISS results)"
+    )
+    bm25_results: Bm25RetrieverOutput = Field(
+        ..., description="Output from bm25_retriever.search() (keyword results)"
+    )
+    top_k: int = Field(default=5, ge=1, description="Number of top chunks to return")
+
+
+class HybridRetrievedChunk(BaseModel):
+    """A single chunk in the merged hybrid ranking, with per-source rank info."""
+
+    chunk: ChunkMetadata = Field(..., description="Original chunk with all metadata")
+    rrf_score: float = Field(
+        ..., description="Combined Reciprocal Rank Fusion score across both sources"
+    )
+    dense_rank: int | None = Field(
+        default=None, description="1-based rank in the dense results, or None if absent"
+    )
+    bm25_rank: int | None = Field(
+        default=None, description="1-based rank in the BM25 results, or None if absent"
+    )
+    rank: int = Field(..., description="1-based position in the final merged ranking")
+
+
+class HybridRetrieverOutput(BaseModel):
+    """Output from the hybrid retrieval merge step, ready for reranking."""
+
+    top_chunks: list[HybridRetrievedChunk] = Field(
+        ..., description="Top-k chunks ordered by rrf_score descending"
+    )
+    total_unique: int = Field(
+        ..., description="Total number of unique chunks across both input sources"
+    )
