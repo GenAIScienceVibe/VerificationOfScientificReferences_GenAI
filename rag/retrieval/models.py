@@ -103,3 +103,41 @@ class VectorStoreOutput(BaseModel):
         default=None,
         description="Human-readable warning explaining why low_confidence is True",
     )
+
+
+# ── BM25 retriever models ─────────────────────────────────────────────────────
+
+
+class Bm25RetrieverInput(BaseModel):
+    """Input to the BM25 keyword search step."""
+
+    chunks: list[ChunkMetadata] = Field(
+        ..., description="Chunks to index, same format as vector_store.py"
+    )
+    query: str = Field(..., description="Claim text used as the BM25 query")
+    top_k: int = Field(default=5, ge=1, description="Number of top chunks to return")
+
+
+class Bm25RetrievedChunk(BaseModel):
+    """A single chunk returned from the BM25 retriever, with raw and weighted scores."""
+
+    chunk: ChunkMetadata = Field(..., description="Original chunk with all metadata")
+    raw_score: float = Field(..., description="Raw BM25 score (Okapi BM25, unbounded)")
+    weighted_score: float = Field(
+        ..., description="raw_score × section priority weight; used for final ranking"
+    )
+    rank: int = Field(..., description="1-based position in the final ranked results")
+
+
+class Bm25RetrieverOutput(BaseModel):
+    """Output from the BM25 keyword search step."""
+
+    top_chunks: list[Bm25RetrievedChunk] = Field(
+        ..., description="Top-k chunks ordered by weighted_score descending"
+    )
+    total_indexed: int = Field(
+        ..., description="Total number of chunks that were loaded into the BM25 index"
+    )
+    retrieved_k: int = Field(
+        ..., description="Number of chunks actually returned (may be < top_k if index is small)"
+    )

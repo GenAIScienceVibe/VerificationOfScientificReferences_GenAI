@@ -281,3 +281,25 @@ Notable decisions worth remembering:
 - [x] **Known gap documented**: Door 1 only wraps dense FAISS retrieval — `bm25_retriever.py` and `hybrid_retriever.py` (mentioned in CLAUDE.md's file naming conventions) don't exist yet, so true hybrid retrieval + FlashRank reranking isn't wired in. `retrieve_evidence()`'s contract won't need to change when those land — only its internal Step 5.
 
 **Status: COMPLETE ✓**
+
+---
+
+## Sprint: Hybrid Retrieval (branch `rag_dev_zac_hybrid`)
+
+### SCRUM-257: BM25 Keyword Retrieval (`rag/retrieval/bm25_retriever.py`)
+
+- [x] `pip install rank-bm25`
+- [x] Added `Bm25RetrieverInput`, `Bm25RetrievedChunk`, `Bm25RetrieverOutput` to `rag/retrieval/models.py`
+- [x] Wrote `rag/retrieval/bm25_retriever.py`
+  - [x] Imports `SECTION_WEIGHTS`/`DEFAULT_WEIGHT` from `vector_store.py` (not duplicated)
+  - [x] `_tokenize` — lowercase + `\w+` regex tokenizer
+  - [x] `_build_index` — `BM25Okapi(tokenized_corpus)`
+  - [x] `search` — tokenize chunks + query, score via BM25, multiply by section weight, sort, take top_k
+  - [x] Empty-chunks fallback returns empty `Bm25RetrieverOutput`
+- [x] Wrote `tests/rag/test_bm25_retriever.py` — 12 unit tests (tokenizer, section weight, empty input, ranking order, weighting math, top_k limiting)
+- [x] Run tests — **12/12 passed** (335/335 total across all modules)
+- [x] Caught and fixed a test-design issue: BM25 IDF can go negative for a term present in every doc of a tiny 2-chunk corpus, which inverts the expected section-weight ordering — not a bug in the retriever, just an edge case of tiny test corpora. Fixed by adding a filler chunk to the section-weight test so IDF stays positive.
+- [x] Wrote `docs/rag/bm25_retriever.md`
+- [x] Commit: `[RAG] SCRUM-257: implement BM25 keyword retriever`
+
+**Status: COMPLETE ✓**
