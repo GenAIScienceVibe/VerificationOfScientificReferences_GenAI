@@ -155,6 +155,9 @@ class HybridRetrieverInput(BaseModel):
     bm25_results: Bm25RetrieverOutput = Field(
         ..., description="Output from bm25_retriever.search() (keyword results)"
     )
+    claim: str = Field(
+        ..., description="The original claim text, used as the FlashRank rerank query"
+    )
     top_k: int = Field(default=5, ge=1, description="Number of top chunks to return")
 
 
@@ -170,6 +173,10 @@ class HybridRetrievedChunk(BaseModel):
     )
     bm25_rank: int | None = Field(
         default=None, description="1-based rank in the BM25 results, or None if absent"
+    )
+    rerank_score: float | None = Field(
+        default=None,
+        description="FlashRank neural relevance score; None if reranking was skipped or failed",
     )
     rank: int = Field(..., description="1-based position in the final merged ranking")
 

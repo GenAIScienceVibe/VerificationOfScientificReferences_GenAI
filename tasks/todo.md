@@ -319,6 +319,23 @@ Notable decisions worth remembering:
 - [x] Wrote `docs/rag/hybrid_retriever.md`
 - [x] Commit: `[RAG] SCRUM-258: implement hybrid retrieval with RRF merging`
 
-**Status: COMPLETE ✓ — Task 3 (SCRUM-259) on hold pending Saqer's go-ahead**
-
 **Status: COMPLETE ✓**
+
+---
+
+### SCRUM-259: FlashRank Neural Reranking (extends `rag/retrieval/hybrid_retriever.py`)
+
+- [x] `pip install flashrank` — confirmed it downloads its default model (`ms-marco-TinyBERT-L-2-v2`, ~3MB, lazy on first `Ranker()` call) and reranks correctly in a smoke test
+- [x] Extended `rag/retrieval/models.py`: added `claim: str` to `HybridRetrieverInput`, `rerank_score: float | None` to `HybridRetrievedChunk`
+- [x] Extended `rag/retrieval/hybrid_retriever.py`:
+  - [x] `RERANK_MODEL = "ms-marco-TinyBERT-L-2-v2"`, `RERANK_OVERSAMPLE_FACTOR = 3`
+  - [x] `_build_ranker()` — lazy `Ranker(model_name=RERANK_MODEL)` builder
+  - [x] `_rerank(claim, candidates)` — builds `RerankRequest`, calls `ranker.rerank()`, returns `chunk_id -> score` map
+  - [x] `merge()` now takes the RRF top `top_k × RERANK_OVERSAMPLE_FACTOR` candidate pool, reranks only those, returns final top_k by `rerank_score`
+  - [x] Graceful fallback: FlashRank exceptions are caught, logged, and RRF-only ordering is kept (`rerank_score=None`)
+- [x] Updated `tests/rag/test_hybrid_retriever.py` — autouse fixture makes `_build_ranker` raise by default (no real model calls in unit tests, mirrors `classifier.py`'s OpenAI mocking); 4 new tests cover real reordering by mocked rerank scores, oversample-pool-only coverage, fallback-on-exception, and rerank_score=None when disabled
+- [x] Run tests — **349/349 passed** across all modules
+- [x] Updated `docs/rag/hybrid_retriever.md` with the FlashRank section
+- [x] Commit: `[RAG] SCRUM-259: add FlashRank neural reranking`
+
+**Status: COMPLETE ✓ — Task 4 (SCRUM-260) on hold pending Saqer's go-ahead**
