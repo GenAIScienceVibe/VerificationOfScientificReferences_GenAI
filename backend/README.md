@@ -476,3 +476,34 @@ GET /api/v1/documents/{document_id}/safety-summary
 ```
 
 BE-11 intentionally does not implement report generation, feedback analytics, frontend UI, or production hardening.
+
+
+## BE-12 — Report Generation and Feedback
+
+BE-12 adds backend-generated document summaries, HTML verification reports, feedback storage, mapping-feedback storage, and UAT survey storage.
+
+New endpoints:
+
+```text
+GET  /api/v1/documents/{document_id}/summary
+POST /api/v1/documents/{document_id}/reports
+GET  /api/v1/reports/{report_id}
+GET  /api/v1/documents/{document_id}/report
+GET  /api/v1/reports/{report_id}/download?format=HTML
+POST /api/v1/verification-results/{result_id}/feedback
+POST /api/v1/claim-reference-links/{link_id}/feedback
+POST /api/v1/uat/surveys
+```
+
+HTML report is the MVP format. PDF export is intentionally not implemented in BE-12 and returns `REPORT_EXPORT_NOT_SUPPORTED`.
+
+BE-12 does not rerun verification, does not change final support labels, does not auto-apply feedback as truth, and does not replace human academic review.
+
+Validation:
+
+```bash
+python -m compileall app scripts/validate_uploaded_pdfs_be12.py
+python scripts/init_db.py
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
+python scripts/validate_uploaded_pdfs_be12.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf /path/to/paper3.pdf
+```
