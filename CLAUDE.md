@@ -31,39 +31,77 @@ We own the RAG pipeline inside the `rag/` folder. We do NOT touch:
 ---
 
 ## CURRENT PROJECT STATUS
-All 13 tasks across SCRUM-178 to SCRUM-253 are COMPLETE and committed.
-The integration handoff layer (rag/api.py) is COMPLETE and committed.
-Full test suite: 323/323 tests passing on branch rag_dev_zac.
 
-### What is built and working:
-- rag/ingestion/cleaner.py         ← SCRUM-178 ✅
-- rag/ingestion/chunker.py         ← SCRUM-179 ✅
-- rag/retrieval/embedder.py        ← SCRUM-180 ✅
-- rag/retrieval/vector_store.py    ← SCRUM-186 ✅ (dense FAISS only)
-- rag/evaluation/benchmark.py      ← SCRUM-184 ✅
-- rag/evaluation/latency.py        ← SCRUM-185 ✅
-- rag/prompts/config.py            ← SCRUM-254 ✅ (LLM_TEMPERATURE=0)
-- rag/prompts/classifier.py        ← SCRUM-252 ✅
-- rag/prompts/verifier.py          ← SCRUM-193/195/196 ✅
-- rag/prompts/templates/verify.j2  ← SCRUM-195 ✅
-- rag/verification/models.py       ← SCRUM-194 ✅
-- rag/verification/validator.py    ← SCRUM-253 ✅
-- rag/api.py                       ← Integration handoff layer ✅
+### Branch: rag_dev_zac ✅ COMPLETE
+All 13 tasks complete. 323/323 tests passing.
+Dense-only retrieval pipeline (FAISS cosine similarity).
 
-### What is NOT built yet (current sprint):
-- rag/retrieval/bm25_retriever.py  ← SCRUM-257 (TODO)
-- rag/retrieval/hybrid_retriever.py← SCRUM-258 + SCRUM-259 (TODO)
+### Branch: rag_dev_zac_hybrid ✅ COMPLETE (ACTIVE — current work)
+All 4 hybrid retrieval tasks complete. 350/350 tests passing.
+Full pipeline: dense FAISS + BM25 + RRF merge + FlashRank reranking.
+
+### What is built and working (rag_dev_zac_hybrid):
+- rag/ingestion/cleaner.py           ← SCRUM-178 ✅
+- rag/ingestion/chunker.py           ← SCRUM-179 ✅
+- rag/retrieval/embedder.py          ← SCRUM-180 ✅
+- rag/retrieval/vector_store.py      ← SCRUM-186 ✅ (dense FAISS)
+- rag/retrieval/bm25_retriever.py    ← SCRUM-257 ✅ (BM25 keyword search)
+- rag/retrieval/hybrid_retriever.py  ← SCRUM-258 + SCRUM-259 ✅ (RRF + FlashRank)
+- rag/evaluation/benchmark.py        ← SCRUM-184 ✅
+- rag/evaluation/latency.py          ← SCRUM-185 ✅
+- rag/prompts/config.py              ← SCRUM-254 ✅ (LLM_TEMPERATURE=0)
+- rag/prompts/classifier.py          ← SCRUM-252 ✅
+- rag/prompts/verifier.py            ← SCRUM-193/195/196 ✅
+- rag/prompts/templates/verify.j2    ← SCRUM-195 ✅
+- rag/verification/models.py         ← SCRUM-194 ✅
+- rag/verification/validator.py      ← SCRUM-253 ✅
+- rag/api.py                         ← Integration handoff layer ✅
 
 ---
 
 ## CURRENT BRANCH
 You are working on branch: `rag_dev_zac_hybrid`
-This is a NEW branch created from `rag_dev_zac`.
 NEVER push to `main`. NEVER push to `rag_dev_zac` from this branch.
 
-The reason for the separate branch: we need to test the pipeline
-BEFORE (rag_dev_zac) and AFTER (rag_dev_zac_hybrid) adding hybrid
-retrieval, to prove the new features improve retrieval quality.
+---
+
+## ⚠️ CURRENT SPRINT — BACKEND INTEGRATION FIXES (PRIORITY)
+We must fix integration defects reported by the backend team.
+
+The backend team did a full integration audit of rag/api.py and found bugs.
+All fixes below are in rag/api.py only — no pipeline logic changes.
+All fixes are safe and do not break the API contract or pipeline flow.
+
+### P1 — BLOCKING (fix first, in this order)
+
+**SCRUM-262 — Normalize all scores to 0-1**
+Problem: Section priority weights (e.g. 1.3× for Results) push scores above 1.0.
+Backend validators reject any score above 1.0.
+Fix: Normalize similarity_score, overall_similarity_score, and retrieval_confidence
+to 0-1 range before returning from retrieve_evidence().
+Note: SIMILARITY_THRESHOLD = 0.5 check in Door 2 still works after normalization.
+
+**SCRUM-263 — INSUFFICIENT_EVIDENCE must set human_review_required=True**
+Problem: When DOI is INVALID or UNRESOLVABLE, we return human_review_required=False.
+Backend safety policy requires human_review_required=True whenever a DOI
+cannot be verified — a human must always review unverifiable citations.
+Fix: In _insufficient_evidence() helper in api.py, change human_review_required=False
+to human_review_required=True.
+
+### P2 — IMPORTANT (fix after P1, before live demo)
+
+**SCRUM-264 — Add per-DOI embedding cache**
+Problem: If one paper has 10 claims all citing the same reference, we re-embed
+the same source text 10 times — slow and costly.
+Fix: Add an in-memory cache keyed by DOI inside retrieve_evidence().
+Cache must be: in-memory only, per document run, never persisted.
+Do NOT store anything — backend owns all storage.
+
+### After all fixes are done:
+- Run full test suite — must stay at 350+ passing
+- Commit all fixes as: [RAG] fix: resolve backend integration defects (SCRUM-262/263/264)
+
+### Do NOT start next task until I explicitly say so.
 
 ---
 
@@ -71,7 +109,7 @@ retrieval, to prove the new features improve retrieval quality.
 ```
 rag/
 ├── ingestion/         ← text cleaning + chunking
-├── retrieval/         ← embedding + vector store + BM25 + hybrid (new)
+├── retrieval/         ← embedding + vector store + BM25 + hybrid
 ├── prompts/           ← classifier + verifier + templates
 ├── verification/      ← output schema + validator
 ├── evaluation/        ← benchmarking + latency
@@ -85,7 +123,6 @@ rag/
 - NEVER push to `rag_dev_zac` from this branch
 - Always work on branch: `rag_dev_zac_hybrid`
 - Commit message format: `[RAG] SCRUM-XXX: short description`
-- Example: `[RAG] SCRUM-257: implement BM25 keyword retriever`
 
 ---
 
@@ -152,7 +189,7 @@ Input: VerifyClaimRequest (claim + chunks from Door 1 + metadata)
 Output: VerifyClaimResponse (verdict + confidence + explanation + human_review flag)
 
 Full JSON schemas are in rag/api.py docstrings and docs/rag/api.md.
-DO NOT change the API contract — only internal pipeline logic changes.
+DO NOT change the API contract field names or types — only fix values inside fields.
 
 ---
 
@@ -182,10 +219,11 @@ Receive from backend: claim + DOI + source text
 3. Embed source chunks → temporary FAISS index (embedder.py + vector_store.py)
 4. Embed the claim
 5. Dense retrieval — cosine similarity + section priority weights (vector_store.py)
-6. BM25 keyword retrieval (bm25_retriever.py) ← NEW
-7. Hybrid merge — combine dense + BM25 with RRF (hybrid_retriever.py) ← NEW
-8. FlashRank neural reranking (hybrid_retriever.py) ← NEW
-Return to backend: top chunks + scores + retrieval confidence
+6. BM25 keyword retrieval (bm25_retriever.py)
+7. Hybrid merge — combine dense + BM25 with RRF (hybrid_retriever.py)
+8. FlashRank neural reranking (hybrid_retriever.py)
+9. Normalize all scores to 0-1 ← INTEGRATION FIX (SCRUM-262)
+Return to backend: top chunks + scores + retrieval confidence (all 0-1)
 ```
 
 ### Door 2 — LLM Verification
@@ -196,51 +234,9 @@ Receive from backend: claim + selected chunks + metadata
 2. Jinja2 prompt with chain-of-thought (verify.j2)
 3. LLM call via OpenRouter, temperature=0 (verifier.py)
 4. Pydantic validation + human review flag (validator.py)
+5. If INSUFFICIENT_EVIDENCE → human_review_required=True ← INTEGRATION FIX (SCRUM-263)
 Return to backend: verdict + confidence + explanation
 ```
-
----
-
-## CURRENT SPRINT — HYBRID RETRIEVAL
-
-### Task 1 — SCRUM-257: BM25 Keyword Retrieval (rag/retrieval/bm25_retriever.py)
-Build a BM25 keyword search module that:
-- Takes the same chunks (list of ChunkMetadata) as input — same format as vector_store.py
-- Builds a BM25 index from chunk texts using rank_bm25
-- Takes the claim text as query
-- Returns top-k chunks with BM25 scores
-- Applies the same section priority weights as vector_store.py
-- Falls back gracefully if index is empty
-- Write unit tests in tests/rag/test_bm25_retriever.py
-- Write docs in docs/rag/bm25_retriever.md
-- Commit: [RAG] SCRUM-257: implement BM25 keyword retriever
-
-### Task 2 — SCRUM-258: Hybrid Retrieval Merger (rag/retrieval/hybrid_retriever.py)
-Build a hybrid retrieval module that:
-- Takes output from vector_store.py (dense results) and bm25_retriever.py (keyword results)
-- Merges and deduplicates chunks from both
-- Applies Reciprocal Rank Fusion (RRF) to combine scores from both sources
-- Returns unified ranked list ready for reranking
-- Write unit tests in tests/rag/test_hybrid_retriever.py
-- Write docs in docs/rag/hybrid_retriever.md
-- Commit: [RAG] SCRUM-258: implement hybrid retrieval with RRF merging
-
-### Task 3 — SCRUM-259: FlashRank Neural Reranking (inside hybrid_retriever.py)
-Extend hybrid_retriever.py to add FlashRank reranking:
-- Takes the merged chunk list from SCRUM-258
-- Runs FlashRank to reorder by true semantic relevance
-- Returns final top-k chunks in reranked order
-- Update unit tests in tests/rag/test_hybrid_retriever.py
-- Commit: [RAG] SCRUM-259: add FlashRank neural reranking
-
-### Task 4 — SCRUM-260: Plug hybrid retriever into rag/api.py
-Update retrieve_evidence() in rag/api.py:
-- Replace the dense-only Step 5 block with the hybrid pipeline
-- Import and call hybrid_retriever.py instead of vector_store.py directly
-- The API contract (input/output) does NOT change
-- Re-run full test suite — all 323 tests must still pass
-- Update docs/rag/api.md to confirm hybrid retrieval is now active
-- Commit: [RAG] SCRUM-260: plug hybrid retrieval into api.py
 
 ---
 
@@ -286,18 +282,6 @@ SKIP_SECTIONS = [
 
 ---
 
-## FILE NAMING CONVENTIONS
-```
-rag/retrieval/
-├── embedder.py          ← SCRUM-180 ✅
-├── vector_store.py      ← SCRUM-186 ✅ (dense FAISS)
-├── bm25_retriever.py    ← SCRUM-257 (build this first)
-├── hybrid_retriever.py  ← SCRUM-258 + SCRUM-259 (build after BM25)
-└── models.py            ← Pydantic models for retrieval ✅
-```
-
----
-
 ## DOCUMENTATION REQUIREMENT
 Every new module must have a corresponding entry in `docs/rag/` explaining:
 - What the module does
@@ -315,29 +299,33 @@ This is a course deliverable — documentation is graded.
 - Check in with Saqer before starting implementation
 - If something goes wrong mid-task — STOP and re-plan
 
-### 2. Track Progress
+### 2. Do Not Start Next Task Automatically
+- After completing a task — stop and wait for Saqer's instruction
+- Never move to the next task without explicit approval
+
+### 3. Track Progress
 - Mark items complete in `tasks/todo.md` as you go
 - Give a high-level summary at each step
 - Add a review section to `tasks/todo.md` when done
 
-### 3. Self-Improvement Loop
+### 4. Self-Improvement Loop
 - After ANY correction from Saqer — update `tasks/lessons.md`
 - Write a rule for yourself that prevents the same mistake
 - Review `tasks/lessons.md` at the start of each session
 
-### 4. Never Mark a Task Done Without Proving It Works
+### 5. Never Mark a Task Done Without Proving It Works
 - Always run tests before saying a task is complete
-- Full test suite must stay at 323+ passing after every task
+- Full test suite must stay at 350+ passing after every task
 
-### 5. Autonomous Bug Fixing
+### 6. Autonomous Bug Fixing
 - When given a bug — just fix it, do not ask for hand-holding
 - Point at the error, find the root cause, resolve it
 
-### 6. Minimal Impact
+### 7. Minimal Impact
 - Only touch code that is necessary for the current task
 - Do not refactor or change things that are not broken
 
-### 7. Demand Elegance
+### 8. Demand Elegance
 - For non-trivial changes — pause and ask "is there a more elegant way?"
 - If a fix feels hacky — implement the clean solution instead
 
