@@ -333,6 +333,53 @@ class SemanticScholarClient:
         )
 
 
+class UnpaywallClient:
+    """Unpaywall open-access PDF URL client used by BE-5.
+
+    Called only to obtain a PDF download URL when no OA link was returned by
+    OpenAlex or Semantic Scholar. Requires UNPAYWALL_EMAIL in settings (free,
+    no API key). Sends only the normalized DOI.
+    """
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.base_url = settings.unpaywall_base_url.rstrip("/")
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def lookup_by_doi(self, doi: str) -> str | None:
+        """Return the best open-access PDF URL for *doi*, or None."""
+        if not self.settings.unpaywall_email:
+            return None
+        url = f"{self.base_url}/v2/{doi}"
+        params = {"email": self.settings.unpaywall_email}
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.get(url, headers=headers, params=params)
+            if response.status_code != 200:
+                return None
+            payload = response.json()
+        except Exception:
+            return None
+
+        if not isinstance(payload, dict) or not payload.get("is_oa"):
+            return None
+
+        best = payload.get("best_oa_location") or {}
+        pdf_url = best.get("url_for_pdf") if isinstance(best, dict) else None
+        if pdf_url:
+            return pdf_url
+
+        for location in (payload.get("oa_locations") or []):
+            if isinstance(location, dict) and location.get("url_for_pdf"):
+                return location["url_for_pdf"]
+        return None
+
+
 def _reconstruct_openalex_abstract(inverted_index: Any) -> str | None:
     """Reconstruct plain text from OpenAlex's inverted-index abstract format."""
     if not isinstance(inverted_index, dict) or not inverted_index:

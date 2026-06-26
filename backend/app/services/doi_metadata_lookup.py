@@ -7,7 +7,9 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.clients.metadata_clients import CrossrefClient, DoiResolverClient, MetadataLookupResponse, OpenAlexClient, SemanticScholarClient
+import pymupdf
+
+from app.clients.metadata_clients import CrossrefClient, DoiResolverClient, MetadataLookupResponse, OpenAlexClient, SemanticScholarClient, UnpaywallClient
 from app.core.config import Settings, get_settings
 from app.core.errors import AppException, ErrorCode
 from app.models import Document, Reference, SourceMetadata
@@ -90,6 +92,68 @@ def _authors_to_storage(value: list[str] | None) -> str | None:
     return "; ".join(item.strip() for item in value if item and item.strip()) or None
 
 
+def _extract_fulltext_from_url(pdf_url: str, *, max_bytes: int, max_chars: int) -> str | None:
+    """Download a PDF from *pdf_url* and extract plain text with PyMuPDF.
+
+    Returns None on any failure (timeout, non-PDF, image-only, empty text)
+    so callers can fall back gracefully without crashing the lookup pipeline.
+    """
+    try:
+        with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+            with client.stream("GET", pdf_url) as r:
+                if r.status_code != 200:
+                    return None
+                content_type = r.headers.get("content-type", "")
+                if "pdf" not in content_type and not pdf_url.lower().endswith(".pdf"):
+                    return None
+                chunks: list[bytes] = []
+                total = 0
+                for chunk in r.iter_bytes(chunk_size=65_536):
+                    total += len(chunk)
+                    if total > max_bytes:
+                        return None
+                    chunks.append(chunk)
+        pdf_bytes = b"".join(chunks)
+    except Exception:
+        return None
+
+    try:
+        doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+        pages_text = [page.get_text() for page in doc]
+        doc.close()
+    except Exception:
+        return None
+
+    text = "\n".join(pages_text).strip()
+    if not text:
+        return None
+    return text[:max_chars] if len(text) > max_chars else text
+
+
+def _merge_fulltext(primary: MetadataLookupResponse, full_text: str, pdf_url: str) -> MetadataLookupResponse:
+    """Return a new response identical to *primary* but with *full_text* injected
+    into raw_metadata_json so EvidencePackageBuilder promotes the package to
+    FULL_TEXT_AVAILABLE."""
+    raw = dict(primary.raw_metadata_json) if isinstance(primary.raw_metadata_json, dict) else {}
+    raw["full_text"] = full_text
+    raw["full_text_source"] = pdf_url
+    return MetadataLookupResponse(
+        success=primary.success,
+        lookup_source=primary.lookup_source,
+        lookup_status=primary.lookup_status,
+        doi=primary.doi,
+        title=primary.title,
+        authors=primary.authors,
+        year=primary.year,
+        venue=primary.venue,
+        publisher=primary.publisher,
+        abstract=primary.abstract,
+        url=pdf_url,
+        raw_metadata_json=raw,
+        status_code=primary.status_code,
+    )
+
+
 def _merge_abstract_fallback(primary: MetadataLookupResponse, fallback: MetadataLookupResponse) -> MetadataLookupResponse:
     """Return a new response that keeps all CrossRef fields but fills in the
     abstract (and open-access URL when the primary has none) from the fallback.
@@ -126,12 +190,14 @@ class MetadataLookupService:
         crossref_client: CrossrefClient | None = None,
         openalex_client: OpenAlexClient | None = None,
         semantic_scholar_client: SemanticScholarClient | None = None,
+        unpaywall_client: UnpaywallClient | None = None,
         doi_resolver_client: DoiResolverClient | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.crossref_client = crossref_client or CrossrefClient(self.settings)
         self.openalex_client = openalex_client or OpenAlexClient(self.settings)
         self.semantic_scholar_client = semantic_scholar_client or SemanticScholarClient(self.settings)
+        self.unpaywall_client = unpaywall_client or UnpaywallClient(self.settings)
         self.doi_resolver_client = doi_resolver_client or DoiResolverClient(self.settings)
 
     def verify_reference_doi(self, reference_id: str, db: Session, *, request_id: str | None = None, force_refresh: bool = False) -> dict[str, Any]:
@@ -368,6 +434,25 @@ class MetadataLookupService:
             if ss.abstract:
                 response = _merge_abstract_fallback(response, ss)
                 logger.info("abstract_fallback_semantic_scholar", extra={"reference_id": reference.id, "doi": doi})
+
+        # Full-text upgrade — try to download an open-access PDF and extract
+        # plain text with PyMuPDF. Priority: OA URL already in the response
+        # (from OpenAlex/SemanticScholar), then Unpaywall as a last resort.
+        if response.success:
+            pdf_url = response.url if (response.url and response.url.lower().endswith(".pdf")) else None
+            if not pdf_url and self.settings.unpaywall_email:
+                pdf_url = self.unpaywall_client.lookup_by_doi(doi)
+                if pdf_url:
+                    logger.info("fulltext_pdf_url_unpaywall", extra={"reference_id": reference.id, "doi": doi})
+            if pdf_url:
+                full_text = _extract_fulltext_from_url(
+                    pdf_url,
+                    max_bytes=self.settings.fulltext_max_bytes,
+                    max_chars=self.settings.fulltext_max_chars,
+                )
+                if full_text:
+                    response = _merge_fulltext(response, full_text, pdf_url)
+                    logger.info("fulltext_extracted", extra={"reference_id": reference.id, "doi": doi, "chars": len(full_text)})
 
         metadata = self._persist_lookup_response(reference, response, db)
         logger.info(

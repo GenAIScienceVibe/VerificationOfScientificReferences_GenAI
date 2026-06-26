@@ -45,6 +45,10 @@ class Settings(BaseModel):
     doi_resolver_base_url: str = Field(default="https://doi.org", alias="DOI_RESOLVER_BASE_URL")
     openalex_base_url: str = Field(default="https://api.openalex.org", alias="OPENALEX_BASE_URL")
     semantic_scholar_base_url: str = Field(default="https://api.semanticscholar.org", alias="SEMANTIC_SCHOLAR_BASE_URL")
+    unpaywall_base_url: str = Field(default="https://api.unpaywall.org", alias="UNPAYWALL_BASE_URL")
+    unpaywall_email: str | None = Field(default=None, alias="UNPAYWALL_EMAIL")
+    fulltext_max_bytes: int = Field(default=15 * 1024 * 1024, alias="FULLTEXT_MAX_BYTES")
+    fulltext_max_chars: int = Field(default=50_000, alias="FULLTEXT_MAX_CHARS")
     metadata_max_retries: int = Field(default=2, alias="METADATA_MAX_RETRIES")
     crossref_mailto: str | None = Field(default=None, alias="CROSSREF_MAILTO")
     metadata_user_agent: str = Field(default="verifai-refcheck-backend/1.0.0", alias="METADATA_USER_AGENT")
@@ -148,6 +152,10 @@ def _read_env() -> dict[str, object]:
         "DOI_RESOLVER_BASE_URL",
         "OPENALEX_BASE_URL",
         "SEMANTIC_SCHOLAR_BASE_URL",
+        "UNPAYWALL_BASE_URL",
+        "UNPAYWALL_EMAIL",
+        "FULLTEXT_MAX_BYTES",
+        "FULLTEXT_MAX_CHARS",
         "METADATA_MAX_RETRIES",
         "CROSSREF_MAILTO",
         "METADATA_USER_AGENT",
