@@ -44,6 +44,7 @@ class Settings(BaseModel):
     crossref_base_url: str = Field(default="https://api.crossref.org", alias="CROSSREF_BASE_URL")
     doi_resolver_base_url: str = Field(default="https://doi.org", alias="DOI_RESOLVER_BASE_URL")
     openalex_base_url: str = Field(default="https://api.openalex.org", alias="OPENALEX_BASE_URL")
+    semantic_scholar_base_url: str = Field(default="https://api.semanticscholar.org", alias="SEMANTIC_SCHOLAR_BASE_URL")
     metadata_max_retries: int = Field(default=2, alias="METADATA_MAX_RETRIES")
     crossref_mailto: str | None = Field(default=None, alias="CROSSREF_MAILTO")
     metadata_user_agent: str = Field(default="verifai-refcheck-backend/1.0.0", alias="METADATA_USER_AGENT")
@@ -146,6 +147,7 @@ def _read_env() -> dict[str, object]:
         "CROSSREF_BASE_URL",
         "DOI_RESOLVER_BASE_URL",
         "OPENALEX_BASE_URL",
+        "SEMANTIC_SCHOLAR_BASE_URL",
         "METADATA_MAX_RETRIES",
         "CROSSREF_MAILTO",
         "METADATA_USER_AGENT",

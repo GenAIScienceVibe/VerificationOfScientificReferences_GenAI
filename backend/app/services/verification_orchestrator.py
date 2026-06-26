@@ -372,21 +372,28 @@ class VerificationOrchestrator:
         retrieval = db.get(RagRetrievalResult, retrieval_data.get("retrieval_result_id")) if retrieval_data.get("retrieval_result_id") else None
         self._mark_step(steps["RAG_RETRIEVAL"], PipelineStepStatus.SUCCEEDED.value, db, progress=100, metadata={"retrieval_status": retrieval_data.get("retrieval_status")})
 
-        if retrieval is None or retrieval.retrieval_status != RetrievalStatus.SUCCEEDED.value or not retrieval.top_chunks_json:
+        no_chunks = retrieval is None or retrieval.retrieval_status != RetrievalStatus.SUCCEEDED.value or not retrieval.top_chunks_json
+
+        # (f) METADATA_ONLY: Door 1 was intentionally skipped — go directly to Door 2
+        #     with metadata but no retrieved chunks so the GenAI can still render a
+        #     verdict (typically INSUFFICIENT_EVIDENCE) rather than a bare fallback.
+        if no_chunks and package.evidence_availability != EvidenceAvailability.METADATA_ONLY.value:
             return self._fallback_result(package, run, db, issue="RAG retrieval did not return relevant evidence.", rule="NO_RELEVANT_EVIDENCE", status=SupportStatus.INSUFFICIENT_EVIDENCE.value, retrieval=retrieval)
 
-        if (retrieval.overall_similarity_score or 0.0) < self.settings.rag_min_similarity_threshold:
+        if not no_chunks and (retrieval.overall_similarity_score or 0.0) < self.settings.rag_min_similarity_threshold:
             return self._fallback_result(package, run, db, issue="Overall RAG similarity is below the configured threshold.", rule="LOW_RAG_SIMILARITY", retrieval=retrieval)
 
         self._mark_step(steps["GENAI_VERIFICATION"], PipelineStepStatus.RUNNING.value, db, progress=80)
+        retrieved_chunks = list(retrieval.top_chunks_json or []) if retrieval else []
+        overall_sim = retrieval.overall_similarity_score if retrieval else 0.0
         genai_request = self.genai_service.build_request(
             claim_id=claim.id,
             claim_text=claim.claim_text,
             citation_text=package.citation_text,
             doi_status=package.doi_status,
             metadata=package.metadata_json,
-            retrieved_evidence=list(retrieval.top_chunks_json or []),
-            overall_similarity_score=retrieval.overall_similarity_score,
+            retrieved_evidence=retrieved_chunks,
+            overall_similarity_score=overall_sim,
         )
         try:
             validated, genai_result = self.genai_service.verify(genai_request)

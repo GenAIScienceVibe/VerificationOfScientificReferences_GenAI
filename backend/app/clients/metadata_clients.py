@@ -185,6 +185,169 @@ class CrossrefClient:
         )
 
 
+class OpenAlexClient:
+    """OpenAlex abstract/open-access fallback client used by BE-5.
+
+    Called only when CrossRef returns no abstract. Sends only the normalized
+    DOI — no document text, no claim content.
+    """
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.base_url = settings.openalex_base_url.rstrip("/")
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def lookup_by_doi(self, doi: str) -> MetadataLookupResponse:
+        url = f"{self.base_url}/works/doi:{doi}"
+        params: dict[str, str] = {}
+        if self.settings.crossref_mailto:
+            params["mailto"] = self.settings.crossref_mailto
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.get(url, headers=headers, params=params)
+        except httpx.TimeoutException as exc:
+            return MetadataLookupResponse(success=False, lookup_source="OpenAlex", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi, error_code="METADATA_LOOKUP_TIMEOUT", error_message=str(exc))
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="OpenAlex", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi, error_code="METADATA_SERVICE_UNAVAILABLE", error_message=str(exc))
+
+        if response.status_code == 404:
+            return MetadataLookupResponse(success=False, lookup_source="OpenAlex", lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, doi=doi, status_code=response.status_code, error_code="METADATA_UNAVAILABLE", error_message="OpenAlex did not find metadata for this DOI.")
+        if response.status_code >= 400:
+            return MetadataLookupResponse(success=False, lookup_source="OpenAlex", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi, status_code=response.status_code, error_code="DOI_LOOKUP_FAILED", error_message=f"OpenAlex returned HTTP {response.status_code}.")
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="OpenAlex", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi, status_code=response.status_code, error_code="DOI_LOOKUP_FAILED", error_message=f"OpenAlex returned malformed JSON: {exc}")
+
+        if not isinstance(payload, dict):
+            return MetadataLookupResponse(success=False, lookup_source="OpenAlex", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi, error_code="DOI_LOOKUP_FAILED", error_message="OpenAlex response was not a JSON object.")
+
+        abstract = _reconstruct_openalex_abstract(payload.get("abstract_inverted_index"))
+
+        authorships = payload.get("authorships") or []
+        authors = [
+            str(a.get("author", {}).get("display_name", "")).strip()
+            for a in authorships
+            if isinstance(a, dict) and isinstance(a.get("author"), dict) and a["author"].get("display_name")
+        ]
+
+        primary_location = payload.get("primary_location") or {}
+        source = primary_location.get("source") if isinstance(primary_location, dict) else None
+        venue = source.get("display_name") if isinstance(source, dict) else None
+
+        best_oa = payload.get("best_oa_location") or {}
+        oa_url = (best_oa.get("pdf_url") or best_oa.get("landing_page_url")) if isinstance(best_oa, dict) else None
+
+        raw_doi = str(payload.get("doi") or doi).lower()
+        for prefix in ("https://doi.org/", "http://doi.org/"):
+            if raw_doi.startswith(prefix):
+                raw_doi = raw_doi[len(prefix):]
+
+        return MetadataLookupResponse(
+            success=True,
+            lookup_source="OpenAlex",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            doi=raw_doi,
+            title=_first_string(payload.get("title")),
+            authors=authors or None,
+            year=payload.get("publication_year"),
+            venue=venue,
+            publisher=None,
+            abstract=abstract,
+            url=oa_url or f"https://doi.org/{doi}",
+            raw_metadata_json=payload,
+            status_code=response.status_code,
+        )
+
+
+class SemanticScholarClient:
+    """Semantic Scholar abstract/open-access fallback client used by BE-5.
+
+    Called only when both CrossRef and OpenAlex return no abstract. Sends only
+    the normalized DOI — no document text, no claim content.
+    """
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.base_url = settings.semantic_scholar_base_url.rstrip("/")
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def lookup_by_doi(self, doi: str) -> MetadataLookupResponse:
+        url = f"{self.base_url}/graph/v1/paper/DOI:{doi}"
+        params = {"fields": "title,authors,year,abstract,venue,openAccessPdf"}
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.get(url, headers=headers, params=params)
+        except httpx.TimeoutException as exc:
+            return MetadataLookupResponse(success=False, lookup_source="SemanticScholar", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi, error_code="METADATA_LOOKUP_TIMEOUT", error_message=str(exc))
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="SemanticScholar", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi, error_code="METADATA_SERVICE_UNAVAILABLE", error_message=str(exc))
+
+        if response.status_code == 404:
+            return MetadataLookupResponse(success=False, lookup_source="SemanticScholar", lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, doi=doi, status_code=response.status_code, error_code="METADATA_UNAVAILABLE", error_message="Semantic Scholar did not find this DOI.")
+        if response.status_code >= 400:
+            return MetadataLookupResponse(success=False, lookup_source="SemanticScholar", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi, status_code=response.status_code, error_code="DOI_LOOKUP_FAILED", error_message=f"Semantic Scholar returned HTTP {response.status_code}.")
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="SemanticScholar", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi, status_code=response.status_code, error_code="DOI_LOOKUP_FAILED", error_message=f"Semantic Scholar returned malformed JSON: {exc}")
+
+        if not isinstance(payload, dict):
+            return MetadataLookupResponse(success=False, lookup_source="SemanticScholar", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi, error_code="DOI_LOOKUP_FAILED", error_message="Semantic Scholar response was not a JSON object.")
+
+        authors = [
+            str(a.get("name", "")).strip()
+            for a in (payload.get("authors") or [])
+            if isinstance(a, dict) and a.get("name")
+        ]
+
+        oa_pdf = payload.get("openAccessPdf") or {}
+        oa_url = oa_pdf.get("url") if isinstance(oa_pdf, dict) else None
+
+        return MetadataLookupResponse(
+            success=True,
+            lookup_source="SemanticScholar",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            doi=doi,
+            title=_first_string(payload.get("title")),
+            authors=authors or None,
+            year=payload.get("year"),
+            venue=_first_string(payload.get("venue")),
+            publisher=None,
+            abstract=_first_string(payload.get("abstract")),
+            url=oa_url or f"https://doi.org/{doi}",
+            raw_metadata_json=payload,
+            status_code=response.status_code,
+        )
+
+
+def _reconstruct_openalex_abstract(inverted_index: Any) -> str | None:
+    """Reconstruct plain text from OpenAlex's inverted-index abstract format."""
+    if not isinstance(inverted_index, dict) or not inverted_index:
+        return None
+    position_word: dict[int, str] = {}
+    for word, positions in inverted_index.items():
+        if isinstance(positions, list):
+            for pos in positions:
+                if isinstance(pos, int):
+                    position_word[pos] = word
+    if not position_word:
+        return None
+    return " ".join(position_word[i] for i in sorted(position_word)).strip() or None
+
+
 class DoiResolverClient:
     """Minimal DOI resolver URL helper.
 

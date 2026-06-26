@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.config import Settings, get_settings
 from app.core.errors import AppException, ErrorCode
 from app.models import Claim, EvidencePackage, RagRetrievalResult, Reference
-from app.models.enums import EvidenceAvailability, RetrievalStatus
+from app.models.enums import DoiStatus, EvidenceAvailability, RetrievalStatus
 from app.repositories import RagRetrievalResultRepository
 from app.services.evidence_package_builder import EvidencePackageBuilder
 
@@ -19,6 +19,24 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_RETRIEVAL_STATUSES = {item.value for item in RetrievalStatus}
 ALLOWED_EVIDENCE_TYPES = {"ABSTRACT", "METADATA", "FULL_TEXT", "REFERENCE", "UNKNOWN", "MOCK"}
+
+# Map backend DoiStatus values → RAG DoiStatus values (VALID / INVALID / UNRESOLVABLE)
+_DOI_STATUS_TO_RAG: dict[str, str] = {
+    DoiStatus.FOUND.value: "VALID",
+    DoiStatus.VALID.value: "VALID",
+    DoiStatus.MISSING.value: "UNRESOLVABLE",
+    DoiStatus.LOOKUP_FAILED.value: "UNRESOLVABLE",
+    DoiStatus.MALFORMED.value: "INVALID",
+    DoiStatus.INVALID.value: "INVALID",
+}
+
+# Map backend EvidenceAvailability values → RAG EvidenceAvailability values
+_EVIDENCE_AVAIL_TO_RAG: dict[str, str] = {
+    EvidenceAvailability.FULL_TEXT_AVAILABLE.value: "FULL_TEXT_AVAILABLE",
+    EvidenceAvailability.ABSTRACT_AVAILABLE.value: "ABSTRACT_AVAILABLE",
+    EvidenceAvailability.METADATA_ONLY.value: "UNAVAILABLE",
+    EvidenceAvailability.SOURCE_UNAVAILABLE.value: "UNAVAILABLE",
+}
 
 
 def _iso(value: Any) -> str | None:
@@ -72,13 +90,13 @@ class RagResponseValidator:
                 raise ValueError(f"top_chunks[{index}] must be an object.")
             if not str(chunk.get("chunk_text") or "").strip():
                 raise ValueError(f"top_chunks[{index}].chunk_text is required.")
-            self._validate_score(chunk.get("similarity_score"), f"top_chunks[{index}].similarity_score")
+            chunk["similarity_score"] = self._validate_score(chunk.get("similarity_score"), f"top_chunks[{index}].similarity_score")
             evidence_type = str(chunk.get("evidence_type") or "UNKNOWN").upper()
             chunk["evidence_type"] = evidence_type if evidence_type in ALLOWED_EVIDENCE_TYPES else "UNKNOWN"
 
         for field in ("overall_similarity_score", "retrieval_confidence"):
             if response.get(field) is not None:
-                self._validate_score(response.get(field), field)
+                response[field] = self._validate_score(response.get(field), field)
 
         semantic = response.get("semantic_cache_match")
         if semantic is not None:
@@ -92,13 +110,16 @@ class RagResponseValidator:
         response["top_chunks"] = chunks
         return response
 
-    def _validate_score(self, value: Any, field: str) -> None:
+    def _validate_score(self, value: Any, field: str) -> float:
         try:
             score = float(value)
         except (TypeError, ValueError) as exc:
-            raise ValueError(f"{field} must be a number between 0 and 1.") from exc
-        if score < 0 or score > 1:
-            raise ValueError(f"{field} must be between 0 and 1.")
+            raise ValueError(f"{field} must be a number.") from exc
+        if score < 0:
+            raise ValueError(f"{field} must be >= 0.")
+        # Clamp scores slightly above 1.0 (e.g. from floating-point section-weight
+        # arithmetic in the RAG) rather than rejecting them outright.
+        return min(score, 1.0)
 
 
 class RagRequestBuilder:
@@ -112,6 +133,20 @@ class RagRequestBuilder:
         metadata = contract.get("metadata") or {}
         source_evidence = contract.get("source_evidence") or {}
         policy = contract.get("policy") or {}
+
+        # (a) Map backend DoiStatus → RAG DoiStatus (VALID/INVALID/UNRESOLVABLE).
+        raw_doi_status = contract.get("doi_status") or ""
+        doi_status_for_rag = _DOI_STATUS_TO_RAG.get(raw_doi_status, "UNRESOLVABLE")
+
+        # (b) Map backend EvidenceAvailability → RAG EvidenceAvailability
+        #     (FULL_TEXT_AVAILABLE / ABSTRACT_AVAILABLE / UNAVAILABLE).
+        raw_avail = source_evidence.get("evidence_availability") or EvidenceAvailability.SOURCE_UNAVAILABLE.value
+        evidence_avail_for_rag = _EVIDENCE_AVAIL_TO_RAG.get(raw_avail, "UNAVAILABLE")
+
+        # (c) RAG SourceEvidence requires non-None strings for text and source_url.
+        text_for_rag = source_evidence.get("text") or ""
+        source_url_for_rag = source_evidence.get("source_url") or ""
+
         return {
             "document_id": package.document_id,
             "claim_id": package.claim_id,
@@ -120,12 +155,12 @@ class RagRequestBuilder:
             "claim_text": contract.get("claim_text"),
             "citation_text": contract.get("citation_text"),
             "doi": contract.get("doi"),
-            "doi_status": contract.get("doi_status"),
+            "doi_status": doi_status_for_rag,
             "metadata": metadata,
             "source_evidence": {
-                "evidence_availability": source_evidence.get("evidence_availability"),
-                "text": source_evidence.get("text"),
-                "source_url": source_evidence.get("source_url"),
+                "evidence_availability": evidence_avail_for_rag,
+                "text": text_for_rag,
+                "source_url": source_url_for_rag,
             },
             "retrieval_options": {
                 "top_k": _clamp_top_k(top_k, self.settings.rag_top_k),
@@ -296,8 +331,18 @@ class RagRetrievalService:
         if claim is None:
             raise AppException(status_code=404, code=ErrorCode.CLAIM_NOT_FOUND, field="claim_id", detail=f"Claim '{claim_id}' was not found.", message="Claim not found")
         package = self._resolve_evidence_package(claim, db, reference_id=reference_id, evidence_package_id=evidence_package_id)
-        if package.evidence_availability == EvidenceAvailability.SOURCE_UNAVAILABLE.value:
-            logger.info("rag_retrieval_skipped_source_unavailable", extra={"request_id": request_id, "claim_id": claim_id, "evidence_package_id": package.id})
+        # (f) METADATA_ONLY and SOURCE_UNAVAILABLE skip Door 1 (retrieve_evidence).
+        #     The orchestrator routes them directly to Door 2 (GenAI verification).
+        _skip_availabilities = {
+            EvidenceAvailability.SOURCE_UNAVAILABLE.value,
+            EvidenceAvailability.METADATA_ONLY.value,
+        }
+        if package.evidence_availability in _skip_availabilities:
+            reason = "source_unavailable" if package.evidence_availability == EvidenceAvailability.SOURCE_UNAVAILABLE.value else "metadata_only"
+            logger.info(
+                "rag_retrieval_skipped_%s" % reason,
+                extra={"request_id": request_id, "claim_id": claim_id, "evidence_package_id": package.id},
+            )
             result = self._store_result(
                 db,
                 package=package,
@@ -306,9 +351,9 @@ class RagRetrievalService:
                 overall_similarity_score=0.0,
                 retrieval_confidence=0.0,
                 semantic_cache_match=None,
-                request_summary={"reason": "source_unavailable", "evidence_package_id": package.id},
+                request_summary={"reason": reason, "evidence_package_id": package.id},
                 response_payload=None,
-                error_message="Evidence package has SOURCE_UNAVAILABLE; RAG call was skipped by BE-9 policy.",
+                error_message=f"Evidence package has {package.evidence_availability}; Door 1 was skipped by BE-9 policy.",
             )
             db.commit()
             db.refresh(result)

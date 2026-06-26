@@ -7,7 +7,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.clients.metadata_clients import CrossrefClient, DoiResolverClient, MetadataLookupResponse
+from app.clients.metadata_clients import CrossrefClient, DoiResolverClient, MetadataLookupResponse, OpenAlexClient, SemanticScholarClient
 from app.core.config import Settings, get_settings
 from app.core.errors import AppException, ErrorCode
 from app.models import Document, Reference, SourceMetadata
@@ -90,6 +90,28 @@ def _authors_to_storage(value: list[str] | None) -> str | None:
     return "; ".join(item.strip() for item in value if item and item.strip()) or None
 
 
+def _merge_abstract_fallback(primary: MetadataLookupResponse, fallback: MetadataLookupResponse) -> MetadataLookupResponse:
+    """Return a new response that keeps all CrossRef fields but fills in the
+    abstract (and open-access URL when the primary has none) from the fallback.
+    The lookup_source is updated to reflect both providers."""
+    combined_source = f"{primary.lookup_source}+{fallback.lookup_source}"
+    return MetadataLookupResponse(
+        success=primary.success,
+        lookup_source=combined_source,
+        lookup_status=primary.lookup_status,
+        doi=primary.doi,
+        title=primary.title,
+        authors=primary.authors,
+        year=primary.year,
+        venue=primary.venue,
+        publisher=primary.publisher,
+        abstract=fallback.abstract,
+        url=primary.url or fallback.url,
+        raw_metadata_json=primary.raw_metadata_json,
+        status_code=primary.status_code,
+    )
+
+
 class MetadataLookupService:
     """BE-5 DOI metadata lookup coordinator.
 
@@ -102,10 +124,14 @@ class MetadataLookupService:
         *,
         settings: Settings | None = None,
         crossref_client: CrossrefClient | None = None,
+        openalex_client: OpenAlexClient | None = None,
+        semantic_scholar_client: SemanticScholarClient | None = None,
         doi_resolver_client: DoiResolverClient | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.crossref_client = crossref_client or CrossrefClient(self.settings)
+        self.openalex_client = openalex_client or OpenAlexClient(self.settings)
+        self.semantic_scholar_client = semantic_scholar_client or SemanticScholarClient(self.settings)
         self.doi_resolver_client = doi_resolver_client or DoiResolverClient(self.settings)
 
     def verify_reference_doi(self, reference_id: str, db: Session, *, request_id: str | None = None, force_refresh: bool = False) -> dict[str, Any]:
@@ -325,6 +351,24 @@ class MetadataLookupService:
             )
 
         response = self.crossref_client.lookup_by_doi(doi)
+
+        # Abstract fallback — CrossRef rarely includes abstracts.
+        # Try OpenAlex first, then Semantic Scholar, stopping as soon as one
+        # returns an abstract. CrossRef remains the authoritative source for
+        # all other fields; only the abstract (and open-access URL when absent)
+        # are merged in from the fallback.
+        if response.success and not response.abstract:
+            openalex = self.openalex_client.lookup_by_doi(doi)
+            if openalex.abstract:
+                response = _merge_abstract_fallback(response, openalex)
+                logger.info("abstract_fallback_openalex", extra={"reference_id": reference.id, "doi": doi})
+
+        if response.success and not response.abstract:
+            ss = self.semantic_scholar_client.lookup_by_doi(doi)
+            if ss.abstract:
+                response = _merge_abstract_fallback(response, ss)
+                logger.info("abstract_fallback_semantic_scholar", extra={"reference_id": reference.id, "doi": doi})
+
         metadata = self._persist_lookup_response(reference, response, db)
         logger.info(
             "metadata_lookup_completed",
