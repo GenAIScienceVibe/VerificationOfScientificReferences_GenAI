@@ -45,8 +45,10 @@ async def readiness(request: Request):
         "application": "ready",
         "database": db_status if db_ready else db_status,
         "file_storage": file_storage_status,
-        "metadata_lookup": "placeholder_not_configured_be5",
-        "rag_service": "configured_placeholder" if settings.is_rag_configured else "not_configured_placeholder_be9",
-        "genai_service": "configured_placeholder" if settings.is_genai_configured else "not_configured_placeholder_be10",
+        "metadata_lookup": "mock_ready" if settings.metadata_mock_mode else ("enabled" if settings.metadata_lookup_enabled else "disabled"),
+        "rag_service": "mock_ready" if settings.rag_mock_mode else ("configured" if settings.is_rag_configured else "not_configured"),
+        "genai_service": "mock_ready" if settings.genai_mock_mode else ("configured" if settings.is_genai_configured else "not_configured"),
+        "demo_mode": settings.demo_mode,
+        "phase": "BE-13",
     }
     return success_response(request=request, data=data, message="Backend readiness checked")

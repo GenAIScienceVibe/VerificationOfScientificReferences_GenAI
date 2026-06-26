@@ -1,0 +1,1 @@
+Demo database reset and initialized.

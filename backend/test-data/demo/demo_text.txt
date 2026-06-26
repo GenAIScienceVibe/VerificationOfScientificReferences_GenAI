@@ -1,0 +1,15 @@
+Demo AI Education Paper
+
+Abstract
+AI writing assistants may reduce drafting time for students (Smith, 2023).
+
+Introduction
+Prior research suggests that AI writing assistants can improve drafting speed (Smith, 2023). However, broad claims about learning outcomes need careful review (Lee, 2022).
+
+Discussion
+Transparent AI feedback can increase trust in learning technologies (Garcia, 2024).
+
+References
+Smith, J. (2023). AI Writing Assistants and Drafting Speed. Journal of AI Education. https://doi.org/10.1234/demo.ai.2023
+Lee, A. (2022). Learning Outcomes Without DOI. Academic Press.
+Garcia, M. (2024). Transparent AI Feedback in Education. Computers and Education. https://doi.org/10.5678/transparent.feedback.2024

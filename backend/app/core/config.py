@@ -49,6 +49,9 @@ class Settings(BaseModel):
     metadata_user_agent: str = Field(default="verifai-refcheck-backend/1.0.0", alias="METADATA_USER_AGENT")
     max_upload_size_bytes: int = Field(default=10 * 1024 * 1024, alias="MAX_UPLOAD_SIZE_BYTES")
     enable_raw_text_debug_endpoint: bool = Field(default=False, alias="ENABLE_RAW_TEXT_DEBUG_ENDPOINT")
+    demo_mode: bool = Field(default=False, alias="DEMO_MODE")
+    metadata_mock_mode: bool = Field(default=False, alias="METADATA_MOCK_MODE")
+    genai_mock_mode: bool = Field(default=True, alias="GENAI_MOCK_MODE")
     embedding_model_version: str = Field(default="embedding-v1", alias="EMBEDDING_MODEL_VERSION")
     verification_prompt_version: str = Field(default="verify-v1", alias="VERIFICATION_PROMPT_VERSION")
     verification_policy_version: str = Field(default="policy-v1", alias="VERIFICATION_POLICY_VERSION")
@@ -148,6 +151,9 @@ def _read_env() -> dict[str, object]:
         "METADATA_USER_AGENT",
         "MAX_UPLOAD_SIZE_BYTES",
         "ENABLE_RAW_TEXT_DEBUG_ENDPOINT",
+        "DEMO_MODE",
+        "METADATA_MOCK_MODE",
+        "GENAI_MOCK_MODE",
         "EMBEDDING_MODEL_VERSION",
         "VERIFICATION_PROMPT_VERSION",
         "VERIFICATION_POLICY_VERSION",

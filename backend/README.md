@@ -507,3 +507,31 @@ python scripts/init_db.py
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
 python scripts/validate_uploaded_pdfs_be12.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf /path/to/paper3.pdf
 ```
+
+## BE-13 Final Backend Hardening
+
+BE-13 adds final testing, logging, OpenAPI validation, demo mode, and setup hardening. It does not add frontend UI or new AI/RAG algorithms.
+
+### Final validation commands
+
+```bash
+python -m compileall app scripts/validate_uploaded_pdfs_be13.py scripts/run_demo_pipeline.py scripts/run_backend_checks.py scripts/validate_openapi.py
+python scripts/validate_openapi.py
+python scripts/init_db.py
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
+```
+
+### Demo commands
+
+```bash
+python scripts/reset_demo_db.py
+python scripts/run_demo_pipeline.py
+```
+
+### Uploaded PDF validation
+
+```bash
+python scripts/validate_uploaded_pdfs_be13.py --reset-db <paper1.pdf> <paper2.pdf> <paper3.pdf>
+```
+
+See `docs/BACKEND_SETUP_GUIDE_BE13.md` and `docs/BE13_TESTING_LOGGING_DEMO_HARDENING.md` for complete setup and demo guidance.

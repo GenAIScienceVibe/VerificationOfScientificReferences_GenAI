@@ -1,0 +1,39 @@
+Listing 'app'...
+Listing 'app/api'...
+Listing 'app/api/v1'...
+Listing 'app/clients'...
+Listing 'app/core'...
+Listing 'app/db'...
+Listing 'app/models'...
+Listing 'app/repositories'...
+Listing 'app/schemas'...
+Listing 'app/services'...
+verifAI / RefCheck AI Backend 1.0.0 44
+Initialized database with 18 tables:
+- citations
+- claim_cache_index
+- claim_reference_links
+- claims
+- document_sections
+- documents
+- evidence_packages
+- pipeline_runs
+- pipeline_steps
+- prompt_runs
+- rag_retrieval_results
+- references
+- reports
+- safety_checks
+- source_metadata
+- uat_surveys
+- user_feedback
+- verification_results
+OpenAPI title: verifAI / RefCheck AI Backend
+OpenAPI version: 1.0.0
+OpenAPI path count: 44
+Required endpoint gaps: []
+$ /opt/pyvenv/bin/python -m compileall app
+$ /opt/pyvenv/bin/python -c from app.main import app; print(app.title, app.version, len(app.openapi()['paths']))
+$ /opt/pyvenv/bin/python scripts/init_db.py
+$ /opt/pyvenv/bin/python scripts/validate_openapi.py
+Backend checks completed successfully.

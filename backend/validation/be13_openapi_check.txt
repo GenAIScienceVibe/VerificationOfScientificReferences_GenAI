@@ -1,0 +1,4 @@
+OpenAPI title: verifAI / RefCheck AI Backend
+OpenAPI version: 1.0.0
+OpenAPI path count: 44
+Required endpoint gaps: []
