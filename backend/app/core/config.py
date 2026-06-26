@@ -64,6 +64,21 @@ class Settings(BaseModel):
     cache_require_same_reference: bool = Field(default=False, alias="CACHE_REQUIRE_SAME_REFERENCE")
     cache_evidence_version: str = Field(default="evidence-v1", alias="CACHE_EVIDENCE_VERSION")
 
+    # BE-11 deterministic safety/confidence policy settings.
+    safety_min_genai_confidence: float = Field(default=0.60, alias="SAFETY_MIN_GENAI_CONFIDENCE")
+    safety_min_strong_similarity: float = Field(default=0.80, alias="SAFETY_MIN_STRONG_SIMILARITY")
+    safety_min_acceptable_similarity: float = Field(default=0.60, alias="SAFETY_MIN_ACCEPTABLE_SIMILARITY")
+    safety_low_similarity_threshold: float = Field(default=0.60, alias="SAFETY_LOW_SIMILARITY_THRESHOLD")
+    safety_require_valid_doi_for_supported: bool = Field(default=True, alias="SAFETY_REQUIRE_VALID_DOI_FOR_SUPPORTED")
+    safety_require_evidence_for_supported: bool = Field(default=True, alias="SAFETY_REQUIRE_EVIDENCE_FOR_SUPPORTED")
+    safety_flag_metadata_only_supported: bool = Field(default=True, alias="SAFETY_FLAG_METADATA_ONLY_SUPPORTED")
+    safety_flag_source_unavailable: bool = Field(default=True, alias="SAFETY_FLAG_SOURCE_UNAVAILABLE")
+    safety_enable_genai_rag_conflict_check: bool = Field(default=True, alias="SAFETY_ENABLE_GENAI_RAG_CONFLICT_CHECK")
+    safety_max_confidence_with_metadata_only: float = Field(default=0.70, alias="SAFETY_MAX_CONFIDENCE_WITH_METADATA_ONLY")
+    safety_max_confidence_with_source_unavailable: float = Field(default=0.40, alias="SAFETY_MAX_CONFIDENCE_WITH_SOURCE_UNAVAILABLE")
+    safety_max_confidence_with_low_similarity: float = Field(default=0.55, alias="SAFETY_MAX_CONFIDENCE_WITH_LOW_SIMILARITY")
+    safety_policy_version: str = Field(default="policy-v1", alias="SAFETY_POLICY_VERSION")
+
     model_config = {
         "populate_by_name": True,
         "extra": "ignore",
@@ -147,6 +162,19 @@ def _read_env() -> dict[str, object]:
         "CACHE_REQUIRE_SAME_POLICY_VERSION",
         "CACHE_REQUIRE_SAME_REFERENCE",
         "CACHE_EVIDENCE_VERSION",
+        "SAFETY_MIN_GENAI_CONFIDENCE",
+        "SAFETY_MIN_STRONG_SIMILARITY",
+        "SAFETY_MIN_ACCEPTABLE_SIMILARITY",
+        "SAFETY_LOW_SIMILARITY_THRESHOLD",
+        "SAFETY_REQUIRE_VALID_DOI_FOR_SUPPORTED",
+        "SAFETY_REQUIRE_EVIDENCE_FOR_SUPPORTED",
+        "SAFETY_FLAG_METADATA_ONLY_SUPPORTED",
+        "SAFETY_FLAG_SOURCE_UNAVAILABLE",
+        "SAFETY_ENABLE_GENAI_RAG_CONFLICT_CHECK",
+        "SAFETY_MAX_CONFIDENCE_WITH_METADATA_ONLY",
+        "SAFETY_MAX_CONFIDENCE_WITH_SOURCE_UNAVAILABLE",
+        "SAFETY_MAX_CONFIDENCE_WITH_LOW_SIMILARITY",
+        "SAFETY_POLICY_VERSION",
     }
     return {key: value for key in keys if (value := os.getenv(key)) is not None}
 

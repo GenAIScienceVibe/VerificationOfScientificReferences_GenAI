@@ -37,6 +37,7 @@ from app.models.enums import (
 from app.services.evidence_package_builder import EvidencePackageBuilder
 from app.services.genai_verification import GenAiVerificationService
 from app.services.rag_ml_integration import RagRetrievalService
+from app.services.safety_policy import SafetyPolicyService, SafetyRuleHit
 from app.services.verification_cache import CacheRecommendedAction, VerificationCacheService
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,7 @@ class VerificationOrchestrator:
         self.rag_service = RagRetrievalService(settings=self.settings)
         self.genai_service = GenAiVerificationService(settings=self.settings)
         self.evidence_builder = EvidencePackageBuilder(self.settings)
+        self.safety_service = SafetyPolicyService(settings=self.settings)
 
     def run_document_verification(
         self,
@@ -195,7 +197,7 @@ class VerificationOrchestrator:
             "completed_at": _iso(run.completed_at),
             "warnings": run.warnings_json or [],
             "error_message": run.error_message,
-            "phase": "BE-10",
+            "phase": "BE-11",
         }
 
     def get_pipeline_steps(self, pipeline_run_id: str, db: Session) -> dict[str, Any]:
@@ -350,6 +352,8 @@ class VerificationOrchestrator:
                     source = db.get(VerificationResult, decision["matched_result_id"])
                     if source:
                         result = self._create_result_from_cache(source, claim, reference, package, run, db, decision)
+                        safety_decision = self.safety_service.evaluate_and_apply(result, db, evidence_package=package, retrieval=None, request_id=request_id)
+                        self._mark_step(steps["BASIC_SAFETY_CHECK"], PipelineStepStatus.SUCCEEDED.value, db, progress=100, metadata=safety_decision.to_dict())
                         self._mark_step(steps["CACHE_CHECK"], PipelineStepStatus.SUCCEEDED.value, db, progress=100, metadata={"cache_source": result.cache_source})
                         return result
             except Exception as exc:  # cache failure should not kill verification
@@ -393,11 +397,9 @@ class VerificationOrchestrator:
             return self._fallback_result(package, run, db, issue="GenAI verification output was invalid or unavailable.", rule="GENAI_INVALID_OR_UNAVAILABLE", retrieval=retrieval)
         self._mark_step(steps["GENAI_VERIFICATION"], PipelineStepStatus.SUCCEEDED.value, db, progress=100)
 
-        gated = self._apply_basic_safety(validated, package, retrieval)
-        self._mark_step(steps["BASIC_SAFETY_CHECK"], PipelineStepStatus.SUCCEEDED.value, db, progress=100, metadata=gated.get("safety"))
-        result = self._store_verification_result(package, run, db, validated=gated["result"], retrieval=retrieval, method="RAG_PLUS_GENAI", cache_source=CacheSource.NEW_VERIFICATION.value)
-        if gated.get("safety"):
-            self._store_safety_check(result, db, gated["safety"])
+        result = self._store_verification_result(package, run, db, validated=validated, retrieval=retrieval, method="RAG_PLUS_GENAI", cache_source=CacheSource.NEW_VERIFICATION.value)
+        safety_decision = self.safety_service.evaluate_and_apply(result, db, evidence_package=package, retrieval=retrieval, request_id=request_id)
+        self._mark_step(steps["BASIC_SAFETY_CHECK"], PipelineStepStatus.SUCCEEDED.value, db, progress=100, metadata=safety_decision.to_dict())
         try:
             self.cache_service.index_verification_result(result.id, db, cache_source=CacheSource.NEW_VERIFICATION.value, commit=False)
         except Exception as exc:
@@ -459,7 +461,15 @@ class VerificationOrchestrator:
             "evidence_used": [],
         }
         result = self._store_verification_result(package, run, db, validated=validated, retrieval=retrieval, method="FALLBACK_NEEDS_REVIEW", cache_source=CacheSource.NEW_VERIFICATION.value)
-        self._store_safety_check(result, db, {"issue": issue, "rule": rule, "risk_level": SafetyRiskLevel.HIGH.value})
+        extra = SafetyRuleHit(
+            rule=rule,
+            issue=issue,
+            recommended_action="Human reviewer should inspect this result before relying on it.",
+            risk_level=SafetyRiskLevel.HIGH.value,
+            final_support_status=status,
+            confidence_cap=validated["confidence"],
+        )
+        self.safety_service.evaluate_and_apply(result, db, evidence_package=package, retrieval=retrieval, extra_rule=extra)
         db.flush()
         return result
 
@@ -513,7 +523,8 @@ class VerificationOrchestrator:
     def result_to_dict(self, result: VerificationResult, *, include_details: bool) -> dict[str, Any]:
         claim = result.claim
         reference = result.reference
-        safety = result.safety_checks[0] if result.safety_checks else None
+        safety_checks = list(result.safety_checks or [])
+        safety = max(safety_checks, key=lambda item: {"LOW": 0, "UNKNOWN": 0, "MEDIUM": 1, "HIGH": 2}.get(item.risk_level, 0)) if safety_checks else None
         citation_text = None
         try:
             link = claim.reference_links[0] if claim and claim.reference_links else None
@@ -541,6 +552,8 @@ class VerificationOrchestrator:
             "explanation": result.explanation,
             "limitations": result.limitations,
             "safety_risk_level": safety.risk_level if safety else SafetyRiskLevel.LOW.value,
+            "safety_status": safety.safety_status if safety else "PASS",
+            "safety_rules_triggered": [check.backend_rule_triggered for check in safety_checks if check.backend_rule_triggered],
         }
         if include_details:
             retrievals = []
@@ -549,7 +562,18 @@ class VerificationOrchestrator:
                     retrievals.append({"retrieval_result_id": retrieval.id, "top_chunks": retrieval.top_chunks_json or [], "overall_similarity_score": retrieval.overall_similarity_score, "retrieval_confidence": retrieval.retrieval_confidence})
             data["retrieved_evidence"] = retrievals[:3]
             data["verification"] = {"support_status": result.support_status, "confidence": result.confidence, "explanation": result.explanation, "limitations": result.limitations, "human_review_required": result.human_review_required, "cache_source": result.cache_source}
-            data["safety_check"] = {"status": safety.safety_status, "risk_level": safety.risk_level, "reason": safety.issue, "recommended_action": safety.recommended_action} if safety else None
+            data["safety_check"] = {"status": safety.safety_status, "risk_level": safety.risk_level, "reason": safety.issue, "recommended_action": safety.recommended_action, "triggered_rule": safety.backend_rule_triggered} if safety else None
+            data["safety_checks"] = [
+                {
+                    "safety_check_id": check.id,
+                    "status": check.safety_status,
+                    "risk_level": check.risk_level,
+                    "reason": check.issue,
+                    "recommended_action": check.recommended_action,
+                    "triggered_rule": check.backend_rule_triggered,
+                }
+                for check in safety_checks
+            ]
         return data
 
     def _summary(self, results: list[VerificationResult], total_claims: int) -> dict[str, Any]:

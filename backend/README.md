@@ -463,3 +463,16 @@ python scripts/init_db.py
 pytest -q
 python scripts/validate_uploaded_pdfs_be10.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf /path/to/paper3.pdf
 ```
+
+## BE-11 — Safety and Confidence Rules
+
+BE-11 adds deterministic backend safety and confidence rules on top of BE-10 verification orchestration. The backend now evaluates DOI safety, evidence availability, RAG similarity, GenAI confidence, cache safety, and evidence-used consistency before exposing final results. Safety checks are stored and exposed through result detail APIs and safety summary APIs.
+
+New endpoints:
+
+```text
+GET /api/v1/verification-results/{result_id}/safety-checks
+GET /api/v1/documents/{document_id}/safety-summary
+```
+
+BE-11 intentionally does not implement report generation, feedback analytics, frontend UI, or production hardening.

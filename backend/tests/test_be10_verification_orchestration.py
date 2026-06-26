@@ -165,8 +165,9 @@ def test_missing_doi_triggers_safety_fallback_and_human_review() -> None:
     assert results[0]["human_review_required"] is True
     assert results[0]["verification_method"] == "FALLBACK_NEEDS_REVIEW"
     with SessionLocal() as db:
-        safety = db.query(SafetyCheck).one()
-        assert safety.backend_rule_triggered in {"DOI_NOT_VALID", "SOURCE_UNAVAILABLE"}
+        safety_checks = db.query(SafetyCheck).all()
+        assert safety_checks
+        assert {item.backend_rule_triggered for item in safety_checks} & {"DOI_NOT_VALID", "DOI_MISSING", "SOURCE_UNAVAILABLE"}
 
 
 def test_missing_document_pipeline_error_uses_standard_wrapper() -> None:

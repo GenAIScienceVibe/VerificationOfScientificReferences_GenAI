@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.responses import success_response
 from app.db.session import get_db
 from app.services.verification_orchestrator import VerificationOrchestrator
+from app.services.safety_policy import SafetyPolicyService
 
 router = APIRouter(tags=["verification-orchestration"])
 
@@ -100,3 +101,15 @@ async def get_document_verification_results(
 async def get_verification_result(request: Request, result_id: str, db: Session = Depends(get_db)):
     data = VerificationOrchestrator().get_verification_result(result_id, db)
     return success_response(request=request, data=data, message="Verification result returned")
+
+
+@router.get("/verification-results/{result_id}/safety-checks")
+async def get_verification_result_safety_checks(request: Request, result_id: str, db: Session = Depends(get_db)):
+    data = SafetyPolicyService().get_safety_checks_for_result(result_id, db)
+    return success_response(request=request, data=data, message="Verification result safety checks returned")
+
+
+@router.get("/documents/{document_id}/safety-summary")
+async def get_document_safety_summary(request: Request, document_id: str, db: Session = Depends(get_db)):
+    data = SafetyPolicyService().get_document_safety_summary(document_id, db)
+    return success_response(request=request, data=data, message="Document safety summary returned")
