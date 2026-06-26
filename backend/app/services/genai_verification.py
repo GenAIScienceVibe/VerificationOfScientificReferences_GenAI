@@ -123,16 +123,80 @@ class MockGenAiVerificationClient:
         return GenAiVerificationClientResult(payload=payload, raw_output=payload, mock_mode=True, token_usage=None)
 
 
+class RealGenAiVerificationClient:
+    """Calls rag/api.verify_claim() directly — real LLM via OpenRouter, no mock."""
+
+    # Maps backend DoiStatus values to the three values rag/api.py accepts.
+    _DOI_MAP: dict[str, str] = {
+        "FOUND": "VALID", "VALID": "VALID",
+        "MISSING": "UNRESOLVABLE", "LOOKUP_FAILED": "UNRESOLVABLE",
+        "MALFORMED": "INVALID", "INVALID": "INVALID",
+    }
+
+    def __init__(self) -> None:
+        import pathlib
+        import sys
+        project_root = str(pathlib.Path(__file__).resolve().parent.parent.parent.parent)
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+
+    def verify_claim(self, request_payload: dict[str, Any]) -> GenAiVerificationClientResult:
+        from rag.api import (  # noqa: PLC0415
+            RetrievedEvidenceItem,
+            SourceMetadata,
+            VerifyClaimRequest,
+            verify_claim,
+        )
+
+        doi_status = self._DOI_MAP.get(str(request_payload.get("doi_status") or ""), "UNRESOLVABLE")
+        metadata = request_payload.get("metadata") or {}
+        retrieved = request_payload.get("retrieved_evidence") or []
+
+        req = VerifyClaimRequest(
+            claim_text=request_payload.get("claim_text") or "",
+            citation_text=request_payload.get("citation_text") or "",
+            doi_status=doi_status,
+            metadata=SourceMetadata(
+                title=str(metadata.get("title") or ""),
+                abstract=str(metadata.get("abstract") or ""),
+            ),
+            retrieved_evidence=[
+                RetrievedEvidenceItem(
+                    chunk_id=str(c.get("chunk_id") or i),
+                    chunk_text=str(c.get("chunk_text") or ""),
+                    similarity_score=float(c.get("similarity_score") or 0.0),
+                )
+                for i, c in enumerate(retrieved)
+            ],
+            overall_similarity_score=float(request_payload.get("overall_similarity_score") or 0.0),
+        )
+        response = verify_claim(req)
+        payload: dict[str, Any] = {
+            "support_status": response.support_status.value,
+            "confidence": response.confidence,
+            "explanation": response.explanation,
+            "evidence_used": response.evidence_used,
+            "limitations": response.limitations or "No additional limitations were provided.",
+            "human_review_required": response.human_review_required,
+        }
+        return GenAiVerificationClientResult(payload=payload, raw_output=response, mock_mode=False)
+
+
 class GenAiVerificationService:
     """Backend-controlled GenAI verification façade.
 
-    BE-10 defaults to mock mode unless future configuration connects a live
-    Groq-backed client. This keeps all tests network-free.
+    Uses RealGenAiVerificationClient when GENAI_MOCK_MODE=false (calls rag/api.verify_claim()
+    directly via OpenRouter). Falls back to MockGenAiVerificationClient when mock mode is on.
     """
 
     def __init__(self, settings: Settings | None = None, client: MockGenAiVerificationClient | None = None) -> None:
         self.settings = settings or get_settings()
-        self.client = client or MockGenAiVerificationClient()
+        if client is not None:
+            self.client = client
+        elif self.settings.genai_mock_mode:
+            self.client = MockGenAiVerificationClient()
+        else:
+            self.client = RealGenAiVerificationClient()
         self.validator = GenAiVerificationResponseValidator()
 
     def build_request(

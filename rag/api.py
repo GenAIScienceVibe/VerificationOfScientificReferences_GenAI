@@ -68,10 +68,9 @@ RETRIEVAL_CANDIDATE_K = DOOR1_TOP_K * 3
 # already a 0-1 relevance probability and is never divided by this.
 MAX_SECTION_WEIGHT = max(SECTION_WEIGHTS.values())
 
-# Per-DOI embedding cache for retrieve_evidence(). If a paper has multiple
-# claims all citing the same DOI, this avoids re-embedding identical source
-# chunks for every claim. In-memory only, scoped to this process's lifetime —
-# never persisted, since the backend owns all storage (CLAUDE.md).
+# Per-paper embedding cache for retrieve_evidence(). Key is reference_id (always
+# unique per paper) so multiple claims citing the same paper reuse embeddings.
+# Falls back to doi if reference_id is absent. In-memory only, never persisted.
 _embedding_cache: dict[str, EmbedderOutput] = {}
 
 
@@ -338,14 +337,17 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
             return _failed_retrieval(request)
 
         # Step 3: embed every source chunk, reusing a cached embedding when
-        # another claim earlier in this run already embedded the same DOI's
-        # source text (SCRUM-264).
-        cached_embedder_output = _embedding_cache.get(request.doi)
+        # another claim earlier in this run already embedded the same paper.
+        # Key by reference_id (always unique) rather than doi (empty when DOI
+        # is missing, which would cause all DOI-less papers to collide in the
+        # same cache slot and return wrong chunks — SCRUM-264).
+        cache_key = request.reference_id or request.doi
+        cached_embedder_output = _embedding_cache.get(cache_key)
         if cached_embedder_output is not None:
             embedder_output = cached_embedder_output
         else:
             embedder_output = embed_chunks(EmbedderInput(chunks=chunker_output.chunks, doi=request.doi))
-            _embedding_cache[request.doi] = embedder_output
+            _embedding_cache[cache_key] = embedder_output
 
         # Step 4: embed the claim with the same embedding model.
         claim_embedding = _embed_single_text(request.claim_text, request.doi)

@@ -19,6 +19,7 @@ class PipelineRunRequest(BaseModel):
     use_rag: bool = True
     use_genai_safety_review: bool = True
     generate_report: bool = False
+    claim_ids: list[str] | None = None
 
 
 @router.post("/documents/{document_id}/pipeline-runs")
@@ -37,6 +38,7 @@ async def create_document_pipeline_run(
         use_rag=payload.use_rag,
         use_genai_safety_review=payload.use_genai_safety_review,
         generate_report=payload.generate_report,
+        claim_ids=payload.claim_ids,
         request_id=getattr(request.state, "request_id", None),
     )
     return success_response(request=request, data=data, message="Verification pipeline run completed")
@@ -58,6 +60,7 @@ async def run_document_verification_compat(
         use_rag=payload.use_rag,
         use_genai_safety_review=payload.use_genai_safety_review,
         generate_report=payload.generate_report,
+        claim_ids=payload.claim_ids,
         request_id=getattr(request.state, "request_id", None),
     )
     return success_response(request=request, data=data, message="Verification workflow completed")

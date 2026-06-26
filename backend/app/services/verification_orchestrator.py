@@ -90,6 +90,7 @@ class VerificationOrchestrator:
         use_rag: bool = True,
         use_genai_safety_review: bool = True,
         generate_report: bool = False,
+        claim_ids: list[str] | None = None,
         request_id: str | None = None,
     ) -> dict[str, Any]:
         document = db.get(Document, document_id)
@@ -134,6 +135,8 @@ class VerificationOrchestrator:
             self._mark_step(steps["EVIDENCE_PACKAGE_CREATION"], PipelineStepStatus.SUCCEEDED.value, db, progress=50, metadata={"evidence_packages": len(packages)})
 
             eligible_packages = self._latest_packages_for_verification(document, db)
+            if claim_ids is not None:
+                eligible_packages = [p for p in eligible_packages if p.claim_id in set(claim_ids)]
             if not eligible_packages:
                 raise AppException(status_code=422, code=ErrorCode.EVIDENCE_PACKAGE_NOT_FOUND, field="document_id", detail="No evidence packages are available for verification.", message="Evidence packages missing")
 
@@ -368,7 +371,7 @@ class VerificationOrchestrator:
             return self._fallback_result(package, run, db, issue="RAG retrieval disabled for this pipeline run.", rule="RAG_DISABLED")
 
         self._mark_step(steps["RAG_RETRIEVAL"], PipelineStepStatus.RUNNING.value, db, progress=70)
-        retrieval_data = self.rag_service.retrieve_evidence_for_claim(claim.id, db, reference_id=reference.id, evidence_package_id=package.id, use_mock=True, request_id=request_id)
+        retrieval_data = self.rag_service.retrieve_evidence_for_claim(claim.id, db, reference_id=reference.id, evidence_package_id=package.id, use_mock=None, request_id=request_id)
         retrieval = db.get(RagRetrievalResult, retrieval_data.get("retrieval_result_id")) if retrieval_data.get("retrieval_result_id") else None
         self._mark_step(steps["RAG_RETRIEVAL"], PipelineStepStatus.SUCCEEDED.value, db, progress=100, metadata={"retrieval_status": retrieval_data.get("retrieval_status")})
 

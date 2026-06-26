@@ -261,16 +261,75 @@ class MockRagClient:
         )
 
 
-class RagMlClient:
-    """HTTP client for backend-owned internal RAG/ML contract."""
+class RagDirectClient:
+    """Calls rag/api.retrieve_evidence() directly as a Python import — no HTTP, no mock."""
 
-    def __init__(self, settings: Settings | None = None, mock_client: MockRagClient | None = None) -> None:
+    def __init__(self) -> None:
+        import pathlib
+        import sys
+        # rag/ lives at the project root, one level above backend/
+        project_root = str(pathlib.Path(__file__).resolve().parent.parent.parent.parent)
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+
+    def retrieve(self, request_payload: dict[str, Any]) -> RagClientResult:
+        from rag.api import RetrieveEvidenceRequest, retrieve_evidence  # noqa: PLC0415
+        from rag.ingestion.models import SourceEvidence  # noqa: PLC0415
+
+        source_ev = request_payload.get("source_evidence") or {}
+        req = RetrieveEvidenceRequest(
+            claim_id=request_payload["claim_id"],
+            reference_id=request_payload["reference_id"],
+            claim_text=request_payload["claim_text"],
+            citation_text=request_payload.get("citation_text") or "",
+            doi=request_payload.get("doi") or "",
+            doi_status=request_payload["doi_status"],
+            source_evidence=SourceEvidence(
+                evidence_availability=source_ev.get("evidence_availability", "UNAVAILABLE"),
+                text=source_ev.get("text") or "",
+                source_url=source_ev.get("source_url") or "",
+            ),
+        )
+        response = retrieve_evidence(req)
+        payload: dict[str, Any] = {
+            "claim_id": response.claim_id,
+            "reference_id": response.reference_id,
+            "retrieval_status": response.retrieval_status.value,
+            "top_chunks": [
+                {
+                    "chunk_id": c.chunk_id,
+                    "chunk_text": c.chunk_text,
+                    "similarity_score": c.similarity_score,
+                    "evidence_type": c.evidence_type,
+                }
+                for c in response.top_chunks
+            ],
+            "overall_similarity_score": response.overall_similarity_score,
+            "retrieval_confidence": response.retrieval_confidence,
+        }
+        return RagClientResult(payload=payload, mock_mode=False)
+
+
+class RagMlClient:
+    """Coordinator that routes RAG retrieval to the real pipeline or the mock stub."""
+
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        mock_client: MockRagClient | None = None,
+        direct_client: RagDirectClient | None = None,
+    ) -> None:
         self.settings = settings or get_settings()
         self.mock_client = mock_client or MockRagClient()
+        self.direct_client = direct_client or RagDirectClient()
 
     def retrieve(self, request_payload: dict[str, Any], *, use_mock: bool | None = None) -> RagClientResult:
         if use_mock is True or self.settings.rag_mock_mode or not self.settings.rag_service_enabled:
             return self.mock_client.retrieve(request_payload)
+        return self.direct_client.retrieve(request_payload)
+
+    def _http_retrieve_unused(self, request_payload: dict[str, Any]) -> RagClientResult:
+        """Retained for reference — the real pipeline is now called directly via RagDirectClient."""
         if not self.settings.rag_service_url:
             raise AppException(status_code=503, code=ErrorCode.RAG_SERVICE_UNAVAILABLE, detail="RAG service URL is not configured.", message="RAG service unavailable")
         url = self.settings.rag_service_url.rstrip("/") + "/internal/rag/retrieve-evidence"
