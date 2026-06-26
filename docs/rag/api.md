@@ -119,7 +119,7 @@ DOI string itself for verification — only whether it resolved.
 
 ### Edge cases
 
-- `doi_status` is `INVALID` or `UNRESOLVABLE` → `support_status: "INSUFFICIENT_EVIDENCE"` immediately, no LLM call is made.
+- `doi_status` is `INVALID` or `UNRESOLVABLE` → `support_status: "INSUFFICIENT_EVIDENCE"` immediately, no LLM call is made, and `human_review_required: true` (SCRUM-263: a DOI that can't be verified must always go to a human — the verdict isn't "safe to skip" just because it short-circuited before the LLM).
 - The LLM call itself fails (missing API key, network error) → `support_status: "NEEDS_HUMAN_REVIEW"`, `confidence: 0.0`.
 - The LLM's response is malformed JSON or doesn't match our schema → also `"NEEDS_HUMAN_REVIEW"` (handled by `rag/verification/validator.py`, which `verify_claim()` calls internally). **We never raise an exception out of this function.**
 - `overall_similarity_score` is below 0.5 → `human_review_required: true`, even if the verdict itself looks confident. This reuses the same threshold `rag/retrieval/vector_store.py` applies internally, so a verdict built on weak evidence always gets flagged.
@@ -169,6 +169,41 @@ relevance scale as the cosine score it replaces — and falling back to the
 chunk's original dense weighted score only when FlashRank itself failed.
 RRF's score never reaches the response; it exists purely to decide
 *ranking*, not the reported confidence value.
+
+### Normalizing the dense fallback score to 0–1 (SCRUM-262)
+
+The dense weighted score (`vector_store.py`'s cosine similarity × section
+weight) can itself exceed 1.0 — section weights go up to `1.3` for
+Results/Methods/Experiments (`SECTION_WEIGHTS`). Backend validators reject
+any score above 1.0, so `retrieve_evidence()` divides that fallback score by
+`MAX_SECTION_WEIGHT` (the largest value in `SECTION_WEIGHTS`) before it
+reaches `similarity_score`, `overall_similarity_score`, or
+`retrieval_confidence`. FlashRank's `rerank_score` is already a 0–1
+relevance probability and is left untouched.
+
+This divides by a **fixed constant**, not by the maximum score within each
+retrieval's own chunk batch — per-batch normalization would force the
+top-ranked chunk's score to always equal exactly `1.0`, which would silently
+defeat the `SIMILARITY_THRESHOLD = 0.5` low-confidence check in
+`verify_claim()` (a genuinely weak top match must still be able to score
+low). Dividing by a constant is also order-preserving, so ranking is
+unaffected.
+
+### Per-DOI embedding cache (SCRUM-264)
+
+A single paper is often cited by several claims in the same document. Without
+caching, `retrieve_evidence()` would re-embed that paper's source chunks once
+per claim — slow and costly for no benefit, since the chunks are identical
+every time. `retrieve_evidence()` now keeps a module-level `_embedding_cache:
+dict[str, EmbedderOutput]` keyed by DOI: the first claim against a DOI embeds
+and caches the result, every later claim against the same DOI in this run
+reuses it directly, skipping `embed_chunks()` entirely for the source text.
+
+The cache is **in-memory only and scoped to this process's lifetime** — it is
+never persisted to disk or any database, since the backend owns all storage
+(CLAUDE.md). It only short-circuits the *source-chunk* embedding step;
+`_embed_single_text()` still embeds each claim's own query text fresh every
+call, since claim text differs per request and isn't cacheable by DOI.
 
 ### Reusing `embed_chunks()` to embed a single string
 

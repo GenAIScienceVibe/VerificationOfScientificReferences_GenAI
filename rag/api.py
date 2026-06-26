@@ -38,8 +38,14 @@ from rag.prompts.verifier import generate_verdict
 from rag.retrieval.bm25_retriever import search as bm25_search
 from rag.retrieval.embedder import embed_chunks
 from rag.retrieval.hybrid_retriever import merge
-from rag.retrieval.models import Bm25RetrieverInput, EmbedderInput, HybridRetrieverInput, VectorStoreInput
-from rag.retrieval.vector_store import SIMILARITY_THRESHOLD, search
+from rag.retrieval.models import (
+    Bm25RetrieverInput,
+    EmbedderInput,
+    EmbedderOutput,
+    HybridRetrieverInput,
+    VectorStoreInput,
+)
+from rag.retrieval.vector_store import SECTION_WEIGHTS, SIMILARITY_THRESHOLD, search
 from rag.verification.models import Verdict, VerificationInput
 from rag.verification.validator import validate_output
 
@@ -54,6 +60,19 @@ DOOR1_TOP_K = 5
 # narrow the pool down to DOOR1_TOP_K, mirroring the oversample-then-rerank
 # shape already used inside vector_store.py and hybrid_retriever.py.
 RETRIEVAL_CANDIDATE_K = DOOR1_TOP_K * 3
+
+# Dense fallback scores are cosine similarity (0-1) times a section weight
+# that can exceed 1.0 (e.g. 1.3 for Results/Methods/Experiments). Dividing
+# by the largest possible section weight normalizes those scores back to
+# 0-1 without changing their relative order. FlashRank's rerank_score is
+# already a 0-1 relevance probability and is never divided by this.
+MAX_SECTION_WEIGHT = max(SECTION_WEIGHTS.values())
+
+# Per-DOI embedding cache for retrieve_evidence(). If a paper has multiple
+# claims all citing the same DOI, this avoids re-embedding identical source
+# chunks for every claim. In-memory only, scoped to this process's lifetime —
+# never persisted, since the backend owns all storage (CLAUDE.md).
+_embedding_cache: dict[str, EmbedderOutput] = {}
 
 
 # ── Shared request/response models ───────────────────────────────────────────
@@ -213,7 +232,7 @@ def _insufficient_evidence(reason: str) -> VerifyClaimResponse:
         explanation=reason,
         evidence_used=[],
         limitations="No DOI verification was possible.",
-        human_review_required=False,
+        human_review_required=True,
     )
 
 
@@ -251,7 +270,9 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
     Pipeline (when doi_status is VALID):
         1. clean_text()   — strip noise and the references section.
         2. chunk_text()   — section-aware, token-bounded chunking.
-        3. embed_chunks() — embed every source chunk.
+        3. embed_chunks() — embed every source chunk, or reuse the cached
+           EmbedderOutput from an earlier claim against the same DOI in this
+           run (_embedding_cache, SCRUM-264).
         4. _embed_single_text() — embed the claim with the same model.
         5. Hybrid retrieval — dense search() and BM25 bm25_search() each
            oversample RETRIEVAL_CANDIDATE_K candidates, then merge()
@@ -264,8 +285,9 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
             FAILED otherwise.
           - top_chunks: up to DOOR1_TOP_K chunks, each with a similarity_score
             (FlashRank's relevance score when reranking succeeded, otherwise
-            the chunk's dense cosine-weighted score as a fallback — both are
-            on the same 0-1 scale that Door 2's SIMILARITY_THRESHOLD expects).
+            the chunk's dense cosine-weighted score divided by
+            MAX_SECTION_WEIGHT as a fallback — both are normalized to the
+            same 0-1 scale that Door 2's SIMILARITY_THRESHOLD expects).
           - overall_similarity_score: the best-ranked chunk's similarity_score.
           - retrieval_confidence: the average similarity_score across all
             returned chunks.
@@ -315,8 +337,15 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
             )
             return _failed_retrieval(request)
 
-        # Step 3: embed every source chunk.
-        embedder_output = embed_chunks(EmbedderInput(chunks=chunker_output.chunks, doi=request.doi))
+        # Step 3: embed every source chunk, reusing a cached embedding when
+        # another claim earlier in this run already embedded the same DOI's
+        # source text (SCRUM-264).
+        cached_embedder_output = _embedding_cache.get(request.doi)
+        if cached_embedder_output is not None:
+            embedder_output = cached_embedder_output
+        else:
+            embedder_output = embed_chunks(EmbedderInput(chunks=chunker_output.chunks, doi=request.doi))
+            _embedding_cache[request.doi] = embedder_output
 
         # Step 4: embed the claim with the same embedding model.
         claim_embedding = _embed_single_text(request.claim_text, request.doi)
@@ -363,13 +392,14 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
 
     # similarity_score prefers FlashRank's relevance score (0-1, same scale
     # Door 2's SIMILARITY_THRESHOLD expects); falls back to the chunk's dense
-    # cosine-weighted score on the rare path where reranking itself failed.
+    # cosine-weighted score, normalized to 0-1 by MAX_SECTION_WEIGHT, on the
+    # rare path where reranking itself failed.
     dense_weighted_by_id = {rc.chunk.chunk_id: rc.weighted_score for rc in vector_output.top_chunks}
 
     def _similarity_score(hc) -> float:
         if hc.rerank_score is not None:
             return hc.rerank_score
-        return dense_weighted_by_id.get(hc.chunk.chunk_id, 0.0)
+        return dense_weighted_by_id.get(hc.chunk.chunk_id, 0.0) / MAX_SECTION_WEIGHT
 
     top_chunks = [
         TopChunkResult(
@@ -432,7 +462,9 @@ def verify_claim(request: VerifyClaimRequest) -> VerifyClaimResponse:
 
     Edge cases handled:
         - doi_status is INVALID or UNRESOLVABLE -> returns INSUFFICIENT_EVIDENCE
-          immediately, skips the pipeline entirely.
+          immediately, skips the pipeline entirely, and always sets
+          human_review_required=True (an unverifiable DOI must always be
+          reviewed by a human, per backend safety policy).
         - The LLM call itself fails (missing OPENROUTER_API_KEY, network/API
           error) -> caught and converted to NEEDS_HUMAN_REVIEW.
         - The LLM's raw response fails Pydantic validation (malformed JSON,

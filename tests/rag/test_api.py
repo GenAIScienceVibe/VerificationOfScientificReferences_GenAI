@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
+import rag.api as rag_api
 from rag.api import (
     DoiStatus,
     RetrievalStatus,
@@ -48,6 +49,16 @@ from rag.verification.models import Verdict
 
 
 # ── Fixtures and helpers ──────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def clear_embedding_cache():
+    """SCRUM-264's per-DOI cache is module-level state — clear it before and
+    after every test so tests reusing the same DOI string don't leak cached
+    EmbedderOutputs (and the mocks that produced them) into each other."""
+    rag_api._embedding_cache.clear()
+    yield
+    rag_api._embedding_cache.clear()
 
 
 def make_chunk(index: int, section: str = "results", text: str = "participants showed a 28% reduction...") -> ChunkMetadata:
@@ -225,8 +236,187 @@ def test_retrieve_evidence_success_falls_back_to_dense_score_when_rerank_missing
 
         response = retrieve_evidence(make_door1_request())
 
-    assert response.top_chunks[0].similarity_score == 0.65
-    assert response.overall_similarity_score == 0.65
+    assert response.top_chunks[0].similarity_score == pytest.approx(0.5)
+    assert response.overall_similarity_score == pytest.approx(0.5)
+
+
+def test_retrieve_evidence_normalizes_dense_fallback_scores_above_one():
+    """SCRUM-262: a section-weighted dense score above 1.0 (e.g. 1.3 for a
+    perfect cosine match in a Results section) is normalized to 0-1 by
+    MAX_SECTION_WEIGHT, and ranking order against a lower dense score is
+    preserved."""
+    chunk1, chunk2 = make_chunk(0), make_chunk(1)
+    vector_output = VectorStoreOutput(
+        doi="10.1234/example.2019.001",
+        top_chunks=[
+            RetrievedChunk(chunk=chunk1, raw_score=1.0, weighted_score=1.3, rank=1),
+            RetrievedChunk(chunk=chunk2, raw_score=0.5, weighted_score=0.65, rank=2),
+        ],
+        total_indexed=2,
+        retrieved_k=2,
+    )
+    bm25_output = Bm25RetrieverOutput(top_chunks=[], total_indexed=2, retrieved_k=0)
+    hybrid_output = HybridRetrieverOutput(
+        top_chunks=[
+            HybridRetrievedChunk(
+                chunk=chunk1, rrf_score=0.02, dense_rank=1, bm25_rank=None, rerank_score=None, rank=1
+            ),
+            HybridRetrievedChunk(
+                chunk=chunk2, rrf_score=0.01, dense_rank=2, bm25_rank=None, rerank_score=None, rank=2
+            ),
+        ],
+        total_unique=2,
+    )
+
+    with (
+        patch("rag.api.clean_text") as mock_clean,
+        patch("rag.api.chunk_text") as mock_chunk,
+        patch("rag.api.embed_chunks", side_effect=fake_embed_chunks),
+        patch("rag.api.search", return_value=vector_output),
+        patch("rag.api.bm25_search", return_value=bm25_output),
+        patch("rag.api.merge", return_value=hybrid_output),
+    ):
+        mock_clean.return_value = CleanerOutput(
+            clean_text="cleaned text",
+            doi="10.1234/example.2019.001",
+            evidence_availability=EvidenceAvailability.ABSTRACT_AVAILABLE,
+            original_length=20,
+            cleaned_length=12,
+        )
+        mock_chunk.return_value = ChunkerOutput(
+            doi="10.1234/example.2019.001",
+            chunks=[chunk1, chunk2],
+            total_chunks=2,
+            sections_found=["results"],
+            fallback_used=False,
+        )
+
+        response = retrieve_evidence(make_door1_request())
+
+    assert response.top_chunks[0].chunk_id == chunk1.chunk_id
+    assert response.top_chunks[0].similarity_score == pytest.approx(1.0)
+    assert response.top_chunks[1].similarity_score == pytest.approx(0.5)
+    assert all(c.similarity_score <= 1.0 for c in response.top_chunks)
+    assert response.overall_similarity_score == pytest.approx(1.0)
+
+
+def test_retrieve_evidence_reuses_cached_embeddings_for_same_doi():
+    """SCRUM-264: a second claim against the same DOI reuses the cached
+    EmbedderOutput instead of re-embedding the source chunks. embed_chunks()
+    is also used internally to embed the claim query text itself (see
+    _embed_single_text()), so it is still called once per request for that —
+    only the source-chunk embedding call is skipped on a cache hit."""
+    chunk1 = make_chunk(0)
+    vector_output = VectorStoreOutput(
+        doi="10.1234/example.2019.001",
+        top_chunks=[RetrievedChunk(chunk=chunk1, raw_score=0.9, weighted_score=0.9, rank=1)],
+        total_indexed=1,
+        retrieved_k=1,
+    )
+    bm25_output = Bm25RetrieverOutput(top_chunks=[], total_indexed=1, retrieved_k=0)
+    hybrid_output = HybridRetrieverOutput(
+        top_chunks=[
+            HybridRetrievedChunk(
+                chunk=chunk1, rrf_score=0.02, dense_rank=1, bm25_rank=None, rerank_score=0.9, rank=1
+            ),
+        ],
+        total_unique=1,
+    )
+
+    with (
+        patch("rag.api.clean_text") as mock_clean,
+        patch("rag.api.chunk_text") as mock_chunk,
+        patch("rag.api.embed_chunks", side_effect=fake_embed_chunks) as mock_embed,
+        patch("rag.api.search", return_value=vector_output),
+        patch("rag.api.bm25_search", return_value=bm25_output),
+        patch("rag.api.merge", return_value=hybrid_output),
+    ):
+        mock_clean.return_value = CleanerOutput(
+            clean_text="cleaned text",
+            doi="10.1234/example.2019.001",
+            evidence_availability=EvidenceAvailability.ABSTRACT_AVAILABLE,
+            original_length=20,
+            cleaned_length=12,
+        )
+        mock_chunk.return_value = ChunkerOutput(
+            doi="10.1234/example.2019.001",
+            chunks=[chunk1],
+            total_chunks=1,
+            sections_found=["results"],
+            fallback_used=False,
+        )
+
+        first = retrieve_evidence(make_door1_request())
+        second = retrieve_evidence(make_door1_request())
+
+    # Each call always embeds the claim query text itself (_embed_single_text
+    # always calls embed_chunks once), but the source-chunk embedding call
+    # should only happen on the first request — the second is a cache hit.
+    source_chunk_embed_calls = [
+        call for call in mock_embed.call_args_list
+        if any(c.chunk_id == chunk1.chunk_id for c in call.args[0].chunks)
+    ]
+    assert len(source_chunk_embed_calls) == 1
+    assert first.retrieval_status == RetrievalStatus.SUCCEEDED
+    assert second.retrieval_status == RetrievalStatus.SUCCEEDED
+
+
+def test_retrieve_evidence_does_not_reuse_cache_across_different_dois():
+    """A different DOI must not hit another DOI's cached embeddings."""
+    chunk1 = make_chunk(0)
+    vector_output = VectorStoreOutput(
+        doi="irrelevant",
+        top_chunks=[RetrievedChunk(chunk=chunk1, raw_score=0.9, weighted_score=0.9, rank=1)],
+        total_indexed=1,
+        retrieved_k=1,
+    )
+    bm25_output = Bm25RetrieverOutput(top_chunks=[], total_indexed=1, retrieved_k=0)
+    hybrid_output = HybridRetrieverOutput(
+        top_chunks=[
+            HybridRetrievedChunk(
+                chunk=chunk1, rrf_score=0.02, dense_rank=1, bm25_rank=None, rerank_score=0.9, rank=1
+            ),
+        ],
+        total_unique=1,
+    )
+
+    def make_request_for_doi(doi: str) -> RetrieveEvidenceRequest:
+        request = make_door1_request()
+        return request.model_copy(update={"doi": doi})
+
+    with (
+        patch("rag.api.clean_text") as mock_clean,
+        patch("rag.api.chunk_text") as mock_chunk,
+        patch("rag.api.embed_chunks", side_effect=fake_embed_chunks) as mock_embed,
+        patch("rag.api.search", return_value=vector_output),
+        patch("rag.api.bm25_search", return_value=bm25_output),
+        patch("rag.api.merge", return_value=hybrid_output),
+    ):
+        mock_clean.return_value = CleanerOutput(
+            clean_text="cleaned text",
+            doi="irrelevant",
+            evidence_availability=EvidenceAvailability.ABSTRACT_AVAILABLE,
+            original_length=20,
+            cleaned_length=12,
+        )
+        mock_chunk.return_value = ChunkerOutput(
+            doi="irrelevant",
+            chunks=[chunk1],
+            total_chunks=1,
+            sections_found=["results"],
+            fallback_used=False,
+        )
+
+        retrieve_evidence(make_request_for_doi("10.1111/aaa"))
+        retrieve_evidence(make_request_for_doi("10.2222/bbb"))
+
+    # Both requests must embed their source chunks — neither DOI should hit
+    # the other's cache entry.
+    source_chunk_embed_calls = [
+        call for call in mock_embed.call_args_list
+        if any(c.chunk_id == chunk1.chunk_id for c in call.args[0].chunks)
+    ]
+    assert len(source_chunk_embed_calls) == 2
 
 
 def test_retrieve_evidence_invalid_doi_skips_pipeline():
@@ -386,7 +576,7 @@ def test_verify_claim_invalid_doi_skips_pipeline():
         response = verify_claim(make_door2_request(doi_status=DoiStatus.INVALID))
 
     assert response.support_status == Verdict.INSUFFICIENT_EVIDENCE
-    assert response.human_review_required is False
+    assert response.human_review_required is True
 
 
 def test_verify_claim_unresolvable_doi_skips_pipeline():
@@ -398,6 +588,7 @@ def test_verify_claim_unresolvable_doi_skips_pipeline():
         response = verify_claim(make_door2_request(doi_status=DoiStatus.UNRESOLVABLE))
 
     assert response.support_status == Verdict.INSUFFICIENT_EVIDENCE
+    assert response.human_review_required is True
 
 
 def test_verify_claim_llm_failure_falls_back_to_needs_human_review():

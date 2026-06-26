@@ -366,3 +366,83 @@ itself failed, a fallback to the chunk's original dense weighted_score.
 - [x] Commit: `[RAG] SCRUM-260: plug hybrid retrieval into api.py`
 
 **Status: COMPLETE ✓ — hybrid retrieval sprint finished**
+
+---
+
+## Sprint: Backend Integration Fixes (branch `rag_dev_zac_hybrid`)
+
+All fixes below are in `rag/api.py` only — no pipeline logic changes, no other files touched.
+Full test suite must stay at 350+ passing after every task.
+
+### SCRUM-262: Normalize all scores to 0-1 in `retrieve_evidence()`
+
+Problem: `weighted_score` (dense cosine similarity × section weight) can exceed
+1.0 — section weights go up to 1.3 for Results/Methods/Experiments
+(`SECTION_WEIGHTS` in `vector_store.py`). Backend validators reject any score
+above 1.0.
+
+Design decision (confirmed with Saqer): normalize by the **fixed theoretical
+max section weight (1.3)**, not by the max score within each retrieval's own
+chunk batch. Per-batch-max normalization would force the top chunk's score to
+always equal exactly 1.0, which would silently defeat the
+`SIMILARITY_THRESHOLD = 0.5` low-confidence check downstream in
+`verify_claim()` (`request.overall_similarity_score < SIMILARITY_THRESHOLD`)
+— a genuinely weak top match must still be able to score low. FlashRank's
+`rerank_score` is already a 0-1 relevance probability and needs no change.
+
+- [x] In `rag/api.py`, import `SECTION_WEIGHTS` from `rag.retrieval.vector_store` and add a
+      module-level constant `MAX_SECTION_WEIGHT = max(SECTION_WEIGHTS.values())`
+- [x] Update `_similarity_score(hc)` helper inside `retrieve_evidence()`:
+      - if `hc.rerank_score is not None` → return it unchanged (already 0-1)
+      - else → return the dense fallback `weighted_score` divided by `MAX_SECTION_WEIGHT`
+- [x] Confirm `top_chunks[*].similarity_score`, `overall_similarity_score`, and
+      `retrieval_confidence` all flow from this single normalized helper (no
+      separate normalization needed elsewhere — they're already derived from
+      `_similarity_score()`/`similarity_scores`)
+- [x] Confirm ranking order is unchanged (dividing by a positive constant is
+      monotonic — order-preserving by construction, no extra check needed)
+- [x] Update/add unit tests in `tests/rag/test_api.py`: fixed the existing
+      fallback test's expected value (0.65 → 0.5) and added
+      `test_retrieve_evidence_normalizes_dense_fallback_scores_above_one`
+      asserting a 1.3 raw score normalizes to 1.0, a 0.65 raw score
+      normalizes to 0.5, all scores stay ≤ 1.0, and ranking order is preserved
+- [x] Run full test suite — **351/351 passing**
+- [x] Update `docs/rag/api.md` with the normalization note (new "Normalizing
+      the dense fallback score to 0-1 (SCRUM-262)" section)
+- [ ] Commit: `[RAG] fix: resolve backend integration defects (SCRUM-262/263/264)` (after all 3 tasks are done — not after Task 1 alone)
+
+**Status: COMPLETE ✓ — awaiting Saqer's go-ahead for SCRUM-263**
+
+### SCRUM-263: `human_review_required=True` on INSUFFICIENT_EVIDENCE
+
+- [x] In `_insufficient_evidence()` in `rag/api.py`, change `human_review_required=False` to `True`
+- [x] Update/add unit tests in `tests/rag/test_api.py` for the INSUFFICIENT_EVIDENCE path
+      (`test_verify_claim_invalid_doi_skips_pipeline` and
+      `test_verify_claim_unresolvable_doi_skips_pipeline` now assert
+      `human_review_required is True`)
+- [x] Run full test suite — **351/351 passing**
+- [x] Updated `docs/rag/api.md` edge-case bullet and `verify_claim()`'s docstring
+      to note the unconditional human_review_required=True on this path
+
+**Status: COMPLETE ✓ — awaiting Saqer's go-ahead for SCRUM-264**
+
+### SCRUM-264: Per-DOI embedding cache in `retrieve_evidence()`
+
+- [x] Added module-level `_embedding_cache: dict[str, EmbedderOutput] = {}` in
+      `rag/api.py`, keyed by DOI; Step 3 of `retrieve_evidence()` checks the
+      cache first and only calls `embed_chunks()` on a miss, storing the
+      result afterward
+- [x] Cache is in-memory only, module-scoped to the running process, never
+      persisted (no disk/DB writes — backend owns all storage)
+- [x] Update/add unit tests in `tests/rag/test_api.py`:
+      `test_retrieve_evidence_reuses_cached_embeddings_for_same_doi` (second
+      call with same DOI skips the source-chunk embed call) and
+      `test_retrieve_evidence_does_not_reuse_cache_across_different_dois`
+      (different DOIs never share a cache entry); added an autouse
+      `clear_embedding_cache` fixture so this module-level state can't leak
+      between tests
+- [x] Run full test suite — **353/353 passing**
+- [x] Update `docs/rag/api.md` with the caching note (new "Per-DOI embedding
+      cache (SCRUM-264)" section)
+
+**Status: COMPLETE ✓ — all 3 sprint tasks done, awaiting Saqer's go-ahead to commit**
