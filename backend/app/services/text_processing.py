@@ -173,7 +173,7 @@ def repair_doi_line_continuations(text: str) -> str:
         repaired,
     )
     repaired = re.sub(r"(?i)(\bdoi\s*[: ]\s*)[ \t]*\n[ \t]*(10\.)", r"\1\2", repaired)
-    
+
     doi_continuation = re.compile(
         r"(?i)(10\.\d{4,9}/[A-Z0-9][A-Z0-9._;()/:+-]*[-/:;.])[ \t]*\n[ \t]*([^\n\s][^\n]*)"
     )

@@ -31,7 +31,14 @@ class Settings(BaseModel):
     genai_provider: str = Field(default="groq", alias="GENAI_PROVIDER")
     claim_extraction_mode: str = Field(default="local_deterministic", alias="CLAIM_EXTRACTION_MODE")
     claim_extraction_prompt_version: str = Field(default="be6-claim-extraction-v1", alias="CLAIM_EXTRACTION_PROMPT_VERSION")
-    rag_service_url: str | None = Field(default=None, alias="RAG_SERVICE_URL")
+    rag_service_url: str | None = Field(default="http://localhost:9000", alias="RAG_SERVICE_URL")
+    rag_service_enabled: bool = Field(default=True, alias="RAG_SERVICE_ENABLED")
+    rag_service_timeout_seconds: float = Field(default=30.0, alias="RAG_SERVICE_TIMEOUT_SECONDS")
+    rag_service_max_retries: int = Field(default=1, alias="RAG_SERVICE_MAX_RETRIES")
+    rag_top_k: int = Field(default=5, alias="RAG_TOP_K")
+    rag_min_similarity_threshold: float = Field(default=0.60, alias="RAG_MIN_SIMILARITY_THRESHOLD")
+    rag_mock_mode: bool = Field(default=True, alias="RAG_MOCK_MODE")
+    rag_request_version: str = Field(default="rag-request-v1", alias="RAG_REQUEST_VERSION")
     metadata_service_timeout_seconds: float = Field(default=10.0, alias="METADATA_SERVICE_TIMEOUT_SECONDS")
     metadata_lookup_enabled: bool = Field(default=True, alias="METADATA_LOOKUP_ENABLED")
     crossref_base_url: str = Field(default="https://api.crossref.org", alias="CROSSREF_BASE_URL")
@@ -42,6 +49,20 @@ class Settings(BaseModel):
     metadata_user_agent: str = Field(default="verifai-refcheck-backend/1.0.0", alias="METADATA_USER_AGENT")
     max_upload_size_bytes: int = Field(default=10 * 1024 * 1024, alias="MAX_UPLOAD_SIZE_BYTES")
     enable_raw_text_debug_endpoint: bool = Field(default=False, alias="ENABLE_RAW_TEXT_DEBUG_ENDPOINT")
+    embedding_model_version: str = Field(default="embedding-v1", alias="EMBEDDING_MODEL_VERSION")
+    verification_prompt_version: str = Field(default="verify-v1", alias="VERIFICATION_PROMPT_VERSION")
+    verification_policy_version: str = Field(default="policy-v1", alias="VERIFICATION_POLICY_VERSION")
+    cache_enabled: bool = Field(default=True, alias="CACHE_ENABLED")
+    cache_exact_enabled: bool = Field(default=True, alias="CACHE_EXACT_ENABLED")
+    cache_semantic_enabled: bool = Field(default=False, alias="CACHE_SEMANTIC_ENABLED")
+    cache_high_similarity_threshold: float = Field(default=0.92, alias="CACHE_HIGH_SIMILARITY_THRESHOLD")
+    cache_medium_similarity_threshold: float = Field(default=0.80, alias="CACHE_MEDIUM_SIMILARITY_THRESHOLD")
+    cache_min_confidence_to_reuse: float = Field(default=0.75, alias="CACHE_MIN_CONFIDENCE_TO_REUSE")
+    cache_ttl_days: int = Field(default=180, alias="CACHE_TTL_DAYS")
+    cache_require_same_doi: bool = Field(default=True, alias="CACHE_REQUIRE_SAME_DOI")
+    cache_require_same_policy_version: bool = Field(default=True, alias="CACHE_REQUIRE_SAME_POLICY_VERSION")
+    cache_require_same_reference: bool = Field(default=False, alias="CACHE_REQUIRE_SAME_REFERENCE")
+    cache_evidence_version: str = Field(default="evidence-v1", alias="CACHE_EVIDENCE_VERSION")
 
     model_config = {
         "populate_by_name": True,
@@ -76,7 +97,7 @@ class Settings(BaseModel):
 
     @property
     def is_rag_configured(self) -> bool:
-        return bool(self.rag_service_url)
+        return bool(self.rag_service_url) and bool(self.rag_service_enabled)
 
 
 def _read_env() -> dict[str, object]:
@@ -95,6 +116,13 @@ def _read_env() -> dict[str, object]:
         "CLAIM_EXTRACTION_MODE",
         "CLAIM_EXTRACTION_PROMPT_VERSION",
         "RAG_SERVICE_URL",
+        "RAG_SERVICE_ENABLED",
+        "RAG_SERVICE_TIMEOUT_SECONDS",
+        "RAG_SERVICE_MAX_RETRIES",
+        "RAG_TOP_K",
+        "RAG_MIN_SIMILARITY_THRESHOLD",
+        "RAG_MOCK_MODE",
+        "RAG_REQUEST_VERSION",
         "METADATA_SERVICE_TIMEOUT_SECONDS",
         "METADATA_LOOKUP_ENABLED",
         "CROSSREF_BASE_URL",
@@ -105,6 +133,20 @@ def _read_env() -> dict[str, object]:
         "METADATA_USER_AGENT",
         "MAX_UPLOAD_SIZE_BYTES",
         "ENABLE_RAW_TEXT_DEBUG_ENDPOINT",
+        "EMBEDDING_MODEL_VERSION",
+        "VERIFICATION_PROMPT_VERSION",
+        "VERIFICATION_POLICY_VERSION",
+        "CACHE_ENABLED",
+        "CACHE_EXACT_ENABLED",
+        "CACHE_SEMANTIC_ENABLED",
+        "CACHE_HIGH_SIMILARITY_THRESHOLD",
+        "CACHE_MEDIUM_SIMILARITY_THRESHOLD",
+        "CACHE_MIN_CONFIDENCE_TO_REUSE",
+        "CACHE_TTL_DAYS",
+        "CACHE_REQUIRE_SAME_DOI",
+        "CACHE_REQUIRE_SAME_POLICY_VERSION",
+        "CACHE_REQUIRE_SAME_REFERENCE",
+        "CACHE_EVIDENCE_VERSION",
     }
     return {key: value for key in keys if (value := os.getenv(key)) is not None}
 

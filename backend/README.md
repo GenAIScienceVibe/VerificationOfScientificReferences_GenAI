@@ -309,3 +309,115 @@ GET /api/v1/claim-reference-links/{link_id}
 ```
 
 BE-6 does not verify claim support. Evidence building, RAG, GenAI verification, safety scoring, and reports remain later phases.
+
+## BE-7 — Evidence Package Builder
+
+BE-7 is now implemented. It prepares structured evidence packages from BE-6 claim-reference links. It does **not** call RAG/ML, generate embeddings, run GenAI verification, retrieve publisher full text, or create final support labels.
+
+### BE-7 endpoints
+
+```text
+POST /api/v1/documents/{document_id}/prepare-evidence
+GET  /api/v1/claims/{claim_id}/evidence-package
+GET  /api/v1/documents/{document_id}/evidence-packages
+```
+
+### BE-7 run flow
+
+```bash
+python scripts/init_db.py
+uvicorn app.main:app --reload
+```
+
+Then run the available pipeline up to BE-7:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/extract-references
+curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/verify-dois
+curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/extract-claims -H "Content-Type: application/json" -d '{"mode":"citation_linked_only"}'
+curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/prepare-evidence
+```
+
+### BE-7 validation
+
+```bash
+python -m compileall app
+python scripts/init_db.py
+pytest -q
+python scripts/validate_uploaded_pdfs_be7.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf /path/to/paper3.pdf
+```
+
+See `docs/BE7_EVIDENCE_PACKAGE_BUILDER.md` and `validation/BE7_VALIDATION_REPORT.md`.
+
+## BE-8 — Verification Cache Layer
+
+BE-8 adds backend-controlled verification-cache lookup and cache indexing. It is separate from BE-5 DOI metadata caching.
+
+### Endpoints
+
+```text
+POST /api/v1/claims/{claim_id}/check-cache
+GET  /api/v1/claims/{claim_id}/cache-result
+```
+
+### Cache behavior
+
+- Reuse requires the same normalized claim and same normalized DOI.
+- Different DOI values are never reused.
+- Low-confidence or expired cache rows are not reused.
+- `NEEDS_HUMAN_REVIEW` cache entries are returned safely and are not treated as confident verification.
+- Semantic cache is prepared as a mockable interface only; real vector search is deferred to BE-9.
+
+### Validation
+
+```bash
+python -m compileall app
+python scripts/init_db.py
+pytest -q
+python scripts/validate_uploaded_pdfs_be8.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf /path/to/paper3.pdf
+```
+
+## BE-9 — RAG/ML Integration
+
+BE-9 adds backend-controlled integration with the AI/ML/RAG service while preserving BE4.2, BE-5, BE-6, BE-7, and BE-8 behavior.
+
+### Configuration
+
+```env
+RAG_SERVICE_ENABLED=true
+RAG_SERVICE_URL=http://localhost:9000
+RAG_SERVICE_TIMEOUT_SECONDS=30
+RAG_SERVICE_MAX_RETRIES=1
+RAG_TOP_K=5
+RAG_MIN_SIMILARITY_THRESHOLD=0.60
+RAG_MOCK_MODE=true
+RAG_REQUEST_VERSION=rag-request-v1
+```
+
+### Run flow
+
+```bash
+python scripts/init_db.py
+uvicorn app.main:app --reload
+```
+
+Then run the existing flow up to BE-7 and retrieve evidence:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/claims/{claim_id}/retrieve-evidence \
+  -H "Content-Type: application/json" \
+  -d '{"evidence_package_id":"evidence_001","top_k":5,"use_mock":true}'
+
+curl http://127.0.0.1:8000/api/v1/claims/{claim_id}/retrieval-results
+```
+
+### Validate
+
+```bash
+python -m compileall app scripts/validate_uploaded_pdfs_be9.py
+python scripts/init_db.py
+pytest -q
+python scripts/validate_uploaded_pdfs_be9.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf
+```
+
+BE-9 is integration-only. It does not implement RAG/ML internals, embeddings, vector DB, GenAI verification, final support labels, safety scoring, report generation, or frontend UI.

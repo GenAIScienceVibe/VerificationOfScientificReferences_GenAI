@@ -1,0 +1,156 @@
+{"timestamp": "2026-06-09T13:06:58.766090Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_5da0504ef08d4428", "method": "POST", "path": "/api/v1/documents/upload", "status_code": 200, "duration_ms": 543.95}
+{"timestamp": "2026-06-09T13:06:58.769686Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/upload \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:06:58.780741Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_start", "request_id": "req_77889814aac94597"}
+{"timestamp": "2026-06-09T13:06:58.892875Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_completed", "request_id": "req_77889814aac94597"}
+{"timestamp": "2026-06-09T13:06:58.893655Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_77889814aac94597", "method": "POST", "path": "/api/v1/documents/doc_d43a76f6195a/extract-references", "status_code": 200, "duration_ms": 121.13}
+{"timestamp": "2026-06-09T13:06:58.896339Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_d43a76f6195a/extract-references \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:06:58.908725Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_start", "request_id": "req_1096269c95f145b1"}
+{"timestamp": "2026-06-09T13:06:59.141641Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_completed", "request_id": "req_1096269c95f145b1"}
+{"timestamp": "2026-06-09T13:06:59.143797Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_1096269c95f145b1", "method": "POST", "path": "/api/v1/documents/doc_d43a76f6195a/extract-claims", "status_code": 200, "duration_ms": 244.75}
+{"timestamp": "2026-06-09T13:06:59.147017Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_d43a76f6195a/extract-claims \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:06:59.174841Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_start", "request_id": "req_73f180f7adde4e22"}
+{"timestamp": "2026-06-09T13:06:59.355138Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_completed", "request_id": "req_73f180f7adde4e22"}
+{"timestamp": "2026-06-09T13:06:59.356138Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_73f180f7adde4e22", "method": "POST", "path": "/api/v1/documents/doc_d43a76f6195a/prepare-evidence", "status_code": 200, "duration_ms": 205.92}
+{"timestamp": "2026-06-09T13:06:59.359720Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_d43a76f6195a/prepare-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:06:59.387138Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_2e1c792f70f047c9", "method": "GET", "path": "/api/v1/documents/doc_d43a76f6195a/evidence-packages", "status_code": 200, "duration_ms": 24.38}
+{"timestamp": "2026-06-09T13:06:59.391372Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_d43a76f6195a/evidence-packages?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:06:59.410012Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_913851b0d29b4013"}
+{"timestamp": "2026-06-09T13:06:59.417818Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_913851b0d29b4013"}
+{"timestamp": "2026-06-09T13:06:59.418376Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_913851b0d29b4013", "method": "POST", "path": "/api/v1/claims/claim_92e4b3fbbe7d/retrieve-evidence", "status_code": 200, "duration_ms": 19.91}
+{"timestamp": "2026-06-09T13:06:59.421435Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_92e4b3fbbe7d/retrieve-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:06:59.433575Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_13df59af44a1442c"}
+{"timestamp": "2026-06-09T13:06:59.436770Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_13df59af44a1442c"}
+{"timestamp": "2026-06-09T13:06:59.437192Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_13df59af44a1442c", "method": "POST", "path": "/api/v1/claims/claim_360c633cf954/retrieve-evidence", "status_code": 200, "duration_ms": 12.57}
+{"timestamp": "2026-06-09T13:06:59.439726Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_360c633cf954/retrieve-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:06:59.450992Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f96048ec9a24878"}
+{"timestamp": "2026-06-09T13:06:59.454822Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f96048ec9a24878"}
+{"timestamp": "2026-06-09T13:06:59.455769Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_8f96048ec9a24878", "method": "POST", "path": "/api/v1/claims/claim_00e7e3e079ca/retrieve-evidence", "status_code": 200, "duration_ms": 13.36}
+{"timestamp": "2026-06-09T13:06:59.459314Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_00e7e3e079ca/retrieve-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:06:59.465705Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": null}
+================================================================================
+PDF: IRRDOLPUBLISHEDARTICLE.pdf
+document_id: doc_d43a76f6195a
+references_detected: 30
+doi_summary: {'found': 26, 'missing': 4, 'malformed': 0}
+metadata_summary: {'skipped': 'BE-9 validation does not call external academic metadata services.'}
+claims_extracted: 34
+claim_reference_links: 45
+evidence_packages_created: 42
+claims_evidence_packages_tested: 3
+retrievals_executed: 4
+retrieval_mode: Mock RAG
+successful_retrievals: 3
+no_evidence_retrievals: 0
+failed_retrievals: 1
+top_chunks_manually_checked: 3
+correct_claim_reference_evidence_alignment: 3
+similarity_score_observations: ['METADATA score=0.76', 'METADATA score=0.76', 'METADATA score=0.76']
+timeout_failure_handling_checked: 1
+package_items_seen_via_api: 42
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['Validation used mock RAG because no real AI/ML/RAG service was provided in the sandbox.', 'BE-9 does not assign support labels or run GenAI verification.', 'Live external DOI metadata lookup is not part of BE-9 and was skipped here.']
+{"timestamp": "2026-06-09T13:06:59.701750Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_4b205ca5d41b4931", "method": "POST", "path": "/api/v1/documents/upload", "status_code": 200, "duration_ms": 228.59}
+{"timestamp": "2026-06-09T13:06:59.707933Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/upload \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:06:59.718329Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_start", "request_id": "req_da6888295b954dc1"}
+{"timestamp": "2026-06-09T13:06:59.780578Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_completed", "request_id": "req_da6888295b954dc1"}
+{"timestamp": "2026-06-09T13:06:59.781434Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_da6888295b954dc1", "method": "POST", "path": "/api/v1/documents/doc_b5906b082822/extract-references", "status_code": 200, "duration_ms": 69.04}
+{"timestamp": "2026-06-09T13:06:59.818330Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_b5906b082822/extract-references \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:06:59.826994Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_start", "request_id": "req_32154d0036244062"}
+{"timestamp": "2026-06-09T13:07:00.084965Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_completed", "request_id": "req_32154d0036244062"}
+{"timestamp": "2026-06-09T13:07:00.087004Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_32154d0036244062", "method": "POST", "path": "/api/v1/documents/doc_b5906b082822/extract-claims", "status_code": 200, "duration_ms": 265.46}
+{"timestamp": "2026-06-09T13:07:00.090322Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_b5906b082822/extract-claims \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.113349Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_start", "request_id": "req_3a8ecaf1b5944c86"}
+{"timestamp": "2026-06-09T13:07:00.362704Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_completed", "request_id": "req_3a8ecaf1b5944c86"}
+{"timestamp": "2026-06-09T13:07:00.364394Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_3a8ecaf1b5944c86", "method": "POST", "path": "/api/v1/documents/doc_b5906b082822/prepare-evidence", "status_code": 200, "duration_ms": 271.1}
+{"timestamp": "2026-06-09T13:07:00.367720Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_b5906b082822/prepare-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.391535Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_83c016ddac8743be", "method": "GET", "path": "/api/v1/documents/doc_b5906b082822/evidence-packages", "status_code": 200, "duration_ms": 21.22}
+{"timestamp": "2026-06-09T13:07:00.394875Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_b5906b082822/evidence-packages?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.409012Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_7cdf36853a014248"}
+{"timestamp": "2026-06-09T13:07:00.413185Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_7cdf36853a014248"}
+{"timestamp": "2026-06-09T13:07:00.413746Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_7cdf36853a014248", "method": "POST", "path": "/api/v1/claims/claim_c4e5fdc2f926/retrieve-evidence", "status_code": 200, "duration_ms": 12.69}
+{"timestamp": "2026-06-09T13:07:00.416890Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_c4e5fdc2f926/retrieve-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.426860Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_3f9fd2271a87443f"}
+{"timestamp": "2026-06-09T13:07:00.430061Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_3f9fd2271a87443f"}
+{"timestamp": "2026-06-09T13:07:00.430592Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_3f9fd2271a87443f", "method": "POST", "path": "/api/v1/claims/claim_5d6545c560c6/retrieve-evidence", "status_code": 200, "duration_ms": 11.17}
+{"timestamp": "2026-06-09T13:07:00.433478Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_5d6545c560c6/retrieve-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.446771Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_4930bf0078414e88"}
+{"timestamp": "2026-06-09T13:07:00.450636Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_4930bf0078414e88"}
+{"timestamp": "2026-06-09T13:07:00.451400Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_4930bf0078414e88", "method": "POST", "path": "/api/v1/claims/claim_b7d93cff9d5a/retrieve-evidence", "status_code": 200, "duration_ms": 15.34}
+{"timestamp": "2026-06-09T13:07:00.454714Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_b7d93cff9d5a/retrieve-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.460775Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": null}
+================================================================================
+PDF: Impact_of_Ease_of_Use_Usefulness_Attitude_and_Trus.pdf
+document_id: doc_b5906b082822
+references_detected: 24
+doi_summary: {'found': 21, 'missing': 3, 'malformed': 0}
+metadata_summary: {'skipped': 'BE-9 validation does not call external academic metadata services.'}
+claims_extracted: 56
+claim_reference_links: 90
+evidence_packages_created: 87
+claims_evidence_packages_tested: 3
+retrievals_executed: 4
+retrieval_mode: Mock RAG
+successful_retrievals: 3
+no_evidence_retrievals: 0
+failed_retrievals: 1
+top_chunks_manually_checked: 3
+correct_claim_reference_evidence_alignment: 3
+similarity_score_observations: ['METADATA score=0.76', 'METADATA score=0.76', 'METADATA score=0.76']
+timeout_failure_handling_checked: 1
+package_items_seen_via_api: 87
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['Validation used mock RAG because no real AI/ML/RAG service was provided in the sandbox.', 'BE-9 does not assign support labels or run GenAI verification.', 'Live external DOI metadata lookup is not part of BE-9 and was skipped here.']
+{"timestamp": "2026-06-09T13:07:00.680438Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_99cc032dfff9434c", "method": "POST", "path": "/api/v1/documents/upload", "status_code": 200, "duration_ms": 213.59}
+{"timestamp": "2026-06-09T13:07:00.684474Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/upload \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.692777Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_start", "request_id": "req_775f8ad713ee40ce"}
+{"timestamp": "2026-06-09T13:07:00.761512Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_completed", "request_id": "req_775f8ad713ee40ce"}
+{"timestamp": "2026-06-09T13:07:00.762226Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_775f8ad713ee40ce", "method": "POST", "path": "/api/v1/documents/doc_94f4c8e77fa3/extract-references", "status_code": 200, "duration_ms": 75.03}
+{"timestamp": "2026-06-09T13:07:00.765186Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_94f4c8e77fa3/extract-references \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.772298Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_start", "request_id": "req_2f8079412da54e82"}
+{"timestamp": "2026-06-09T13:07:00.833149Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_completed", "request_id": "req_2f8079412da54e82"}
+{"timestamp": "2026-06-09T13:07:00.835617Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_2f8079412da54e82", "method": "POST", "path": "/api/v1/documents/doc_94f4c8e77fa3/extract-claims", "status_code": 200, "duration_ms": 68.15}
+{"timestamp": "2026-06-09T13:07:00.838948Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_94f4c8e77fa3/extract-claims \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.851378Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_start", "request_id": "req_939aa2f0d83548a4"}
+{"timestamp": "2026-06-09T13:07:00.899461Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_completed", "request_id": "req_939aa2f0d83548a4"}
+{"timestamp": "2026-06-09T13:07:00.900069Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_939aa2f0d83548a4", "method": "POST", "path": "/api/v1/documents/doc_94f4c8e77fa3/prepare-evidence", "status_code": 200, "duration_ms": 58.44}
+{"timestamp": "2026-06-09T13:07:00.903155Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_94f4c8e77fa3/prepare-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.916488Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_8aee41c12d904b54", "method": "GET", "path": "/api/v1/documents/doc_94f4c8e77fa3/evidence-packages", "status_code": 200, "duration_ms": 10.66}
+{"timestamp": "2026-06-09T13:07:00.919965Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_94f4c8e77fa3/evidence-packages?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.932630Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_7149ee3825d44d97"}
+{"timestamp": "2026-06-09T13:07:00.935799Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_7149ee3825d44d97"}
+{"timestamp": "2026-06-09T13:07:00.936257Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_7149ee3825d44d97", "method": "POST", "path": "/api/v1/claims/claim_7a845bbb5d34/retrieve-evidence", "status_code": 200, "duration_ms": 12.28}
+{"timestamp": "2026-06-09T13:07:00.939001Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_7a845bbb5d34/retrieve-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.948965Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_f59af643cb0c4057"}
+{"timestamp": "2026-06-09T13:07:00.952457Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_f59af643cb0c4057"}
+{"timestamp": "2026-06-09T13:07:00.952897Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_f59af643cb0c4057", "method": "POST", "path": "/api/v1/claims/claim_7a845bbb5d34/retrieve-evidence", "status_code": 200, "duration_ms": 11.47}
+{"timestamp": "2026-06-09T13:07:00.954925Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_7a845bbb5d34/retrieve-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.965200Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_6cbc8108d5c64f74"}
+{"timestamp": "2026-06-09T13:07:00.968506Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_6cbc8108d5c64f74"}
+{"timestamp": "2026-06-09T13:07:00.968943Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_6cbc8108d5c64f74", "method": "POST", "path": "/api/v1/claims/claim_2a2e6e857956/retrieve-evidence", "status_code": 200, "duration_ms": 11.51}
+{"timestamp": "2026-06-09T13:07:00.971473Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_2a2e6e857956/retrieve-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:07:00.977419Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": null}
+================================================================================
+PDF: SeminarPaper_20.01..pdf
+document_id: doc_94f4c8e77fa3
+references_detected: 37
+doi_summary: {'found': 21, 'missing': 16, 'malformed': 0}
+metadata_summary: {'skipped': 'BE-9 validation does not call external academic metadata services.'}
+claims_extracted: 9
+claim_reference_links: 11
+evidence_packages_created: 11
+claims_evidence_packages_tested: 3
+retrievals_executed: 4
+retrieval_mode: Mock RAG
+successful_retrievals: 3
+no_evidence_retrievals: 0
+failed_retrievals: 1
+top_chunks_manually_checked: 3
+correct_claim_reference_evidence_alignment: 3
+similarity_score_observations: ['METADATA score=0.76', 'METADATA score=0.76', 'METADATA score=0.76']
+timeout_failure_handling_checked: 1
+package_items_seen_via_api: 11
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['Validation used mock RAG because no real AI/ML/RAG service was provided in the sandbox.', 'BE-9 does not assign support labels or run GenAI verification.', 'Live external DOI metadata lookup is not part of BE-9 and was skipped here.']

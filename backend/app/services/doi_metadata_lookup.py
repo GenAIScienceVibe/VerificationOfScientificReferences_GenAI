@@ -35,46 +35,6 @@ def normalize_doi_for_lookup(value: str | None) -> str | None:
         return None
     return doi
 
-# This is a more permissive DOI syntax check used for validating extracted DOIs before lookup.
-def _strip_reference_noise(text: str) -> str:
-    """
-    Clean a raw reference string for use as a CrossRef bibliographic search
-    query, when no extracted_title is available.
-
-    Removes:
-      - leading reference numbers ("12. ", "[3] ", "45.")
-      - "[CrossRef]" / "[Google Scholar]" markers
-      - trailing stray reference numbers picked up during splitting
-      - excessive whitespace
-
-    This is best-effort text cleanup, not a structured title extractor —
-    CrossRef's bibliographic search is fairly tolerant of noisy queries,
-    and search_by_title()'s similarity check filters out bad matches.
-    """
-    import re as _re
-
-    cleaned = text.strip()
-
-    # Strip leading "12. " / "[12] " / "12) " reference numbering
-    cleaned = _re.sub(r"^\s*(\[\d+\]|\d{1,3}[\.\)])\s*", "", cleaned)
-
-    # Remove [CrossRef] / [Google Scholar] / [PubMed] style markers
-    cleaned = _re.sub(r"\[(CrossRef|Google Scholar|PubMed|PMC)\]", " ", cleaned, flags=_re.IGNORECASE)
-
-    # Truncate at the first long run of digits that looks like a trailing
-    # reference number block (e.g. "... 100012. 46." -> stop before "46.")
-    cleaned = _re.sub(r"\s+\d{1,3}\.\s*$", "", cleaned)
-
-    # Collapse whitespace
-    cleaned = _re.sub(r"\s+", " ", cleaned).strip()
-
-    # CrossRef bibliographic queries work best with a reasonable length —
-    # very long strings (multi-reference blobs from imperfect splitting)
-    # dilute the match. Cap at ~300 chars.
-    if len(cleaned) > 300:
-        cleaned = cleaned[:300]
-
-    return cleaned
 
 def is_valid_doi_syntax(doi: str | None) -> bool:
     if not doi:
@@ -248,138 +208,6 @@ class MetadataLookupService:
             )
         return self._reference_metadata_response(reference, metadata)
 
-    # def _verify_reference(
-    #     self,
-    #     reference: Reference,
-    #     db: Session,
-    #     *,
-    #     request_id: str | None = None,
-    #     force_refresh: bool = False,
-    #     raise_for_missing: bool = True,
-    # ) -> SourceMetadata | None:
-    #     logger.info(
-    #         "metadata_lookup_start",
-    #         extra={"reference_id": reference.id, "document_id": reference.document_id, "doi": reference.extracted_doi, "request_id": request_id},
-    #     )
-    #     metadata_repo = SourceMetadataRepository(db)
-    #     doi = normalize_doi_for_lookup(reference.extracted_doi)
-
-    #     if not doi:
-    #         reference.doi_status = DoiStatus.MISSING.value
-    #         reference.metadata_status = MetadataStatus.METADATA_UNAVAILABLE.value
-    #         metadata = metadata_repo.upsert_for_reference(
-    #             reference_id=reference.id,
-    #             doi=None,
-    #             title=None,
-    #             authors=None,
-    #             year=None,
-    #             venue=None,
-    #             publisher=None,
-    #             abstract=None,
-    #             url=None,
-    #             lookup_source="BE-5",
-    #             lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
-    #             raw_metadata_json={"reason": "missing_doi"},
-    #             title_match=None,
-    #             author_match=None,
-    #             year_match=None,
-    #             doi_match=None,
-    #             metadata_match_score=None,
-    #             commit=False,
-    #         )
-    #         db.commit()
-    #         if raise_for_missing:
-    #             raise AppException(
-    #                 status_code=422,
-    #                 code=ErrorCode.DOI_MISSING,
-    #                 field="reference_id",
-    #                 detail="This reference does not contain an extracted DOI.",
-    #                 message="DOI missing",
-    #             )
-    #         return metadata
-
-    #     if not is_valid_doi_syntax(doi):
-    #         reference.extracted_doi = doi
-    #         reference.doi_status = DoiStatus.MALFORMED.value
-    #         reference.metadata_status = MetadataStatus.METADATA_UNAVAILABLE.value
-    #         metadata = metadata_repo.upsert_for_reference(
-    #             reference_id=reference.id,
-    #             doi=doi,
-    #             title=None,
-    #             authors=None,
-    #             year=None,
-    #             venue=None,
-    #             publisher=None,
-    #             abstract=None,
-    #             url=None,
-    #             lookup_source="BE-5",
-    #             lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
-    #             raw_metadata_json={"reason": "malformed_doi"},
-    #             title_match=None,
-    #             author_match=None,
-    #             year_match=None,
-    #             doi_match=False,
-    #             metadata_match_score=None,
-    #             commit=False,
-    #         )
-    #         db.commit()
-    #         if raise_for_missing:
-    #             raise AppException(
-    #                 status_code=422,
-    #                 code=ErrorCode.DOI_MALFORMED,
-    #                 field="reference_id",
-    #                 detail="The extracted DOI is malformed and cannot be looked up safely.",
-    #                 message="DOI malformed",
-    #             )
-    #         return metadata
-
-    #     reference.extracted_doi = doi
-
-    #     existing = metadata_repo.get_latest_for_reference(reference.id)
-    #     if existing and existing.lookup_status == MetadataStatus.LOOKUP_SUCCEEDED.value and not force_refresh:
-    #         reference.doi_status = DoiStatus.VALID.value
-    #         reference.metadata_status = MetadataStatus.LOOKUP_SUCCEEDED.value
-    #         reference.metadata_match_score = existing.metadata_match_score
-    #         db.commit()
-    #         return existing
-
-    #     cached = metadata_repo.find_success_by_doi(doi) if not force_refresh else None
-    #     if cached and cached.reference_id != reference.id:
-    #         metadata = self._copy_cached_metadata(reference, cached, db)
-    #         reference.doi_status = DoiStatus.VALID.value
-    #         reference.metadata_status = MetadataStatus.LOOKUP_SUCCEEDED.value
-    #         reference.metadata_match_score = metadata.metadata_match_score
-    #         db.commit()
-    #         db.refresh(metadata)
-    #         return metadata
-
-    #     if not self.settings.metadata_lookup_enabled:
-    #         reference.metadata_status = MetadataStatus.LOOKUP_FAILED.value
-    #         db.commit()
-    #         raise AppException(
-    #             status_code=503,
-    #             code=ErrorCode.METADATA_SERVICE_UNAVAILABLE,
-    #             field="reference_id",
-    #             detail="Metadata lookup is disabled by METADATA_LOOKUP_ENABLED=false.",
-    #             message="Metadata lookup disabled",
-    #         )
-
-    #     response = self.crossref_client.lookup_by_doi(doi)
-    #     metadata = self._persist_lookup_response(reference, response, db)
-    #     logger.info(
-    #         "metadata_lookup_completed",
-    #         extra={
-    #             "reference_id": reference.id,
-    #             "document_id": reference.document_id,
-    #             "doi": doi,
-    #             "request_id": request_id,
-    #             "lookup_source": response.lookup_source,
-    #             "lookup_status": response.lookup_status,
-    #             "metadata_match_score": reference.metadata_match_score,
-    #         },
-    #     )
-    #     return metadata
-
     def _verify_reference(
         self,
         reference: Reference,
@@ -397,12 +225,6 @@ class MetadataLookupService:
         doi = normalize_doi_for_lookup(reference.extracted_doi)
 
         if not doi:
-            # No DOI was extracted from the reference text. Try a CrossRef
-            # title-based search as a best-effort fallback before giving up.
-            title_search_result = self._try_title_search(reference, db)
-            if title_search_result is not None:
-                return title_search_result
-
             reference.doi_status = DoiStatus.MISSING.value
             reference.metadata_status = MetadataStatus.METADATA_UNAVAILABLE.value
             metadata = metadata_repo.upsert_for_reference(
@@ -417,7 +239,7 @@ class MetadataLookupService:
                 url=None,
                 lookup_source="BE-5",
                 lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
-                raw_metadata_json={"reason": "missing_doi", "title_search_attempted": bool(reference.extracted_title)},
+                raw_metadata_json={"reason": "missing_doi"},
                 title_match=None,
                 author_match=None,
                 year_match=None,
@@ -431,8 +253,7 @@ class MetadataLookupService:
                     status_code=422,
                     code=ErrorCode.DOI_MISSING,
                     field="reference_id",
-                    detail="This reference does not contain an extracted DOI and no "
-                           "confident CrossRef title match was found.",
+                    detail="This reference does not contain an extracted DOI.",
                     message="DOI missing",
                 )
             return metadata
@@ -519,66 +340,6 @@ class MetadataLookupService:
         )
         return metadata
 
-    def _try_title_search(self, reference: Reference, db: Session) -> SourceMetadata | None:
-        """
-        Attempt to find metadata via CrossRef title search when no DOI was
-        extracted.
-
-        Many references in this dataset have extracted_title == None (BE-4.2
-        only fills extracted_year reliably). As a pragmatic fallback, if
-        extracted_title is missing we use raw_reference as the search query —
-        CrossRef's bibliographic search tolerates full reference strings
-        reasonably well, and the similarity check in search_by_title()
-        guards against bad matches.
-
-        Returns the persisted SourceMetadata on a confident match, or None
-        if no fallback could be attempted / no confident match was found
-        (caller proceeds with the normal MISSING-DOI path).
-        """
-        if not getattr(self.settings, "metadata_title_search_enabled", True):
-            return None
-        if not self.settings.metadata_lookup_enabled:
-            return None
-
-        query_text = reference.extracted_title or reference.raw_reference
-        if not query_text or len(query_text.strip()) < 8:
-            return None
-
-        # raw_reference can contain a leading reference number ("12. ") and
-        # trailing [CrossRef]/page markers — strip the most obvious noise so
-        # the bibliographic query focuses on author/title/journal text.
-        cleaned_query = _strip_reference_noise(query_text)
-        if not cleaned_query:
-            return None
-
-        authors = _authors_to_list(reference.extracted_authors) if reference.extracted_authors else None
-
-        response = self.crossref_client.search_by_title(
-            cleaned_query,
-            authors=authors,
-            year=reference.extracted_year,
-        )
-
-        if not response.success:
-            return None
-
-        metadata = self._persist_lookup_response(reference, response, db)
-        logger.info(
-            "metadata_lookup_completed_via_title_search",
-            extra={
-                "reference_id": reference.id,
-                "document_id": reference.document_id,
-                "found_doi": response.doi,
-                "lookup_source": response.lookup_source,
-                "metadata_match_score": reference.metadata_match_score,
-                "used_raw_reference_fallback": reference.extracted_title is None,
-            },
-        )
-        return metadata
-
-
-
-
     def _copy_cached_metadata(self, reference: Reference, cached: SourceMetadata, db: Session) -> SourceMetadata:
         metadata_authors = _authors_to_list(cached.authors)
         match = calculate_metadata_match(
@@ -601,7 +362,7 @@ class MetadataLookupService:
             publisher=cached.publisher,
             abstract=cached.abstract,
             url=cached.url,
-            lookup_source=f"metadata_cache:{cached.lookup_source.removeprefix('metadata_cache:')}",
+            lookup_source=f"metadata_cache:{cached.lookup_source}",
             lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
             raw_metadata_json=cached.raw_metadata_json,
             title_match=match.title_match,

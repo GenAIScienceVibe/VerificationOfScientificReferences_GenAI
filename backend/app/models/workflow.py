@@ -17,6 +17,7 @@ from app.models.enums import (
     MetadataStatus,
     PipelineStatus,
     PipelineStepStatus,
+    RetrievalStatus,
     SafetyRiskLevel,
     SupportStatus,
     UploadType,
@@ -199,16 +200,19 @@ class EvidencePackage(TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "evidence_packages"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: prefixed_id("evidence"))
-    document_id: Mapped[str] = mapped_column(String(64), ForeignKey("documents.id"), nullable=False)
-    claim_id: Mapped[str] = mapped_column(String(64), ForeignKey("claims.id"), nullable=False)
-    reference_id: Mapped[str] = mapped_column(String(64), ForeignKey("references.id"), nullable=False)
+    document_id: Mapped[str] = mapped_column(String(64), ForeignKey("documents.id"), nullable=False, index=True)
+    claim_id: Mapped[str] = mapped_column(String(64), ForeignKey("claims.id"), nullable=False, index=True)
+    reference_id: Mapped[str] = mapped_column(String(64), ForeignKey("references.id"), nullable=False, index=True)
+    citation_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("citations.id"), nullable=True, index=True)
+    link_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("claim_reference_links.id"), nullable=True, index=True)
     citation_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     doi: Mapped[str | None] = mapped_column(String(255), nullable=True)
     doi_status: Mapped[str] = mapped_column(String(64), nullable=False, default=DoiStatus.MISSING.value)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     source_evidence_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    evidence_availability: Mapped[str] = mapped_column(String(64), nullable=False, default=EvidenceAvailability.SOURCE_UNAVAILABLE.value)
+    evidence_availability: Mapped[str] = mapped_column(String(64), nullable=False, default=EvidenceAvailability.SOURCE_UNAVAILABLE.value, index=True)
+    package_warnings_json: Mapped[list | dict | None] = mapped_column(JSON, nullable=True)
     embedding_model_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
     verification_policy_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -216,6 +220,8 @@ class EvidencePackage(TimestampMixin, SoftDeleteMixin, Base):
     document: Mapped[Document] = relationship(back_populates="evidence_packages")
     claim: Mapped[Claim] = relationship(back_populates="evidence_packages")
     reference: Mapped[Reference] = relationship(back_populates="evidence_packages")
+    citation: Mapped[Citation | None] = relationship()
+    claim_reference_link: Mapped[ClaimReferenceLink | None] = relationship()
     retrieval_results: Mapped[list[RagRetrievalResult]] = relationship(back_populates="evidence_package")
 
 
@@ -227,10 +233,13 @@ class RagRetrievalResult(TimestampMixin, SoftDeleteMixin, Base):
     claim_id: Mapped[str] = mapped_column(String(64), ForeignKey("claims.id"), nullable=False)
     reference_id: Mapped[str] = mapped_column(String(64), ForeignKey("references.id"), nullable=False)
     evidence_package_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("evidence_packages.id"), nullable=True)
-    retrieval_status: Mapped[str] = mapped_column(String(64), nullable=False, default="NOT_STARTED")
+    retrieval_status: Mapped[str] = mapped_column(String(64), nullable=False, default=RetrievalStatus.FAILED.value, index=True)
     top_chunks_json: Mapped[list | dict | None] = mapped_column(JSON, nullable=True)
     overall_similarity_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     retrieval_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    semantic_cache_match_json: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    request_payload_summary: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    response_payload_json: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     document: Mapped[Document] = relationship(back_populates="retrieval_results")
@@ -435,3 +444,6 @@ Index("ix_claim_reference_links_document_id", ClaimReferenceLink.document_id)
 Index("ix_verification_results_document_claim", VerificationResult.document_id, VerificationResult.claim_id)
 Index("ix_pipeline_steps_run_status", PipelineStep.pipeline_run_id, PipelineStep.status)
 Index("ix_claim_cache_doi_hash", ClaimCacheIndex.doi, ClaimCacheIndex.normalized_claim_hash)
+
+Index("ix_rag_retrieval_claim_reference", RagRetrievalResult.claim_id, RagRetrievalResult.reference_id)
+Index("ix_rag_retrieval_evidence_status", RagRetrievalResult.evidence_package_id, RagRetrievalResult.retrieval_status)
