@@ -22,6 +22,13 @@ from app.services.reference_extraction import reference_to_dict
 logger = logging.getLogger(__name__)
 
 DOI_CANDIDATE_REGEX = re.compile(r"(?:https?://(?:dx\.)?doi\.org/|doi\s*[: ]\s*)?(10\.\d{4,9}/\S+)", re.IGNORECASE)
+_ARXIV_DOI_RE = re.compile(r"10\.48550/arxiv\.(\d{4}\.\d{4,5}(?:v\d+)?)", re.IGNORECASE)
+
+
+def _arxiv_pdf_url(doi: str) -> str | None:
+    """Return a direct arxiv.org PDF URL if doi is an arXiv DOI, else None."""
+    m = _ARXIV_DOI_RE.match(doi.strip())
+    return f"https://arxiv.org/pdf/{m.group(1)}" if m else None
 
 
 def normalize_doi_for_lookup(value: str | None) -> str | None:
@@ -91,6 +98,24 @@ def _authors_to_storage(value: list[str] | None) -> str | None:
     if not value:
         return None
     return "; ".join(item.strip() for item in value if item and item.strip()) or None
+
+
+def _extract_fulltext_from_bytes(pdf_bytes: bytes, *, max_chars: int) -> str | None:
+    """Extract plain text from raw PDF bytes using PyMuPDF.
+
+    Used when the PDF is uploaded directly by the user rather than downloaded.
+    Returns None if the bytes are not a valid PDF or contain no extractable text.
+    """
+    try:
+        doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+        pages_text = [page.get_text() for page in doc]
+        doc.close()
+    except Exception:
+        return None
+    text = "\n".join(pages_text).strip()
+    if not text:
+        return None
+    return text[:max_chars] if len(text) > max_chars else text
 
 
 def _extract_fulltext_from_url(pdf_url: str, *, max_bytes: int, max_chars: int) -> str | None:
@@ -419,6 +444,28 @@ class MetadataLookupService:
 
         response = self.crossref_client.lookup_by_doi(doi)
 
+        # arXiv fallback — CrossRef often doesn't index arXiv preprints.
+        # If CrossRef fails and the DOI is an arXiv DOI, try SemanticScholar
+        # with the native arXiv ID. If that also fails, build a minimal
+        # synthetic success so the PDF extraction step can still run.
+        arxiv_pdf = _arxiv_pdf_url(doi)
+        if not response.success and arxiv_pdf:
+            arxiv_id = _ARXIV_DOI_RE.match(doi).group(1)
+            ss_arxiv = self.semantic_scholar_client.lookup_by_arxiv_id(arxiv_id)
+            if ss_arxiv.success:
+                response = ss_arxiv
+                logger.info("arxiv_metadata_semantic_scholar", extra={"reference_id": reference.id, "doi": doi})
+            else:
+                response = MetadataLookupResponse(
+                    success=True,
+                    lookup_source="arXiv",
+                    lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+                    doi=doi,
+                    url=arxiv_pdf,
+                    raw_metadata_json={"arxiv_id": arxiv_id},
+                )
+                logger.info("arxiv_synthetic_response", extra={"reference_id": reference.id, "doi": doi})
+
         # Abstract fallback — CrossRef rarely includes abstracts.
         # Try OpenAlex first, then Semantic Scholar, stopping as soon as one
         # returns an abstract. CrossRef remains the authoritative source for
@@ -436,11 +483,10 @@ class MetadataLookupService:
                 response = _merge_abstract_fallback(response, ss)
                 logger.info("abstract_fallback_semantic_scholar", extra={"reference_id": reference.id, "doi": doi})
 
-        # Full-text upgrade — try to download an open-access PDF and extract
-        # plain text with PyMuPDF. Priority: OA URL already in the response
-        # (from OpenAlex/SemanticScholar), then Unpaywall as a last resort.
+        # Full-text upgrade — priority: arXiv direct URL → OA URL from metadata
+        # → Unpaywall as last resort.
         if response.success:
-            pdf_url = response.url if (response.url and response.url.lower().endswith(".pdf")) else None
+            pdf_url = arxiv_pdf or (response.url if (response.url and response.url.lower().endswith(".pdf")) else None)
             if not pdf_url and self.settings.unpaywall_email:
                 pdf_url = self.unpaywall_client.lookup_by_doi(doi)
                 if pdf_url:
@@ -579,6 +625,98 @@ class MetadataLookupService:
         db.commit()
         db.refresh(metadata)
         return metadata
+
+    def inject_fulltext_from_uploaded_pdf(
+        self,
+        reference_id: str,
+        pdf_bytes: bytes,
+        filename: str,
+        db: Session,
+    ) -> dict[str, Any]:
+        """Inject full text from a user-uploaded PDF into the SourceMetadata for a reference.
+
+        Used when a paper is paywalled and cannot be fetched automatically via Unpaywall.
+        The uploaded PDF is extracted with PyMuPDF and stored in raw_metadata_json["full_text"].
+        Running prepare-evidence afterwards will promote the package to FULL_TEXT_AVAILABLE.
+        """
+        reference = ReferenceRepository(db).get(reference_id)
+        if not reference:
+            raise AppException(
+                status_code=404,
+                code=ErrorCode.REFERENCE_NOT_FOUND,
+                field="reference_id",
+                detail=f"Reference '{reference_id}' was not found.",
+                message="Reference not found",
+            )
+
+        text = _extract_fulltext_from_bytes(pdf_bytes, max_chars=self.settings.fulltext_max_chars)
+        if not text:
+            raise AppException(
+                status_code=422,
+                code=ErrorCode.FILE_REQUIRED,
+                field="file",
+                detail="The uploaded file could not be read as a PDF or contains no extractable text.",
+                message="PDF extraction failed",
+            )
+
+        metadata_repo = SourceMetadataRepository(db)
+        existing = metadata_repo.get_latest_for_reference(reference_id)
+
+        raw: dict[str, Any] = dict(existing.raw_metadata_json) if isinstance(getattr(existing, "raw_metadata_json", None), dict) else {}
+        raw["full_text"] = text
+        raw["full_text_source"] = f"user_upload:{filename}"
+
+        metadata_repo.upsert_for_reference(
+            reference_id=reference_id,
+            doi=existing.doi if existing else normalize_doi_for_lookup(reference.extracted_doi),
+            title=existing.title if existing else None,
+            authors=existing.authors if existing else None,
+            year=existing.year if existing else None,
+            venue=existing.venue if existing else None,
+            publisher=existing.publisher if existing else None,
+            abstract=existing.abstract if existing else None,
+            url=existing.url if existing else None,
+            lookup_source=(existing.lookup_source if existing else "user_upload"),
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            raw_metadata_json=raw,
+            title_match=existing.title_match if existing else None,
+            author_match=existing.author_match if existing else None,
+            year_match=existing.year_match if existing else None,
+            doi_match=existing.doi_match if existing else None,
+            metadata_match_score=existing.metadata_match_score if existing else None,
+            commit=True,
+        )
+
+        logger.info(
+            "fulltext_injected_from_upload",
+            extra={"reference_id": reference_id, "upload_filename": filename, "chars": len(text)},
+        )
+
+        # Collect the claims that cite this reference so the user knows
+        # which verification results will improve after prepare-evidence.
+        affected_claims = [
+            {
+                "claim_id": link.claim_id,
+                "claim_text": link.claim.claim_text if link.claim else None,
+                "citation_raw": link.citation.raw_citation if link.citation else None,
+            }
+            for link in (reference.claim_links or [])
+            if link.claim_id
+        ]
+
+        return {
+            "reference_id": reference_id,
+            "doi": reference.extracted_doi,
+            "reference_title": reference.extracted_title,
+            "reference_authors": reference.extracted_authors,
+            "reference_year": reference.extracted_year,
+            "filename": filename,
+            "chars_extracted": len(text),
+            "full_text_preview": text[:300],
+            "affected_claims_count": len(affected_claims),
+            "affected_claims": affected_claims,
+            "next_step": f"Run POST /documents/{reference.document_id}/prepare-evidence to rebuild evidence packages.",
+        }
 
     def _reference_metadata_response(self, reference: Reference, metadata: SourceMetadata | None) -> dict[str, Any]:
         metadata_dict = metadata_to_dict(metadata)

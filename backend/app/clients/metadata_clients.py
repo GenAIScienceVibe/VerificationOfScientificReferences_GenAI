@@ -332,6 +332,58 @@ class SemanticScholarClient:
             status_code=response.status_code,
         )
 
+    def lookup_by_arxiv_id(self, arxiv_id: str) -> MetadataLookupResponse:
+        """Look up a paper by arXiv ID (e.g. '2109.05581') using the arXiv: prefix."""
+        url = f"{self.base_url}/graph/v1/paper/arXiv:{arxiv_id}"
+        params = {"fields": "title,authors,year,abstract,venue,openAccessPdf,externalIds"}
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.get(url, headers=headers, params=params)
+        except httpx.TimeoutException as exc:
+            return MetadataLookupResponse(success=False, lookup_source="SemanticScholar", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=f"10.48550/arXiv.{arxiv_id}", error_code="METADATA_LOOKUP_TIMEOUT", error_message=str(exc))
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="SemanticScholar", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=f"10.48550/arXiv.{arxiv_id}", error_code="METADATA_SERVICE_UNAVAILABLE", error_message=str(exc))
+
+        if response.status_code != 200:
+            return MetadataLookupResponse(success=False, lookup_source="SemanticScholar", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=f"10.48550/arXiv.{arxiv_id}", status_code=response.status_code, error_code="DOI_LOOKUP_FAILED", error_message=f"Semantic Scholar returned HTTP {response.status_code}.")
+
+        try:
+            payload = response.json()
+        except ValueError:
+            return MetadataLookupResponse(success=False, lookup_source="SemanticScholar", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=f"10.48550/arXiv.{arxiv_id}", error_code="DOI_LOOKUP_FAILED", error_message="Malformed JSON.")
+
+        if not isinstance(payload, dict):
+            return MetadataLookupResponse(success=False, lookup_source="SemanticScholar", lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=f"10.48550/arXiv.{arxiv_id}", error_code="DOI_LOOKUP_FAILED", error_message="Response was not a JSON object.")
+
+        authors = [
+            str(a.get("name", "")).strip()
+            for a in (payload.get("authors") or [])
+            if isinstance(a, dict) and a.get("name")
+        ]
+        oa_pdf = payload.get("openAccessPdf") or {}
+        oa_url = oa_pdf.get("url") if isinstance(oa_pdf, dict) else None
+        registered_doi = (payload.get("externalIds") or {}).get("DOI") or f"10.48550/arXiv.{arxiv_id}"
+
+        return MetadataLookupResponse(
+            success=True,
+            lookup_source="SemanticScholar",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            doi=registered_doi,
+            title=_first_string(payload.get("title")),
+            authors=authors or None,
+            year=payload.get("year"),
+            venue=_first_string(payload.get("venue")),
+            publisher=None,
+            abstract=_first_string(payload.get("abstract")),
+            url=oa_url or f"https://arxiv.org/abs/{arxiv_id}",
+            raw_metadata_json=payload,
+            status_code=response.status_code,
+        )
+
 
 class UnpaywallClient:
     """Unpaywall open-access PDF URL client used by BE-5.

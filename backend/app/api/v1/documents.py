@@ -132,11 +132,17 @@ async def extract_document_references(request: Request, document_id: str, db: Se
 
 
 @router.post("/{document_id}/verify-dois")
-async def verify_document_dois(request: Request, document_id: str, db: Session = Depends(get_db)):
+async def verify_document_dois(
+    request: Request,
+    document_id: str,
+    force_refresh: bool = Query(default=False, description="Re-run the full lookup chain (CrossRef → OpenAlex → Unpaywall + PDF) even for already-cached DOIs."),
+    db: Session = Depends(get_db),
+):
     data = MetadataLookupService().verify_document_dois(
         document_id,
         db,
         request_id=getattr(request.state, "request_id", None),
+        force_refresh=force_refresh,
     )
     return success_response(request=request, data=data, message="Document DOI metadata lookup completed")
 
