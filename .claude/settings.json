@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/rag -q)",
+      "Bash(python -c \"import rank_bm25; print\\('rank_bm25 ok'\\)\")",
+      "Bash(python -c \"import flashrank; print\\('flashrank ok'\\)\")",
+      "Bash(cat rag/requirements.txt)",
+      "Bash(cat requirements.txt)"
+    ]
+  }
+}

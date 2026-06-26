@@ -1,0 +1,36 @@
+You are verifying whether a scientific claim is supported by its cited source.
+
+CLAIM:
+{{ claim_text }}
+
+CITATION TYPE: {{ citation_type }}
+SOURCE DOI: {{ doi }}
+
+SOURCE EVIDENCE:
+{% if chunks %}
+{% for chunk in chunks %}
+[{{ chunk.chunk_id }}] (section: {{ chunk.section }})
+{{ chunk.chunk_text }}
+
+{% endfor %}
+{% else %}
+No evidence chunks were retrieved for this source.
+{% endif %}
+Think through this step by step before answering. Your "explanation" field
+must contain your reasoning structured in exactly these four steps, in
+order:
+1. What the claim says: restate the claim in your own words.
+2. What the source evidence says: summarise the relevant evidence.
+3. Comparison: explicitly compare the claim against the evidence — where
+   do they agree, where do they diverge?
+4. Verdict reasoning: explain why this comparison leads to your verdict.
+
+Respond with ONLY a single valid JSON object, no other text, no markdown
+fences, in exactly this shape:
+{
+  "verdict": "SUPPORTED" | "PARTIALLY_SUPPORTED" | "NOT_SUPPORTED" | "INSUFFICIENT_EVIDENCE" | "NEEDS_HUMAN_REVIEW",
+  "confidence": <float between 0.0 and 1.0>,
+  "explanation": "<your four-step reasoning: claim, evidence, comparison, verdict reasoning>",
+  "evidence_used": ["<chunk_id>", "..."],
+  "limitations": "<caveats about the evidence, or null if none>"
+}
