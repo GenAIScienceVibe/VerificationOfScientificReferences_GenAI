@@ -421,3 +421,45 @@ python scripts/validate_uploaded_pdfs_be9.py --reset-db /path/to/paper1.pdf /pat
 ```
 
 BE-9 is integration-only. It does not implement RAG/ML internals, embeddings, vector DB, GenAI verification, final support labels, safety scoring, report generation, or frontend UI.
+
+## BE-10 — GenAI Verification Orchestration
+
+BE-10 adds the backend-controlled verification orchestration layer. It coordinates previous backend phases, checks BE-8 cache decisions, retrieves evidence through BE-9, validates GenAI-style verification output, applies basic safety gates, stores `VerificationResult` and `SafetyCheck` records, and exposes pipeline/result APIs.
+
+### Important scope
+
+BE-10 uses mockable/local GenAI verification by default. This validates orchestration, result validation, persistence, and safety fallback behavior without requiring a live Groq call. A real configured Groq client can be added behind the same service boundary later.
+
+BE-10 does not implement BE-11 advanced safety/confidence policy, BE-12 reports/feedback, frontend UI, direct frontend-to-RAG calls, direct frontend-to-GenAI calls, or publisher full-text retrieval.
+
+### New endpoints
+
+```text
+POST /api/v1/documents/{document_id}/pipeline-runs
+POST /api/v1/documents/{document_id}/run-verification
+GET  /api/v1/pipeline-runs/{pipeline_run_id}
+GET  /api/v1/pipeline-runs/{pipeline_run_id}/steps
+GET  /api/v1/documents/{document_id}/verification-results
+GET  /api/v1/verification-results/{result_id}
+```
+
+### Run full verification after BE-3 to BE-9 outputs exist
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/pipeline-runs \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"FULL_VERIFICATION","use_cache":true,"use_rag":true,"use_genai_safety_review":true,"generate_report":false}'
+
+curl http://127.0.0.1:8000/api/v1/pipeline-runs/{pipeline_run_id}
+curl http://127.0.0.1:8000/api/v1/pipeline-runs/{pipeline_run_id}/steps
+curl http://127.0.0.1:8000/api/v1/documents/{document_id}/verification-results
+```
+
+### Validation
+
+```bash
+python -m compileall app scripts/validate_uploaded_pdfs_be10.py
+python scripts/init_db.py
+pytest -q
+python scripts/validate_uploaded_pdfs_be10.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf /path/to/paper3.pdf
+```

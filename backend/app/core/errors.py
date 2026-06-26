@@ -71,6 +71,12 @@ class ErrorCode(StrEnum):
     NO_RELEVANT_EVIDENCE_FOUND = "NO_RELEVANT_EVIDENCE_FOUND"
 
 
+    # BE-10 GenAI verification orchestration errors.
+    PIPELINE_ALREADY_RUNNING = "PIPELINE_ALREADY_RUNNING"
+    SAFETY_RULE_TRIGGERED = "SAFETY_RULE_TRIGGERED"
+    VERIFICATION_FAILED = "VERIFICATION_FAILED"
+
+
 class AppException(Exception):
     """Known application exception returned using the standard API wrapper."""
 
