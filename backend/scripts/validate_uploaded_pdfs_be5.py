@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from fastapi.testclient import TestClient
+from testsupport.api_client import ApiTestClient as TestClient
 
 from app.db.init_db import drop_db_for_tests_only, init_db
 from app.main import app

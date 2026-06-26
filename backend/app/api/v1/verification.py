@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.responses import success_response
 from app.db.session import get_db
+from app.models.enums import SupportStatus
 from app.services.verification_orchestrator import VerificationOrchestrator
 from app.services.safety_policy import SafetyPolicyService
 
@@ -78,7 +79,7 @@ async def get_pipeline_run_steps(request: Request, pipeline_run_id: str, db: Ses
 async def get_document_verification_results(
     request: Request,
     document_id: str,
-    support_status: str | None = Query(default=None),
+    support_status: SupportStatus | None = Query(default=None),
     human_review_required: bool | None = Query(default=None),
     cache_source: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
@@ -88,7 +89,7 @@ async def get_document_verification_results(
     data = VerificationOrchestrator().list_document_verification_results(
         document_id,
         db,
-        support_status=support_status,
+        support_status=support_status.value if support_status else None,
         human_review_required=human_review_required,
         cache_source=cache_source,
         page=page,

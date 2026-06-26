@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
+from testsupport.api_client import ApiTestClient as TestClient
 from sqlalchemy.orm import Session
 
 from app.clients.metadata_clients import MetadataLookupResponse
@@ -118,10 +118,10 @@ https://doi.org/10.1177/00336882221094089
 """
     section = service.find_reference_section(cleaned_text=text, sections=[])
     parsed = service.extract_references(section.text)
-    assert len(parsed) == 2
+    assert len(parsed) == 1
     assert parsed[0].extracted_doi == "10.1016/j.compedu.2022.104703"
-    assert parsed[1].raw_reference.startswith("Unattached DOI-only reference")
-    assert parsed[1].extracted_doi == "10.1177/00336882221094089"
+    assert not any(item.raw_reference.startswith("Unattached DOI-only reference") for item in parsed)
+    assert service.skipped_doi_fragments == ["10.1177/00336882221094089"]
 
 
 def test_doi_normalization_supported_formats() -> None:

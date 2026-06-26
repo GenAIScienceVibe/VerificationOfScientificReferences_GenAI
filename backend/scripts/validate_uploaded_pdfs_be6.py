@@ -14,7 +14,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///./data/be6_uploaded_pdf_validat
 os.environ.setdefault("FILE_STORAGE_DIR", "./data/be6_uploaded_pdf_uploads")
 os.environ.setdefault("ENABLE_RAW_TEXT_DEBUG_ENDPOINT", "true")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from testsupport.api_client import ApiTestClient as TestClient
 
 from app.db.init_db import drop_db_for_tests_only, init_db  # noqa: E402
 from app.main import app  # noqa: E402

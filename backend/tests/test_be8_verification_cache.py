@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi.testclient import TestClient
+from testsupport.api_client import ApiTestClient as TestClient
 
 from app.core.config import Settings
 from app.db.session import SessionLocal

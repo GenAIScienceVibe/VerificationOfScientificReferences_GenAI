@@ -137,6 +137,9 @@ class ReferenceExtractionService:
     It performs local boundary cleanup, reference splitting, and DOI syntax extraction only.
     """
 
+    def __init__(self) -> None:
+        self.skipped_doi_fragments: list[str] = []
+
     def find_reference_section(self, *, cleaned_text: str | None, sections: list[DocumentSection]) -> ReferenceSectionResult:
         for section in sorted(sections, key=lambda item: item.order_index):
             if section.name and section.name.strip().lower() in {"references", "bibliography", "works cited", "reference list"}:
@@ -382,6 +385,44 @@ class ReferenceExtractionService:
             or re.fullmatch(r"https?://(?:dx\.)?doi\.org/10\.\d{4,9}/\S+", stripped, re.IGNORECASE)
         )
 
+    def _is_doi_only_reference_candidate(self, text: str) -> bool:
+        stripped = self._normalize_reference_text(text)
+        stripped = re.sub(r"^Unattached DOI-only reference from PDF text extraction\.\s*", "", stripped, flags=re.IGNORECASE)
+        stripped = START_NUMBERED_REGEX.sub("", stripped, count=1).strip()
+        stripped = stripped.strip(" .;")
+        return self._is_doi_only_or_doi_url_line(stripped)
+
+    def _has_meaningful_reference_content(self, text: str) -> bool:
+        if self._is_doi_only_reference_candidate(text):
+            return False
+        cleaned = self._normalize_reference_text(DOI_WITH_PREFIX_REGEX.sub("", self._remove_leading_marker(text))).strip(" .;")
+        if len(cleaned) < 35:
+            return False
+        if self._has_author_year_near_start(text):
+            return True
+        if YEAR_REGEX.search(cleaned) and re.search(r"^[A-ZÀ-Þ][A-Za-zÀ-ÿ'’\-]+(?:\s*,|\s+[A-ZÀ-Þ])", cleaned):
+            return True
+        return False
+
+    def _record_skipped_doi_fragment(self, doi_text: str) -> None:
+        doi_result = self.extract_doi(doi_text)
+        value = doi_result.extracted_doi or self._normalize_reference_text(doi_text)
+        if value and value not in self.skipped_doi_fragments:
+            self.skipped_doi_fragments.append(value)
+
+    def _attach_doi_fragment_to_previous_if_safe(self, references: list[str], doi_text: str) -> bool:
+        if not references:
+            return False
+        previous = references[-1]
+        if not self._has_meaningful_reference_content(previous):
+            return False
+        if self.extract_doi(previous).doi_status != DoiStatus.MISSING.value:
+            return False
+        if self.extract_doi(doi_text).doi_status != DoiStatus.FOUND.value:
+            return False
+        references[-1] = self._normalize_reference_text(f"{previous} {doi_text}")
+        return True
+
     def _looks_like_journal_or_volume_continuation(self, text: str) -> bool:
         stripped = text.strip()
         if self._is_reference_start(stripped):
@@ -543,21 +584,32 @@ class ReferenceExtractionService:
         )
 
     def extract_references(self, reference_section_text: str) -> list[ParsedReference]:
+        self.skipped_doi_fragments = []
         raw_references = self.split_references(reference_section_text)
+        if not raw_references and self._is_doi_only_reference_candidate(reference_section_text):
+            self._record_skipped_doi_fragment(reference_section_text)
+            return []
         raw_references = self._split_orphan_doi_tails(raw_references)
         return [self.parse_reference(raw_reference, index=index) for index, raw_reference in enumerate(raw_references, start=1)]
 
     def _split_orphan_doi_tails(self, raw_references: list[str]) -> list[str]:
-        """Prevent PDF-extracted DOI-only tails from being attached to the prior reference.
+        """Resolve PDF-extracted DOI-only fragments without creating fake references.
 
-        Some PDFs lose the author/title line of the final reference but keep a standalone
-        DOI URL on the next line. If this DOI remains appended to the previous reference,
-        downstream BE-5 would verify the wrong DOI for the wrong reference. The safer
-        behavior is to keep the main reference intact and preserve each extra DOI as an
-        orphan DOI-only reference that needs later human/metadata review.
+        If a DOI-only line follows a meaningful reference with no DOI, it is treated as
+        that reference's DOI continuation. If the nearby reference already has a DOI, or
+        there is no meaningful nearby reference, the fragment is skipped and reported via
+        skipped_doi_fragments instead of being persisted as a normal Reference row.
         """
         expanded: list[str] = []
         for raw in raw_references:
+            raw = self._normalize_reference_text(raw)
+            if self._is_doi_only_reference_candidate(raw):
+                match = DOI_WITH_PREFIX_REGEX.search(raw)
+                doi_text = match.group(0).strip() if match else raw
+                if not self._attach_doi_fragment_to_previous_if_safe(expanded, doi_text):
+                    self._record_skipped_doi_fragment(doi_text)
+                continue
+
             matches = list(DOI_WITH_PREFIX_REGEX.finditer(raw))
             if len(matches) <= 1:
                 expanded.append(raw)
@@ -582,7 +634,8 @@ class ReferenceExtractionService:
             tail = raw[first_end:].strip()
             for tail_match in DOI_WITH_PREFIX_REGEX.finditer(tail):
                 doi_text = tail_match.group(0).strip()
-                expanded.append(f"Unattached DOI-only reference from PDF text extraction. {doi_text}")
+                if not self._attach_doi_fragment_to_previous_if_safe(expanded, doi_text):
+                    self._record_skipped_doi_fragment(doi_text)
         return expanded
 
     def _remove_leading_marker(self, text: str) -> str:
@@ -754,6 +807,8 @@ def extract_references_for_document(document_id: str, db: Session, *, request_id
         quality_warnings.append("LOW_DOI_COVERAGE")
     if any((reference.extracted_doi or "").endswith("-") for reference in references if reference.doi_status == DoiStatus.FOUND.value):
         quality_warnings.append("BAD_FOUND_DOI_ENDING")
+    if service.skipped_doi_fragments:
+        quality_warnings.append("UNATTACHED_DOI_FRAGMENT_SKIPPED")
     logger.info(
         "reference_extraction_completed",
         extra={

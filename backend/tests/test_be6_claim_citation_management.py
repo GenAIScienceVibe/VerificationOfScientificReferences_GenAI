@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
+from testsupport.api_client import ApiTestClient as TestClient
 
 from app.main import app
 from app.models import Document, Reference

@@ -1633,7 +1633,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "$ref": "#/components/schemas/SupportStatus"
                 },
                 {
                   "type": "null"
@@ -2215,7 +2215,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "format": "binary"
+                "contentMediaType": "application/octet-stream"
               },
               {
                 "type": "null"
@@ -2518,6 +2518,17 @@
         },
         "type": "object",
         "title": "RetrieveEvidenceRequest"
+      },
+      "SupportStatus": {
+        "type": "string",
+        "enum": [
+          "SUPPORTED",
+          "PARTIALLY_SUPPORTED",
+          "NOT_SUPPORTED",
+          "INSUFFICIENT_EVIDENCE",
+          "NEEDS_HUMAN_REVIEW"
+        ],
+        "title": "SupportStatus"
       },
       "TextSubmissionRequest": {
         "properties": {

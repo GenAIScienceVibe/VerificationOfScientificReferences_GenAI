@@ -17,7 +17,7 @@ os.environ.setdefault("RAG_MOCK_MODE", "true")
 os.environ.setdefault("RAG_SERVICE_ENABLED", "true")
 os.environ.setdefault("CACHE_SEMANTIC_ENABLED", "false")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from testsupport.api_client import ApiTestClient as TestClient
 
 from app.db.init_db import drop_db_for_tests_only, init_db  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402

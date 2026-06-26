@@ -21,7 +21,7 @@ os.environ["METADATA_SERVICE_TIMEOUT_SECONDS"] = "1"
 os.environ["METADATA_MAX_RETRIES"] = "0"
 os.environ.setdefault("CACHE_SEMANTIC_ENABLED", "false")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from testsupport.api_client import ApiTestClient as TestClient
 
 from app.db.init_db import drop_db_for_tests_only, init_db  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
@@ -31,6 +31,26 @@ from app.models.enums import CacheSource, SupportStatus  # noqa: E402
 from app.services.verification_cache import VerificationCacheService  # noqa: E402
 
 client = TestClient(app)
+
+
+def collect_pdf_paths(*, pdf_dir: Path | None, pdfs: list[Path]) -> tuple[list[Path], str | None]:
+    collected = list(pdfs)
+    if pdf_dir is not None:
+        if not pdf_dir.exists():
+            return [], f"PDF directory not found: {pdf_dir}"
+        if not pdf_dir.is_dir():
+            return [], f"PDF path is not a directory: {pdf_dir}"
+        collected.extend(sorted(path for path in pdf_dir.iterdir() if path.is_file() and path.suffix.lower() == ".pdf"))
+    if not collected:
+        location = str(pdf_dir) if pdf_dir is not None else "positional arguments"
+        return [], f"No PDF files found from {location}."
+    missing = [str(path) for path in collected if not path.exists()]
+    if missing:
+        return [], f"PDF file not found: {', '.join(missing)}"
+    non_pdfs = [str(path) for path in collected if path.suffix.lower() != ".pdf"]
+    if non_pdfs:
+        return [], f"Non-PDF input is not supported: {', '.join(non_pdfs)}"
+    return collected, None
 
 
 def _post_pdf(path: Path) -> dict:
@@ -230,17 +250,23 @@ def validate_pdf(path: Path) -> dict:
     }
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description="Run BE-13 full uploaded research PDF backend validation.")
-    parser.add_argument("pdfs", nargs="+", type=Path)
+    parser.add_argument("pdfs", nargs="*", type=Path)
+    parser.add_argument("--pdf-dir", type=Path, default=None, help="Directory containing uploaded research PDFs.")
     parser.add_argument("--reset-db", action="store_true")
     args = parser.parse_args()
+
+    pdfs, error = collect_pdf_paths(pdf_dir=args.pdf_dir, pdfs=args.pdfs)
+    if error:
+        print(error, file=sys.stderr)
+        return 1
 
     if args.reset_db:
         drop_db_for_tests_only()
     init_db()
 
-    for pdf in args.pdfs:
+    for pdf in pdfs:
         result = validate_pdf(pdf)
         print("=" * 80)
         print(f"PDF: {result['pdf_name']}")
@@ -279,7 +305,8 @@ def main() -> None:
         print(f"problems_found: {result.get('problems_found')}")
         print(f"fixes_applied: {result.get('fixes_applied')}")
         print(f"remaining_limitations: {result.get('remaining_limitations')}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

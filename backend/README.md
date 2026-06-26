@@ -9,7 +9,17 @@ Current implementation status:
 - BE-3 — Document Upload and Text Processing: implemented
 - BE-4 — Reference and DOI Extraction: implemented
 - BE-4.2 — DOI Attachment, Reference Continuation, and Extraction Quality Hardening: implemented
-- BE-5 to BE-13: intentionally deferred
+- BE-5 — DOI Metadata Lookup: implemented
+- BE-6 — Claim and Citation Management: implemented
+- BE-7 — Evidence Package Builder: implemented
+- BE-8 — Verification Cache Layer: implemented
+- BE-9 — RAG/ML Integration: implemented
+- BE-10 — GenAI Verification Orchestration: implemented
+- BE-11 — Safety and Confidence Rules: implemented
+- BE-12 — Report Generation and Feedback: implemented
+- BE-13 — Testing, Logging, and Demo Hardening: implemented
+
+External metadata, RAG, and GenAI behavior can run in disabled, mock, or demo mode depending on environment configuration. Mock/demo mode validates backend orchestration and contracts, not final AI/RAG answer quality.
 
 ## Backend scope
 
@@ -88,20 +98,6 @@ Frontend, RAG, GenAI, and external academic services must not write directly to 
 - failed PDF audit visibility by returning failed `document_id` in error detail
 - destructive reference re-extraction blocked when downstream rows already exist
 - sanitized real-PDF regression fixtures and `scripts/qa_real_pdf_api_test.py`
-
-## Intentionally deferred
-
-The following are not implemented yet:
-
-- BE-5 DOI metadata lookup
-- BE-6 claim and citation management logic
-- BE-7 evidence package builder logic
-- BE-8 verification cache logic
-- BE-9 RAG/ML integration
-- BE-10 GenAI verification orchestration
-- BE-11 safety/confidence rules
-- BE-12 report generation and feedback workflows
-- BE-13 final testing/logging/demo hardening
 
 ## Setup
 

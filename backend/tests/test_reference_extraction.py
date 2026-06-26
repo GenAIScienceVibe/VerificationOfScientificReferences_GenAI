@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi.testclient import TestClient
+from testsupport.api_client import ApiTestClient as TestClient
 
 from app.main import app
 from app.models.enums import DoiStatus, MetadataStatus
@@ -118,6 +118,40 @@ def test_extract_references_api_persists_references_and_updates_document_status(
     single_response = client.get(f"/api/v1/references/{first['reference_id']}")
     assert single_response.status_code == 200
     assert single_response.json()["data"]["reference_id"] == first["reference_id"]
+
+
+def test_extract_references_skips_unattached_doi_only_fragment_with_quality_warning() -> None:
+    document_id = create_text_document(
+        """
+Sample Paper
+
+Body
+Demo body.
+
+References
+Wang, X., Liu, Q., Pang, H., Tan, S. C., Lei, J., Wallace, M. P., & Li, L. (2023). What matters in AI-supported learning. Computers & Education, 194, Article 104703. https://doi.org/10.1016/j.compedu.2022.104703
+
+https://doi.org/10.1177/00336882221094089
+""",
+        title="Unattached DOI Fragment",
+    )
+
+    response = client.post(f"/api/v1/documents/{document_id}/extract-references")
+    assert response.status_code == 200
+    payload = response.json()
+    assert_wrapper(payload)
+    assert payload["data"]["references_count"] == 1
+    assert payload["data"]["doi_summary"]["found"] == 1
+    assert "UNATTACHED_DOI_FRAGMENT_SKIPPED" in payload["data"]["quality_warnings"]
+    assert "10.1177/00336882221094089" in payload["data"]["doi_coverage"]["missing_from_extracted"]
+
+    refs_response = client.get(f"/api/v1/documents/{document_id}/references")
+    assert refs_response.status_code == 200
+    references = refs_response.json()["data"]["references"]
+    assert len(references) == 1
+    assert references[0]["extracted_doi"] == "10.1016/j.compedu.2022.104703"
+    assert "Unattached DOI-only reference" not in references[0]["raw_reference"]
+    assert "10.1177/00336882221094089" not in references[0]["raw_reference"]
 
 
 def test_extract_references_is_idempotent_and_does_not_duplicate_records() -> None:

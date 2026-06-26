@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
+from testsupport.api_client import ApiTestClient as TestClient
 
 from app.core.errors import AppException, ErrorCode
 from app.db.session import SessionLocal

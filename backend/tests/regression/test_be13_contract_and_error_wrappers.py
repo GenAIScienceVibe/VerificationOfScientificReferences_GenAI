@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
+from testsupport.api_client import ApiTestClient as TestClient
+from fastapi import FastAPI
 
 from app.main import app
 from app.models.enums import DocumentStatus, PipelineStatus, PipelineStepStatus, SupportStatus
@@ -67,6 +68,27 @@ def test_error_wrappers_for_missing_resources_are_consistent() -> None:
         response = getattr(client, method)(path)
         assert response.status_code in {400, 404, 422}
         assert_error_wrapper(response.json())
+
+
+def test_api_test_client_handles_sync_routes_without_threadpool_hang() -> None:
+    sync_app = FastAPI()
+
+    @sync_app.get("/sync")
+    def sync_route() -> dict[str, bool]:
+        return {"ok": True}
+
+    response = TestClient(sync_app).get("/sync")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+
+
+def test_invalid_support_status_filter_uses_standard_validation_error_wrapper() -> None:
+    response = client.get("/api/v1/documents/doc_missing/verification-results?support_status=HALLUCINATED")
+    payload = response.json()
+    assert response.status_code == 422
+    assert_error_wrapper(payload)
+    assert payload["errors"][0]["code"] == "VALIDATION_ERROR"
+    assert payload["errors"][0]["field"] == "support_status"
 
 
 def test_readiness_exposes_demo_and_mock_service_statuses() -> None:

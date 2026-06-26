@@ -28,6 +28,30 @@ https://doi.org/10.1234/demo.2024
     assert len(refs) == 1
     assert refs[0].extracted_doi == "10.1234/demo.2024"
     assert refs[0].doi_status == DoiStatus.FOUND.value
+    assert service.skipped_doi_fragments == []
+
+
+def test_unattached_doi_only_fragment_is_skipped_when_previous_reference_already_has_doi() -> None:
+    service = ReferenceExtractionService()
+    section = """
+Wang, X., Liu, Q., Pang, H., Tan, S. C., Lei, J., Wallace, M. P., & Li, L. (2023). What matters in AI-supported learning. Computers & Education, 194, Article 104703. https://doi.org/10.1016/j.compedu.2022.104703
+
+https://doi.org/10.1177/00336882221094089
+"""
+    refs = service.extract_references(section)
+    assert len(refs) == 1
+    assert refs[0].raw_reference.startswith("Wang, X.")
+    assert refs[0].extracted_doi == "10.1016/j.compedu.2022.104703"
+    assert refs[0].doi_status == DoiStatus.FOUND.value
+    assert not any("Unattached DOI-only reference" in item.raw_reference for item in refs)
+    assert service.skipped_doi_fragments == ["10.1177/00336882221094089"]
+
+
+def test_doi_only_fragment_without_meaningful_reference_is_skipped() -> None:
+    service = ReferenceExtractionService()
+    refs = service.extract_references("https://doi.org/10.1177/00336882221094089")
+    assert refs == []
+    assert service.skipped_doi_fragments == ["10.1177/00336882221094089"]
 
 
 def test_journal_volume_continuation_with_doi_attaches_to_previous_reference() -> None:

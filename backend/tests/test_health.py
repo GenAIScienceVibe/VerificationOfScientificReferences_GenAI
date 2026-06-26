@@ -1,4 +1,4 @@
-from fastapi.testclient import TestClient
+from testsupport.api_client import ApiTestClient as TestClient
 
 from app.main import app
 
