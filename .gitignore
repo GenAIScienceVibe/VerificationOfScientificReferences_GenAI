@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Backend runtime data (SQLite databases, uploaded files)
+backend/*.db
+backend/*.db-journal
+backend/*.db-shm
+backend/*.db-wal
+backend/data/uploads/

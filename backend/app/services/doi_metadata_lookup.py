@@ -5,6 +5,7 @@ import re
 from collections import Counter
 from typing import Any
 
+import httpx
 from sqlalchemy.orm import Session
 
 import pymupdf

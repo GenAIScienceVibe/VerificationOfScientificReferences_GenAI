@@ -9,7 +9,9 @@ from typing import List
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 
-load_dotenv()
+# Always load backend/.env regardless of the working directory the process
+# was started from (e.g. project root vs backend/).
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent.parent / ".env")
 
 
 class Settings(BaseModel):
