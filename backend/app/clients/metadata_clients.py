@@ -831,6 +831,247 @@ class UnpaywallClient:
         return None
 
 
+class CoreClient:
+    """CORE API v3 client for full-text retrieval and title-based DOI resolution.
+
+    Used in two roles:
+    1. search_by_title() — 4th step in the title-based DOI resolution chain, after
+       CrossRef, OpenAlex, and Semantic Scholar. CORE covers institutional repositories
+       and preprints not indexed by those sources.
+    2. get_fulltext_by_doi() — returns full text directly from the CORE API response
+       (no PDF download required) when Unpaywall finds no open-access PDF.
+
+    Rate limit: 10 req/sec with a free API key — no practical constraint for our use.
+    Authentication: Bearer token in the Authorization header. Calls are skipped when
+    core_api_key is not configured.
+    """
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.base_url = settings.core_base_url.rstrip("/")
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def _headers(self) -> dict[str, str]:
+        headers: dict[str, str] = {"User-Agent": self.settings.metadata_user_agent}
+        if self.settings.core_api_key:
+            headers["Authorization"] = f"Bearer {self.settings.core_api_key}"
+        return headers
+
+    def _parse_core_work(self, item: dict[str, Any]) -> tuple[str | None, list[str], int | None, str | None]:
+        """Extract (doi, authors, year, abstract) from a CORE work object."""
+        doi_raw = str(item.get("doi") or "").lower().strip()
+        for prefix in ("https://doi.org/", "http://doi.org/"):
+            if doi_raw.startswith(prefix):
+                doi_raw = doi_raw[len(prefix):]
+        doi = doi_raw or None
+
+        authors: list[str] = [
+            str(a.get("name", "")).strip()
+            for a in (item.get("authors") or [])
+            if isinstance(a, dict) and a.get("name")
+        ]
+
+        year_raw = item.get("yearPublished")
+        try:
+            year: int | None = int(year_raw) if year_raw is not None else None
+        except (TypeError, ValueError):
+            year = None
+
+        abstract: str | None = item.get("abstract") or None
+        return doi, authors, year, abstract
+
+    def search_by_title(
+        self,
+        title: str,
+        authors: str | None = None,
+        year: int | None = None,
+    ) -> MetadataLookupResponse:
+        """Search CORE for a paper by title, applying the same three false-match
+        gates as the other title-search clients (title exact/substring, year ±1,
+        first-author last name).
+
+        Called only when CrossRef, OpenAlex, and SemanticScholar all fail to resolve
+        a title to a DOI. CORE's coverage of institutional repositories makes it
+        particularly useful for management and social-science papers that are available
+        as accepted manuscripts but not formally indexed elsewhere.
+        """
+        params: dict[str, str] = {"q": title.strip(), "limit": "5"}
+        url = f"{self.base_url}/search/works"
+        try:
+            if self._client is not None:
+                response = self._client.get(url, headers=self._headers(), params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                    response = client.get(url, headers=self._headers(), params=params)
+        except httpx.TimeoutException as exc:
+            return MetadataLookupResponse(success=False, lookup_source="CORE", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="METADATA_LOOKUP_TIMEOUT", error_message=str(exc))
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="CORE", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="METADATA_SERVICE_UNAVAILABLE", error_message=str(exc))
+
+        if response.status_code != 200:
+            return MetadataLookupResponse(success=False, lookup_source="CORE", lookup_status=MetadataStatus.LOOKUP_FAILED.value, status_code=response.status_code, error_code="DOI_LOOKUP_FAILED", error_message=f"CORE search returned HTTP {response.status_code}.")
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="CORE", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="DOI_LOOKUP_FAILED", error_message=f"Malformed JSON from CORE: {exc}")
+
+        results = payload.get("results") or []
+        if not results:
+            return MetadataLookupResponse(success=False, lookup_source="CORE", lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, error_code="METADATA_UNAVAILABLE", error_message="CORE title search returned no results.")
+
+        for item in results:
+            result_title = str(item.get("title") or "")
+            if not _title_matches(title, result_title):
+                continue
+            found_doi, result_authors, result_year, abstract = self._parse_core_work(item)
+            if year is not None and result_year is not None and abs(year - result_year) > 1:
+                continue
+            if authors and result_authors and not _first_author_matches(authors, result_authors):
+                continue
+            # All gates passed
+            download_url: str | None = item.get("downloadUrl") or None
+            url_field = (f"https://doi.org/{found_doi}" if found_doi else download_url)
+            return MetadataLookupResponse(
+                success=True,
+                lookup_source="CORE-TitleSearch",
+                lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+                doi=found_doi,
+                title=result_title or None,
+                authors=result_authors or None,
+                year=result_year,
+                venue=None,
+                publisher=None,
+                abstract=abstract,
+                url=url_field,
+                raw_metadata_json=item,
+                status_code=response.status_code,
+            )
+
+        return MetadataLookupResponse(success=False, lookup_source="CORE", lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, error_code="TITLE_MATCH_INSUFFICIENT", error_message=f"No CORE result passed title/author/year gates for query '{title[:80]}'.")
+
+    def get_fulltext_by_doi(self, doi: str) -> tuple[str | None, str | None]:
+        """Return (full_text, source_label) for a paper by DOI using the CORE API.
+
+        CORE returns the full text directly in the JSON response for many papers,
+        avoiding the need to download and parse a PDF. The source label is either
+        the CORE download URL (when full text comes from a downloadable file) or a
+        synthetic 'core:{doi}' string (when text is returned inline).
+
+        Returns (None, None) on any failure so the caller can fall back gracefully.
+        """
+        # Search by DOI using the quoted doi: qualifier understood by CORE's search engine
+        params: dict[str, str] = {"q": f'doi:"{doi}"', "limit": "1"}
+        url = f"{self.base_url}/search/works"
+        try:
+            if self._client is not None:
+                response = self._client.get(url, headers=self._headers(), params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                    response = client.get(url, headers=self._headers(), params=params)
+        except Exception:
+            return None, None
+
+        if response.status_code != 200:
+            return None, None
+
+        try:
+            payload = response.json()
+        except Exception:
+            return None, None
+
+        results = payload.get("results") or []
+        if not results:
+            return None, None
+
+        item = results[0]
+        full_text: str | None = item.get("fullText") or None
+        if full_text and isinstance(full_text, str):
+            full_text = full_text.strip()[:self.settings.fulltext_max_chars] or None
+        download_url: str | None = item.get("downloadUrl") or None
+        if not download_url:
+            # sourceFulltextUrls is a list of direct PDF/HTML links from data providers
+            source_urls = item.get("sourceFulltextUrls") or []
+            if isinstance(source_urls, list) and source_urls:
+                download_url = source_urls[0] or None
+
+        if full_text:
+            return full_text, download_url or f"core:{doi}"
+        # No inline full text — return the download URL so the caller can try PDF extraction
+        return None, download_url
+
+
+class SsrnClient:
+    """SSRN preprint client — fetches the abstract for SSRN working papers.
+
+    SSRN (Social Science Research Network) hosts working papers for management,
+    economics, law, and social science. Papers carry DOIs of the form
+    10.2139/ssrn.XXXXXXX and are indexed by CrossRef, but CrossRef rarely
+    includes the abstract. This client fetches it directly from the SSRN paper
+    page using a regex over the HTML.
+
+    Full PDFs require a free SSRN account, so we retrieve abstracts only.
+    Evidence packages for SSRN papers are classified as PREPRINT_AVAILABLE (not
+    FULL_TEXT_AVAILABLE or ABSTRACT_AVAILABLE) to signal that the text comes
+    from a working paper, not the final peer-reviewed publication.
+    """
+
+    _SSRN_DOI_RE = re.compile(r"^10\.2139/ssrn\.(\d+)$", re.IGNORECASE)
+    _ABSTRACT_PAGE = "https://papers.ssrn.com/sol3/papers.cfm"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    @classmethod
+    def ssrn_id_from_doi(cls, doi: str) -> str | None:
+        """Return the numeric SSRN paper ID from a 10.2139/ssrn.XXXXXXX DOI, or None."""
+        m = cls._SSRN_DOI_RE.match(doi.strip())
+        return m.group(1) if m else None
+
+    def get_abstract_for_doi(self, doi: str) -> str | None:
+        """Return the abstract text for an SSRN paper identified by its DOI, or None."""
+        ssrn_id = self.ssrn_id_from_doi(doi)
+        if not ssrn_id:
+            return None
+        return self._fetch_abstract(ssrn_id)
+
+    def _fetch_abstract(self, ssrn_id: str) -> str | None:
+        headers = {
+            "User-Agent": self.settings.metadata_user_agent,
+            "Accept": "text/html",
+        }
+        params = {"abstract_id": ssrn_id}
+        try:
+            if self._client is not None:
+                response = self._client.get(self._ABSTRACT_PAGE, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                    response = client.get(self._ABSTRACT_PAGE, headers=headers, params=params)
+        except Exception:
+            return None
+
+        if response.status_code != 200:
+            return None
+
+        page_text = response.text
+        # Primary: SSRN renders the abstract inside <div class="abstract-text">
+        match = re.search(r'<div[^>]+class="abstract-text[^"]*"[^>]*>(.*?)</div>', page_text, re.DOTALL | re.IGNORECASE)
+        if not match:
+            # Fallback: schema.org description attribute
+            match = re.search(r'itemprop=["\']description["\'][^>]*>(.*?)</(?:div|span|p)>', page_text, re.DOTALL | re.IGNORECASE)
+        if not match:
+            return None
+
+        raw = match.group(1)
+        text = re.sub(r"<[^>]+>", " ", raw)
+        text = html.unescape(text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text or None
+
+
 def _reconstruct_openalex_abstract(inverted_index: Any) -> str | None:
     """Reconstruct plain text from OpenAlex's inverted-index abstract format."""
     if not isinstance(inverted_index, dict) or not inverted_index:

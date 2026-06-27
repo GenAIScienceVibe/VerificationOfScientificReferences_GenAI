@@ -49,6 +49,8 @@ class Settings(BaseModel):
     semantic_scholar_base_url: str = Field(default="https://api.semanticscholar.org", alias="SEMANTIC_SCHOLAR_BASE_URL")
     unpaywall_base_url: str = Field(default="https://api.unpaywall.org", alias="UNPAYWALL_BASE_URL")
     unpaywall_email: str | None = Field(default=None, alias="UNPAYWALL_EMAIL")
+    core_api_key: str | None = Field(default=None, alias="CORE_API_KEY")
+    core_base_url: str = Field(default="https://api.core.ac.uk/v3", alias="CORE_BASE_URL")
     fulltext_max_bytes: int = Field(default=15 * 1024 * 1024, alias="FULLTEXT_MAX_BYTES")
     fulltext_max_chars: int = Field(default=150_000, alias="FULLTEXT_MAX_CHARS")
     metadata_max_retries: int = Field(default=2, alias="METADATA_MAX_RETRIES")
@@ -87,6 +89,7 @@ class Settings(BaseModel):
     safety_max_confidence_with_metadata_only: float = Field(default=0.70, alias="SAFETY_MAX_CONFIDENCE_WITH_METADATA_ONLY")
     safety_max_confidence_with_source_unavailable: float = Field(default=0.40, alias="SAFETY_MAX_CONFIDENCE_WITH_SOURCE_UNAVAILABLE")
     safety_max_confidence_with_low_similarity: float = Field(default=0.55, alias="SAFETY_MAX_CONFIDENCE_WITH_LOW_SIMILARITY")
+    safety_max_confidence_with_preprint: float = Field(default=0.65, alias="SAFETY_MAX_CONFIDENCE_WITH_PREPRINT")
     safety_policy_version: str = Field(default="policy-v1", alias="SAFETY_POLICY_VERSION")
 
     model_config = {
@@ -156,6 +159,8 @@ def _read_env() -> dict[str, object]:
         "SEMANTIC_SCHOLAR_BASE_URL",
         "UNPAYWALL_BASE_URL",
         "UNPAYWALL_EMAIL",
+        "CORE_API_KEY",
+        "CORE_BASE_URL",
         "FULLTEXT_MAX_BYTES",
         "FULLTEXT_MAX_CHARS",
         "METADATA_MAX_RETRIES",
@@ -192,6 +197,7 @@ def _read_env() -> dict[str, object]:
         "SAFETY_MAX_CONFIDENCE_WITH_METADATA_ONLY",
         "SAFETY_MAX_CONFIDENCE_WITH_SOURCE_UNAVAILABLE",
         "SAFETY_MAX_CONFIDENCE_WITH_LOW_SIMILARITY",
+        "SAFETY_MAX_CONFIDENCE_WITH_PREPRINT",
         "SAFETY_POLICY_VERSION",
     }
     return {key: value for key in keys if (value := os.getenv(key)) is not None}

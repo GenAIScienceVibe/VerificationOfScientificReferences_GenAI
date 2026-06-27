@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 import pymupdf
 
-from app.clients.metadata_clients import CrossrefClient, DoiResolverClient, MetadataLookupResponse, OpenAlexClient, SemanticScholarClient, UnpaywallClient
+from app.clients.metadata_clients import CoreClient, CrossrefClient, DoiResolverClient, MetadataLookupResponse, OpenAlexClient, SemanticScholarClient, SsrnClient, UnpaywallClient
 from app.core.config import Settings, get_settings
 from app.core.errors import AppException, ErrorCode
 from app.models import Document, Reference, SourceMetadata
@@ -217,6 +217,8 @@ class MetadataLookupService:
         openalex_client: OpenAlexClient | None = None,
         semantic_scholar_client: SemanticScholarClient | None = None,
         unpaywall_client: UnpaywallClient | None = None,
+        core_client: CoreClient | None = None,
+        ssrn_client: SsrnClient | None = None,
         doi_resolver_client: DoiResolverClient | None = None,
     ) -> None:
         self.settings = settings or get_settings()
@@ -224,6 +226,8 @@ class MetadataLookupService:
         self.openalex_client = openalex_client or OpenAlexClient(self.settings)
         self.semantic_scholar_client = semantic_scholar_client or SemanticScholarClient(self.settings)
         self.unpaywall_client = unpaywall_client or UnpaywallClient(self.settings)
+        self.core_client = core_client or CoreClient(self.settings)
+        self.ssrn_client = ssrn_client or SsrnClient(self.settings)
         self.doi_resolver_client = doi_resolver_client or DoiResolverClient(self.settings)
 
     def verify_reference_doi(self, reference_id: str, db: Session, *, request_id: str | None = None, force_refresh: bool = False) -> dict[str, Any]:
@@ -367,6 +371,13 @@ class MetadataLookupService:
                         year=reference.extracted_year,
                     )),
                 ]
+                # CORE is added only when an API key is configured — the API requires auth.
+                if self.settings.core_api_key:
+                    _title_searchers.append(("CORE-TitleSearch", lambda: self.core_client.search_by_title(
+                        title=reference.extracted_title,
+                        authors=reference.extracted_authors,
+                        year=reference.extracted_year,
+                    )))
                 for source_name, searcher in _title_searchers:
                     title_response = searcher()
                     if title_response.success and title_response.doi:
@@ -534,14 +545,33 @@ class MetadataLookupService:
                 response = _merge_abstract_fallback(response, ss)
                 logger.info("abstract_fallback_semantic_scholar", extra={"reference_id": reference.id, "doi": doi})
 
+        # SSRN abstract enhancement — CrossRef indexes SSRN working papers by DOI
+        # (10.2139/ssrn.*) but rarely includes the abstract. When no abstract was
+        # found by any prior source, fetch it directly from the SSRN paper page.
+        if response.success and not response.abstract:
+            ssrn_abstract = self.ssrn_client.get_abstract_for_doi(doi)
+            if ssrn_abstract:
+                response = _merge_abstract_fallback(
+                    response,
+                    MetadataLookupResponse(
+                        success=True,
+                        lookup_source="SSRN",
+                        lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+                        doi=doi,
+                        abstract=ssrn_abstract,
+                    ),
+                )
+                logger.info("abstract_fallback_ssrn", extra={"reference_id": reference.id, "doi": doi})
+
         # Full-text upgrade — priority: arXiv direct URL → OA URL from metadata
-        # → Unpaywall as last resort.
+        # → Unpaywall → CORE (inline full text or download URL).
         if response.success:
             pdf_url = arxiv_pdf or (response.url if (response.url and response.url.lower().endswith(".pdf")) else None)
             if not pdf_url and self.settings.unpaywall_email:
                 pdf_url = self.unpaywall_client.lookup_by_doi(doi)
                 if pdf_url:
                     logger.info("fulltext_pdf_url_unpaywall", extra={"reference_id": reference.id, "doi": doi})
+            full_text: str | None = None
             if pdf_url:
                 full_text = _extract_fulltext_from_url(
                     pdf_url,
@@ -551,6 +581,25 @@ class MetadataLookupService:
                 if full_text:
                     response = _merge_fulltext(response, full_text, pdf_url)
                     logger.info("fulltext_extracted", extra={"reference_id": reference.id, "doi": doi, "chars": len(full_text)})
+            # CORE fallback: covers institutional repositories and preprints missed by
+            # Unpaywall. CORE returns full text inline when available, eliminating the
+            # PDF download step. If only a download URL is returned, we fall back to the
+            # standard PDF extraction path.
+            if not full_text and self.settings.core_api_key:
+                core_text, core_source = self.core_client.get_fulltext_by_doi(doi)
+                if core_text:
+                    response = _merge_fulltext(response, core_text, core_source or f"core:{doi}")
+                    logger.info("fulltext_core_direct", extra={"reference_id": reference.id, "doi": doi, "chars": len(core_text)})
+                elif core_source:
+                    # CORE found a download URL but no inline full text — try PDF extraction
+                    core_pdf_text = _extract_fulltext_from_url(
+                        core_source,
+                        max_bytes=self.settings.fulltext_max_bytes,
+                        max_chars=self.settings.fulltext_max_chars,
+                    )
+                    if core_pdf_text:
+                        response = _merge_fulltext(response, core_pdf_text, core_source)
+                        logger.info("fulltext_core_pdf", extra={"reference_id": reference.id, "doi": doi, "chars": len(core_pdf_text)})
 
         metadata = self._persist_lookup_response(reference, response, db)
         logger.info(

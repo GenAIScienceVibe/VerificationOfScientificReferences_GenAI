@@ -16,6 +16,20 @@ from app.services.doi_metadata_lookup import _authors_to_list, metadata_to_dict
 
 logger = logging.getLogger(__name__)
 
+_SSRN_DOI_PREFIX = "10.2139/ssrn."
+
+
+def _is_preprint_source(metadata_payload: dict[str, Any]) -> bool:
+    """Return True when metadata indicates a preprint source (currently SSRN)."""
+    doi = str(metadata_payload.get("doi") or "").lower()
+    url = str(metadata_payload.get("url") or "").lower()
+    lookup_source = str(metadata_payload.get("lookup_source") or "").lower()
+    return (
+        doi.startswith(_SSRN_DOI_PREFIX)
+        or "ssrn.com" in url
+        or "ssrn" in lookup_source
+    )
+
 
 def _iso(value: Any) -> str | None:
     if value is None:
@@ -118,6 +132,7 @@ class EvidencePackageBuilder:
             "evidence_packages_created": len(created),
             "metadata_only": availability_counts.get(EvidenceAvailability.METADATA_ONLY.value, 0),
             "abstract_available": availability_counts.get(EvidenceAvailability.ABSTRACT_AVAILABLE.value, 0),
+            "preprint_available": availability_counts.get(EvidenceAvailability.PREPRINT_AVAILABLE.value, 0),
             "full_text_available": availability_counts.get(EvidenceAvailability.FULL_TEXT_AVAILABLE.value, 0),
             "source_unavailable": availability_counts.get(EvidenceAvailability.SOURCE_UNAVAILABLE.value, 0),
             "skipped_links_count": len(skipped),
@@ -224,9 +239,14 @@ class EvidencePackageBuilder:
             maybe_full_text = raw.get("full_text") or raw.get("fullText") or raw.get("source_full_text")
             if isinstance(maybe_full_text, str) and maybe_full_text.strip():
                 full_text = maybe_full_text.strip()
+        is_preprint = _is_preprint_source(metadata_payload)
         if full_text:
+            if is_preprint:
+                return EvidenceAvailability.PREPRINT_AVAILABLE.value, full_text, source_url
             return EvidenceAvailability.FULL_TEXT_AVAILABLE.value, full_text, source_url
         if abstract:
+            if is_preprint:
+                return EvidenceAvailability.PREPRINT_AVAILABLE.value, abstract, source_url
             return EvidenceAvailability.ABSTRACT_AVAILABLE.value, abstract, source_url
         has_metadata = any(
             _non_empty(metadata_payload.get(key))
@@ -244,6 +264,8 @@ class EvidencePackageBuilder:
             warnings.append({"code": "METADATA_UNAVAILABLE", "detail": "No BE-5 SourceMetadata record was available; reference-extracted fields were packaged as fallback metadata."})
         if evidence_availability == EvidenceAvailability.SOURCE_UNAVAILABLE.value:
             warnings.append({"code": "SOURCE_EVIDENCE_UNAVAILABLE", "detail": "No abstract, full text, or usable metadata source evidence is available."})
+        if evidence_availability == EvidenceAvailability.PREPRINT_AVAILABLE.value:
+            warnings.append({"code": "PREPRINT_SOURCE", "detail": "Evidence is from a preprint (e.g. SSRN working paper). Text may differ from the final published version."})
         return warnings
 
     def package_to_contract(self, package: EvidencePackage) -> dict[str, Any]:

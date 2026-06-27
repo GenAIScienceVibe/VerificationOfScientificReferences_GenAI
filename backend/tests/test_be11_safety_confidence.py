@@ -191,6 +191,23 @@ def test_evidence_used_mismatch_triggers_review() -> None:
         assert "EVIDENCE_USED_MISMATCH" in decision.rules_triggered
 
 
+def test_preprint_source_caps_confidence_and_requires_review() -> None:
+    """PREPRINT_AVAILABLE evidence caps confidence at 0.65 and sets human_review_required."""
+    *_ids, result_id = _seed_safety_case(
+        evidence_availability=EvidenceAvailability.PREPRINT_AVAILABLE.value,
+        confidence=0.90,
+        support_status=SupportStatus.SUPPORTED.value,
+        similarity=0.85,
+    )
+    with SessionLocal() as db:
+        result = db.get(VerificationResult, result_id)
+        decision = SafetyPolicyService().evaluate_and_apply(result, db)
+        db.commit()
+        assert "PREPRINT_SOURCE" in decision.rules_triggered
+        assert result.confidence <= 0.65
+        assert result.human_review_required is True
+
+
 def test_safety_endpoints_expose_checks_and_summary() -> None:
     doc_id, *_rest, result_id = _seed_safety_case(similarity=0.40, confidence=0.95, support_status=SupportStatus.SUPPORTED.value)
     with SessionLocal() as db:

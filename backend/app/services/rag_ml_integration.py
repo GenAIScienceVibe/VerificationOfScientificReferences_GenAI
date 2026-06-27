@@ -31,9 +31,12 @@ _DOI_STATUS_TO_RAG: dict[str, str] = {
 }
 
 # Map backend EvidenceAvailability values → RAG EvidenceAvailability values
+# PREPRINT_AVAILABLE is treated as ABSTRACT_AVAILABLE for the RAG pipeline;
+# the preprint distinction is handled by the safety policy, not the retrieval layer.
 _EVIDENCE_AVAIL_TO_RAG: dict[str, str] = {
     EvidenceAvailability.FULL_TEXT_AVAILABLE.value: "FULL_TEXT_AVAILABLE",
     EvidenceAvailability.ABSTRACT_AVAILABLE.value: "ABSTRACT_AVAILABLE",
+    EvidenceAvailability.PREPRINT_AVAILABLE.value: "ABSTRACT_AVAILABLE",
     EvidenceAvailability.METADATA_ONLY.value: "UNAVAILABLE",
     EvidenceAvailability.SOURCE_UNAVAILABLE.value: "UNAVAILABLE",
 }
@@ -206,6 +209,9 @@ class MockRagClient:
         if availability == EvidenceAvailability.ABSTRACT_AVAILABLE.value and text:
             evidence_type = "ABSTRACT"
             source_name = "metadata_abstract"
+        elif availability == EvidenceAvailability.PREPRINT_AVAILABLE.value and text:
+            evidence_type = "ABSTRACT"
+            source_name = "preprint_abstract"
         elif availability == EvidenceAvailability.FULL_TEXT_AVAILABLE.value and text:
             evidence_type = "FULL_TEXT"
             source_name = "backend_full_text"

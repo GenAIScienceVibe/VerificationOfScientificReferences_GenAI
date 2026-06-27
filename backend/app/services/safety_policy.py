@@ -208,6 +208,16 @@ class SafetyPolicyService:
                 final_support_status=SupportStatus.INSUFFICIENT_EVIDENCE.value,
                 confidence_cap=self.settings.safety_max_confidence_with_source_unavailable,
             ))
+        elif evidence_availability == EvidenceAvailability.PREPRINT_AVAILABLE.value:
+            add(SafetyRuleHit(
+                rule="PREPRINT_SOURCE",
+                issue="Evidence is from an unreviewed preprint (e.g. SSRN working paper). Text may differ from the final published version.",
+                recommended_action="Verify the claim against the published version or flag for human review.",
+                risk_level=SafetyRiskLevel.MEDIUM.value,
+                safety_status=SAFETY_STATUS_WARNING,
+                confidence_cap=self.settings.safety_max_confidence_with_preprint,
+                human_review_required=True,
+            ))
         elif evidence_availability == EvidenceAvailability.METADATA_ONLY.value and result.support_status == SupportStatus.SUPPORTED.value and self.settings.safety_flag_metadata_only_supported:
             add(SafetyRuleHit(
                 rule="METADATA_ONLY_SUPPORTED",

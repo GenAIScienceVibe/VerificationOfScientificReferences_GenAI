@@ -188,6 +188,61 @@ def test_get_evidence_package_for_missing_claim_or_unbuilt_package() -> None:
     assert unbuilt.json()["errors"][0]["code"] == "EVIDENCE_PACKAGE_NOT_FOUND"
 
 
+def test_ssrn_doi_becomes_preprint_available() -> None:
+    """A reference with a 10.2139/ssrn.* DOI is classified as PREPRINT_AVAILABLE."""
+    with SessionLocal() as db:
+        doc = Document(filename="ssrn.txt", title="SSRN Demo", upload_type=UploadType.TEXT.value, status=DocumentStatus.CLAIMS_EXTRACTED.value)
+        db.add(doc)
+        db.flush()
+        ref = Reference(
+            document_id=doc.id,
+            reference_key="Zhu_2016",
+            raw_reference="Zhu, D.H. & Shen, W. (2016). An SSRN working paper.",
+            extracted_title="An SSRN working paper",
+            extracted_authors="Zhu, D.H.",
+            extracted_year=2016,
+            extracted_doi="10.2139/ssrn.2803610",
+            doi_status=DoiStatus.VALID.value,
+            metadata_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            metadata_match_score=0.90,
+        )
+        claim = Claim(
+            document_id=doc.id,
+            claim_text="CEOs engage in more acquisitions after peer firms do.",
+            claim_type="EMPIRICAL",
+            section_name="Introduction",
+            source_paragraph="CEOs engage in more acquisitions after peer firms do (Zhu & Shen, 2016).",
+            paragraph_index=1,
+            sentence_index=0,
+            extraction_confidence=0.85,
+        )
+        db.add_all([ref, claim])
+        db.flush()
+        citation = Citation(document_id=doc.id, claim_id=claim.id, raw_citation="(Zhu & Shen, 2016)", citation_style="APA", sentence_text=claim.source_paragraph, mapped_reference_id=ref.id, mapping_confidence=0.91)
+        db.add(citation)
+        db.flush()
+        db.add(ClaimReferenceLink(document_id=doc.id, claim_id=claim.id, citation_id=citation.id, reference_id=ref.id, mapping_status=MappingStatus.MAPPED.value, mapping_confidence=0.91, mapping_reason="Author and year match."))
+        db.add(SourceMetadata(
+            reference_id=ref.id,
+            doi="10.2139/ssrn.2803610",
+            title="An SSRN working paper",
+            authors="Zhu, D.H.",
+            year=2016,
+            abstract="This paper examines CEO peer effects in acquisition decisions.",
+            url="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2803610",
+            lookup_source="CrossRef",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            metadata_match_score=0.90,
+        ))
+        db.commit()
+        result = EvidencePackageBuilder().prepare_evidence_for_document(doc.id, db)
+        assert result["preprint_available"] == 1
+        assert result["abstract_available"] == 0
+        package = db.query(EvidencePackage).filter(EvidencePackage.document_id == doc.id).one()
+        assert package.evidence_availability == EvidenceAvailability.PREPRINT_AVAILABLE.value
+        assert any(item["code"] == "PREPRINT_SOURCE" for item in (package.package_warnings_json or []))
+
+
 def test_direct_builder_source_unavailable_when_no_metadata_and_no_fields() -> None:
     with SessionLocal() as db:
         doc = Document(filename="source-unavailable.txt", title="Source unavailable", upload_type=UploadType.TEXT.value, status=DocumentStatus.CLAIMS_EXTRACTED.value)
