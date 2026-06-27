@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>verifAi — BE-14 Setup &amp; Onboarding</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #1a1a2e;
+      background: #fff;
+      padding: 40px 60px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* ── Cover ── */
+    .cover {
+      text-align: center;
+      padding: 60px 0 50px;
+      border-bottom: 3px solid #4361ee;
+      margin-bottom: 40px;
+    }
+    .cover .badge {
+      display: inline-block;
+      background: #4361ee;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 20px;
+      margin-bottom: 18px;
+    }
+    .cover h1 {
+      font-size: 28px;
+      font-weight: 800;
+      color: #1a1a2e;
+      margin-bottom: 8px;
+    }
+    .cover .subtitle {
+      font-size: 15px;
+      color: #555;
+      margin-bottom: 24px;
+    }
+    .cover .meta {
+      font-size: 12px;
+      color: #888;
+    }
+
+    /* ── Headings ── */
+    h2 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #4361ee;
+      margin: 36px 0 10px;
+      padding-bottom: 4px;
+      border-bottom: 2px solid #e8eaf6;
+    }
+    h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin: 22px 0 8px;
+    }
+
+    /* ── Paragraphs ── */
+    p { margin-bottom: 10px; }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px;
+      font-size: 12px;
+    }
+    th {
+      background: #4361ee;
+      color: #fff;
+      text-align: left;
+      padding: 7px 10px;
+      font-weight: 600;
+    }
+    td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #e8eaf6;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #f5f7ff; }
+
+    /* ── Code blocks ── */
+    pre {
+      background: #f0f2ff;
+      border-left: 4px solid #4361ee;
+      padding: 14px 16px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 12px;
+      margin: 10px 0 16px;
+      line-height: 1.5;
+    }
+    code {
+      font-family: "Consolas", "Courier New", monospace;
+      background: #eef0ff;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+
+    /* ── Alert boxes ── */
+    .alert {
+      border-left: 4px solid;
+      padding: 12px 16px;
+      border-radius: 0 4px 4px 0;
+      margin: 14px 0;
+    }
+    .alert-info    { border-color: #4361ee; background: #eef0ff; }
+    .alert-warning { border-color: #f59e0b; background: #fffbeb; }
+    .alert-success { border-color: #10b981; background: #ecfdf5; }
+
+    /* ── Lists ── */
+    ul, ol { padding-left: 20px; margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+
+    /* ── Hierarchy box ── */
+    .hierarchy {
+      background: #f0f2ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 6px;
+      padding: 14px 18px;
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 12px;
+      line-height: 2;
+      margin: 10px 0 16px;
+    }
+
+    /* ── Step boxes ── */
+    .steps { counter-reset: step; }
+    .step {
+      counter-increment: step;
+      display: flex;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .step::before {
+      content: counter(step);
+      min-width: 28px;
+      height: 28px;
+      background: #4361ee;
+      color: #fff;
+      border-radius: 50%;
+      font-weight: 700;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-content { flex: 1; }
+
+    /* ── Print ── */
+    @media print {
+      body { padding: 20px 30px; }
+      h2 { page-break-before: auto; }
+      pre, table { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════ COVER -->
+<div class="cover">
+  <div class="badge">TUM Campus Heilbronn · Foundations of GenAI · SoSe 2026</div>
+  <h1>verifAi — BE-14 Integration</h1>
+  <div class="subtitle">Setup Guide &amp; Technical Overview für Teammitglieder</div>
+  <div class="meta">
+    Branch: <strong>integration/backend-rag-merge</strong> &nbsp;|&nbsp;
+    Stand: Juni 2026 &nbsp;|&nbsp;
+    Kontakt: Jona Hartleb · Saqer Terkawi
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ OVERVIEW -->
+<h2>1. Was ist verifAi / BE-14?</h2>
+<p>
+  <strong>verifAi</strong> prüft, ob wissenschaftliche Behauptungen in einem Dokument wirklich durch
+  die zitierten Quellen gestützt werden. Es erkennt erfundene Zitationen, falsch zugeordnete Quellen
+  und Quellen, die die Aussage gar nicht belegen.
+</p>
+<p>
+  <strong>BE-14</strong> ist die aktuelle Integrationsstufe. Sie baut auf dem BE-13-Baseline auf und
+  fügt die vollständige Volltext-Pipeline (Unpaywall, arXiv, User-PDF-Upload), Titel-basiertes
+  DOI-Lookup, SSRN-Erkennung und die RAG-Hybrid-Pipeline hinzu.
+</p>
+
+<div class="alert alert-info">
+  <strong>Für Teammitglieder:</strong> Dieser Guide zeigt euch, wie ihr das Projekt lokal zum Laufen
+  bringt — inklusive aller API-Keys, die ihr dafür braucht.
+</div>
+
+<!-- ══════════════════════════════════════════════════════ SETUP -->
+<h2>2. Lokales Setup (Schritt für Schritt)</h2>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-content">
+      <strong>Repository klonen &amp; Branch wechseln</strong>
+      <pre>git clone https://github.com/GenAIScienceVibe/VerificationOfScientificReferences_GenAI.git
+cd VerificationOfScientificReferences_GenAI
+git checkout integration/backend-rag-merge</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-content">
+      <strong>Virtual Environment erstellen &amp; Dependencies installieren</strong>
+      <pre>cd backend
+python -m venv .venv
+
+# Windows:
+.venv\Scripts\activate
+
+# Mac/Linux:
+source .venv/bin/activate
+
+pip install -r requirements.txt</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-content">
+      <strong>.env-Datei erstellen</strong>
+      <p>Die <code>.env.example</code> als Vorlage kopieren:</p>
+      <pre>cp .env.example .env</pre>
+      <p>Dann die <code>.env</code> mit euren API-Keys befüllen — siehe Abschnitt 3.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-content">
+      <strong>Datenbank initialisieren &amp; Server starten</strong>
+      <pre># Datenbank anlegen (beim ersten Start automatisch)
+python -m uvicorn app.main:app --reload --port 8000</pre>
+      <p>API ist danach erreichbar unter <code>http://localhost:8000/api/v1</code></p>
+      <p>Swagger-Doku: <code>http://localhost:8000/docs</code></p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-content">
+      <strong>Tests ausführen (optional, zum Prüfen)</strong>
+      <pre>pytest tests/ -q</pre>
+      <p>Erwartet: <strong>130 passed</strong></p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ API KEYS -->
+<h2>3. API-Keys — Wo bekommt ihr sie, wo kommen sie hin?</h2>
+
+<div class="alert alert-warning">
+  <strong>Wichtig:</strong> Die <code>.env</code>-Datei niemals committen oder teilen. Sie ist in
+  <code>.gitignore</code> eingetragen und bleibt lokal.
+</div>
+
+<h3>3.1 OpenRouter (Pflicht — LLM + Embeddings)</h3>
+<p>
+  Wir nutzen OpenRouter als einzigen API-Provider. Er gibt uns Zugang zu allen Modellen
+  (Llama 4 Scout für Verifikation, text-embedding-3-small für Embeddings) über einen einzigen Key.
+</p>
+<ul>
+  <li>Account erstellen unter <strong>openrouter.ai</strong></li>
+  <li>Dashboard → "Keys" → "Create Key"</li>
+  <li>Kostenfrei nutzbar mit Guthaben-Limit; für Demo-Zwecke reicht das Free-Tier</li>
+</ul>
+<p>In <code>backend/.env</code> eintragen:</p>
+<pre>OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1</pre>
+<p>
+  Außerdem muss in <code>rag/.env</code> (RAG-Subgruppe) derselbe Key stehen:
+</p>
+<pre>OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1</pre>
+
+<h3>3.2 Unpaywall (kostenlos, nur E-Mail nötig)</h3>
+<p>
+  Unpaywall findet legale Open-Access-PDFs zu DOIs. Kein Account, kein Key — nur eine
+  Kontakt-E-Mail laut Unpaywall-Nutzungsbedingungen.
+</p>
+<pre>UNPAYWALL_EMAIL=eure-email@beispiel.de</pre>
+
+<h3>3.3 CORE API (optional — vollständigere OA-Abdeckung)</h3>
+<p>
+  CORE erweitert die Volltext-Suche über Unpaywall hinaus. Für die Demo nicht zwingend nötig,
+  erhöht aber die Trefferquote bei Open-Access-Papieren.
+</p>
+<ul>
+  <li>Kostenloser Key unter <strong>core.ac.uk/services/api</strong></li>
+  <li>Rate Limit: 10 req/sec, 1.000 Requests/Tag (Free-Tier)</li>
+</ul>
+<pre>CORE_API_KEY=euer_core_key_hier</pre>
+
+<h3>3.4 Alle relevanten .env-Einträge im Überblick</h3>
+<p>Diese Werte müssen/sollten in <code>backend/.env</code> gesetzt sein:</p>
+
+<table>
+  <tr>
+    <th>Variable</th>
+    <th>Pflicht?</th>
+    <th>Standardwert / Hinweis</th>
+  </tr>
+  <tr>
+    <td><code>OPENROUTER_API_KEY</code></td>
+    <td>✅ Ja</td>
+    <td>Von openrouter.ai</td>
+  </tr>
+  <tr>
+    <td><code>OPENROUTER_BASE_URL</code></td>
+    <td>✅ Ja</td>
+    <td><code>https://openrouter.ai/api/v1</code></td>
+  </tr>
+  <tr>
+    <td><code>UNPAYWALL_EMAIL</code></td>
+    <td>✅ Ja</td>
+    <td>Eure Kontakt-E-Mail</td>
+  </tr>
+  <tr>
+    <td><code>GENAI_MOCK_MODE</code></td>
+    <td>—</td>
+    <td><code>false</code> für echten LLM-Call; <code>true</code> für Offline-Tests</td>
+  </tr>
+  <tr>
+    <td><code>RAG_MOCK_MODE</code></td>
+    <td>—</td>
+    <td><code>false</code> für echte Pipeline; <code>true</code> für Offline-Tests</td>
+  </tr>
+  <tr>
+    <td><code>CORE_API_KEY</code></td>
+    <td>Optional</td>
+    <td>Von core.ac.uk — verbessert OA-Abdeckung</td>
+  </tr>
+  <tr>
+    <td><code>DATABASE_URL</code></td>
+    <td>—</td>
+    <td><code>sqlite:///./data/refcheck_be4_2.db</code> (Default)</td>
+  </tr>
+</table>
+
+<!-- ══════════════════════════════════════════════════════ FEATURES -->
+<h2>4. Was BE-14 kann — Feature-Übersicht</h2>
+
+<h3>4.1 Evidence-Pipeline (Volltext-Beschaffung)</h3>
+<p>Das System versucht für jede Referenz so viel Text wie möglich zu beschaffen:</p>
+
+<div class="hierarchy">
+  FULL_TEXT_AVAILABLE &nbsp; ← Unpaywall OA-PDF, arXiv-PDF, CORE-Volltext oder User-Upload &nbsp; ✅ bestes Ergebnis<br>
+  PREPRINT_AVAILABLE &nbsp;&nbsp; ← SSRN Working Paper (Abstract) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ⚠️ Human Review<br>
+  ABSTRACT_AVAILABLE &nbsp;&nbsp; ← OpenAlex / SemanticScholar Abstract<br>
+  METADATA_ONLY &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ← Nur Titel / Autoren / Jahr<br>
+  SOURCE_UNAVAILABLE &nbsp;&nbsp; ← DOI löst sich nicht auf
+</div>
+
+<h3>4.2 DOI-Lookup-Kette</h3>
+<p>Für jede Referenz läuft das System folgende Kette durch:</p>
+<ol>
+  <li><strong>CrossRef</strong> — primäre DOI-Auflösung</li>
+  <li><strong>OpenAlex</strong> — Abstract-Fallback</li>
+  <li><strong>SemanticScholar</strong> — Abstract-Fallback + arXiv-ID-Support</li>
+  <li><strong>Unpaywall</strong> — PDF-URL für Open-Access-Papiere</li>
+  <li><strong>CORE</strong> — Volltext-Fallback nach Unpaywall; liefert Text direkt im JSON (kein PDF-Download nötig); aktiv nur wenn <code>CORE_API_KEY</code> gesetzt</li>
+  <li><strong>SSRN</strong> — Abstract-Scraping für Working Papers (DOI <code>10.2139/ssrn.*</code>)</li>
+</ol>
+
+<h3>4.3 Titel-basiertes DOI-Lookup (vier Quellen)</h3>
+<p>
+  Viele Papiere in Management, Jura und Geisteswissenschaften haben keine DOI im Literaturverzeichnis.
+  Das System sucht dann per Titel bei <strong>CrossRef → OpenAlex → SemanticScholar → CORE</strong>
+  und prüft jeden Treffer mit drei Heuristiken (Titel-Ähnlichkeit ≥ 0.95, Jahres-Abgleich,
+  Autoren-Überlappung). CORE wird nur einbezogen, wenn <code>CORE_API_KEY</code> in <code>.env</code> gesetzt ist.
+</p>
+
+<h3>4.4 SSRN / Preprint-Erkennung</h3>
+<p>
+  SSRN-Papiere (DOI-Prefix <code>10.2139/ssrn.*</code>) werden automatisch erkannt und als
+  <code>PREPRINT_AVAILABLE</code> klassifiziert. Die Safety Policy begrenzt die Konfidenz auf 0.65
+  und setzt immer <code>human_review_required = true</code>, da der Preprint-Text vom
+  publizierten Paper abweichen kann.
+</p>
+
+<h3>4.5 User-PDF-Upload</h3>
+<p>
+  Für paywalled Papiere, die Unpaywall nicht erreicht (z.B. Elsevier): der Nutzer kann das PDF
+  manuell hochladen.
+</p>
+<pre>POST /api/v1/references/{reference_id}/upload-source-pdf</pre>
+
+<h3>4.6 RAG-Pipeline (Retrieval)</h3>
+<p>Door 1 nutzt Hybrid-Retrieval:</p>
+<ul>
+  <li><strong>Dense FAISS</strong> — Cosine-Similarity auf OpenAI-Embeddings</li>
+  <li><strong>BM25</strong> — Keyword-Suche</li>
+  <li><strong>RRF</strong> — Reciprocal Rank Fusion zur Zusammenführung</li>
+  <li><strong>FlashRank</strong> — Neural Reranking der Top-Kandidaten</li>
+  <li><strong>Embedding Cache</strong> — jedes Paper wird nur einmal eingebettet, auch wenn mehrere Claims es zitieren</li>
+</ul>
+
+<!-- ══════════════════════════════════════════════════════ ENDPOINTS -->
+<h2>5. Wichtige API-Endpunkte</h2>
+
+<table>
+  <tr>
+    <th>Methode</th>
+    <th>Pfad</th>
+    <th>Was es tut</th>
+  </tr>
+  <tr>
+    <td><code>POST</code></td>
+    <td><code>/documents/text</code></td>
+    <td>Dokument hochladen (Text)</td>
+  </tr>
+  <tr>
+    <td><code>POST</code></td>
+    <td><code>/documents/{id}/extract-references</code></td>
+    <td>Referenzen extrahieren</td>
+  </tr>
+  <tr>
+    <td><code>POST</code></td>
+    <td><code>/documents/{id}/verify-dois</code></td>
+    <td>DOIs auflösen + Metadaten holen</td>
+  </tr>
+  <tr>
+    <td><code>POST</code></td>
+    <td><code>/documents/{id}/extract-claims</code></td>
+    <td>Claims aus dem Text extrahieren</td>
+  </tr>
+  <tr>
+    <td><code>POST</code></td>
+    <td><code>/documents/{id}/prepare-evidence</code></td>
+    <td>Evidence Packages bauen</td>
+  </tr>
+  <tr>
+    <td><code>POST</code></td>
+    <td><code>/documents/{id}/pipeline-runs</code></td>
+    <td>Komplette Verifikations-Pipeline starten</td>
+  </tr>
+  <tr>
+    <td><code>GET</code></td>
+    <td><code>/documents/{id}/verification-results</code></td>
+    <td>Ergebnisse abrufen</td>
+  </tr>
+  <tr>
+    <td><code>POST</code></td>
+    <td><code>/references/{id}/upload-source-pdf</code></td>
+    <td>PDF manuell hochladen (Paywall-Fallback)</td>
+  </tr>
+</table>
+
+<!-- ══════════════════════════════════════════════════════ MOCK MODE -->
+<h2>6. Offline testen (ohne API-Keys)</h2>
+
+<p>
+  Für reine Backend-Logik-Tests ohne echte LLM/Embedding-Calls den Mock-Mode aktivieren
+  (bereits Default in <code>.env.example</code>):
+</p>
+
+<pre>GENAI_MOCK_MODE=true
+RAG_MOCK_MODE=true</pre>
+
+<div class="alert alert-success">
+  Im Mock-Mode laufen alle 130 Tests durch — kein OpenRouter-Key nötig.
+</div>
+
+<p>Für die echte Pipeline (Demo, Live-Verifikation):</p>
+
+<pre>GENAI_MOCK_MODE=false
+RAG_MOCK_MODE=false</pre>
+
+<!-- ══════════════════════════════════════════════════════ KNOWN LIMITS -->
+<h2>7. Bekannte Einschränkungen</h2>
+
+<table>
+  <tr>
+    <th>Einschränkung</th>
+    <th>Workaround</th>
+  </tr>
+  <tr>
+    <td>Elsevier-PDFs: Unpaywall liefert keine PDF-URL trotz OA-Status</td>
+    <td>PDF manuell über Upload-Endpoint hochladen</td>
+  </tr>
+  <tr>
+    <td>Erstes Claim pro Paper dauert 10–25 Sekunden (Embedding + LLM)</td>
+    <td>Verification Cache: Wiederholungen &lt; 5 Sekunden</td>
+  </tr>
+  <tr>
+    <td>SSRN-Abstracts können vom publizierten Text abweichen</td>
+    <td>Safety Policy begrenzt Konfidenz auf 0.65, setzt Human-Review-Flag</td>
+  </tr>
+  <tr>
+    <td>Semantischer Cache (BE-8) ist noch ein Stub</td>
+    <td>Exakter Cache (claim_id-basiert) funktioniert vollständig</td>
+  </tr>
+</table>
+
+<!-- ══════════════════════════════════════════════════════ OUTLOOK -->
+<h2>8. Ausblick / TBD</h2>
+
+<h3>HyDE — Hypothetical Document Embeddings</h3>
+<p>
+  Statt den Claim direkt als Embedding-Query zu nutzen, generiert ein LLM zuerst einen
+  <em>hypothetischen Absatz</em>, der den Claim stützen würde. Dieser Absatz liegt semantisch
+  näher an den Quell-Chunks (Abstract/Volltext) und verbessert so die Retrieval-Qualität.
+</p>
+<p>
+  <strong>Trade-off:</strong> +1 LLM-Call pro Claim vor dem Embedding; bei schlechten Hypothesen
+  kann die Qualität sinken. A/B-Test über <code>rag/evaluation/benchmark.py</code> nötig.
+</p>
+
+<h3>Paralleles Embedding</h3>
+<p>
+  Beim ersten Claim für ein neues Paper laufen Source-Embedding und Query-Embedding aktuell
+  sequenziell. Parallelisierung mit <code>ThreadPoolExecutor</code> würde Door-1-Latenz um
+  ~40–50 % senken — aber das Risiko von Rate-Limit-Fehlern steigt.
+</p>
+
+<hr style="margin: 40px 0; border: none; border-top: 2px solid #e8eaf6;" />
+<p style="text-align:center; color: #aaa; font-size: 11px;">
+  verifAi · TUM Campus Heilbronn · Stand Juni 2026 · Branch: integration/backend-rag-merge
+</p>
+
+</body>
+</html>

@@ -51,9 +51,15 @@ For papers that are paywalled and cannot be reached automatically (e.g. Elsevier
   - `affected_claims` — list of claims in the document that cite this reference, each with `claim_id`, `claim_text`, and `citation_raw`
   - `next_step` — instruction to run `POST /documents/{document_id}/prepare-evidence` to rebuild evidence packages
 
+### CORE full-text integration
+- After Unpaywall, the system queries the **CORE API** (`https://api.core.ac.uk/v3/`) for papers that Unpaywall could not provide.
+- `CoreClient.get_fulltext_by_doi()` returns the full text inline (no PDF download needed) for many open-access papers indexed by CORE.
+- Active only when `CORE_API_KEY` is set in `.env`; gracefully skipped otherwise.
+- Requires `CORE_API_KEY` and optionally `CORE_BASE_URL` in `.env`.
+
 ### `force_refresh` on verify-dois
 - Added `force_refresh: bool` query parameter to `POST /documents/{document_id}/verify-dois`.
-- When `true`, re-runs the full lookup chain (CrossRef → OpenAlex → SemanticScholar → Unpaywall → PDF extraction) even for DOIs that already have cached metadata.
+- When `true`, re-runs the full lookup chain (CrossRef → OpenAlex → SemanticScholar → Unpaywall → CORE → PDF extraction) even for DOIs that already have cached metadata.
 - Necessary for documents processed before Unpaywall was integrated.
 
 ### Config and environment fixes
@@ -79,7 +85,7 @@ All other API endpoints existed before BE-14 and were not modified.
 | File | Change |
 |------|--------|
 | `app/core/config.py` | Absolute `load_dotenv()` path; `FULLTEXT_MAX_CHARS` default 150k; `FULLTEXT_MAX_BYTES` field |
-| `app/clients/metadata_clients.py` | `SemanticScholarClient.lookup_by_arxiv_id()` method |
+| `app/clients/metadata_clients.py` | `SemanticScholarClient.lookup_by_arxiv_id()`; `CoreClient` with `search_by_title()` and `get_fulltext_by_doi()` |
 | `app/services/doi_metadata_lookup.py` | `_ARXIV_DOI_RE`, `_arxiv_pdf_url()`, `_extract_fulltext_from_url()`, `_extract_fulltext_from_bytes()`, arXiv + Unpaywall fallback chain in `_verify_reference()`, `inject_fulltext_from_uploaded_pdf()` service method |
 | `app/api/v1/documents.py` | `force_refresh` query param on `verify-dois` |
 | `app/api/v1/references.py` | New `upload_source_pdf` endpoint |
@@ -115,39 +121,47 @@ SOURCE_UNAVAILABLE    ← DOI did not resolve at all
 ## Known limitations
 
 - **Elsevier Gold OA**: Unpaywall may report `is_oa: true` but return no `url_for_pdf`. Elsevier requires a separate Text and Data Mining (TDM) API key for programmatic PDF access. In this case the system falls back to abstract-only, and the user can upload the PDF manually via the new endpoint.
-- **CORE API**: Considered for broader OA coverage but not implemented (rate limit: 1,000 req/day).
+- **CORE API**: Integrated as a fourth source in the title-search chain and as a full-text fallback after Unpaywall. Active only when `CORE_API_KEY` is set in `.env`; skipped gracefully otherwise. Rate limit: 1,000 req/day on the free tier.
 - **Semantic Cache (BE-8)**: `SemanticCacheClient` exists as a class but performs no real embedding-based similarity lookup — it is a stub. The verification cache uses exact claim-ID matching instead. This is sufficient for demo and correctness; a real vector-based semantic cache would be a future enhancement.
 
 ---
 
-## Title-based DOI lookup fallback (three-source chain)
+## Title-based DOI lookup fallback (four-source chain)
 
 Papers in management, law, and humanities journals often omit DOIs from their reference lists. Previously these references immediately received `doi_status: MISSING` and all claims citing them returned `NEEDS_HUMAN_REVIEW`.
 
-A title-based fallback is now integrated into `_verify_reference()` in `doi_metadata_lookup.py`. When a reference has no extractable DOI but does have an extracted title, the system queries **three sources in sequence** before marking the reference as missing: CrossRef, OpenAlex, and Semantic Scholar.
+A title-based fallback is now integrated into `_verify_reference()` in `doi_metadata_lookup.py`. When a reference has no extractable DOI but does have an extracted title, the system queries **four sources in sequence** before marking the reference as missing: CrossRef, OpenAlex, SemanticScholar, and CORE.
 
 ### How it works
 
-For each source (CrossRef → OpenAlex → Semantic Scholar):
+For each source (CrossRef → OpenAlex → SemanticScholar → CORE):
 1. Search by title and, if available, author/year.
 2. Evaluate the top result against three false-match guards (all must pass):
    - **Title similarity ≥ 0.95** — `max(SequenceMatcher ratio, word-coverage ratio)`. The word-coverage component handles the common case where the extracted title lacks a subtitle.
    - **Year mismatch check** — both years must agree within 1 year (if both present).
    - **Author overlap check** — at least one last name must match (if both present).
 3. HTML entities in titles (e.g. `&#8220;`) are decoded before comparison so `&amp;` and `"` match correctly.
-4. If a confident match is found and the source returns a DOI, the discovered DOI is set on `reference.extracted_doi` and the normal CrossRef → OpenAlex → SemanticScholar → Unpaywall lookup chain continues with it.
-5. If no source produces a confident match, the reference is still marked `MISSING` as before.
+4. If a confident match is found and the source returns a DOI, the discovered DOI is set on `reference.extracted_doi` and the normal lookup chain continues with it.
+5. CORE is only queried when `CORE_API_KEY` is set in `.env` — it is skipped gracefully otherwise.
+6. If no source produces a confident match, the reference is still marked `MISSING` as before.
+
+### Full-text chain
+
+After a DOI is resolved, the system attempts to obtain full text in this order:
+1. **arXiv direct PDF** — for arXiv DOIs, always publicly available
+2. **Unpaywall** — legal open-access PDF URL, streamed and parsed with PyMuPDF
+3. **CORE** — returns full text inline in the JSON response for many papers (no PDF download required); falls back to a CORE download URL if only a URL is returned. Active only when `CORE_API_KEY` is set.
 
 ### Practical effect
 
-A Strategic Management Journal paper with 31/32 references that have no DOIs would previously result in all those claims getting `NEEDS_HUMAN_REVIEW`. With the three-source title fallback, most of those references can be resolved to DOIs, enabling full RAG verification.
+A Strategic Management Journal paper with 31/32 references that have no DOIs would previously result in all those claims getting `NEEDS_HUMAN_REVIEW`. With the four-source title fallback, most of those references can be resolved to DOIs, enabling full RAG verification.
 
 ### Files changed
 
 | File | Change |
 |------|--------|
-| `app/clients/metadata_clients.py` | `import difflib`; `_normalize_title()`, `_title_similarity()`, `_authors_overlap()` helpers; `SemanticScholarClient.search_by_title()` and `CrossRefClient.search_by_title()`, `OpenAlexClient.search_by_title()` methods |
-| `app/services/doi_metadata_lookup.py` | `_verify_reference()`: three-source title-search block before the MISSING early-return; HTML entity decoding before title comparison |
+| `app/clients/metadata_clients.py` | `_normalize_title()`, `_title_similarity()`, `_authors_overlap()` helpers; `search_by_title()` on CrossRefClient, OpenAlexClient, SemanticScholarClient; new `CoreClient` class with `search_by_title()` and `get_fulltext_by_doi()` |
+| `app/services/doi_metadata_lookup.py` | Four-source title-search chain in `_verify_reference()`; CORE full-text fallback after Unpaywall; HTML entity decoding before title comparison |
 
 ---
 
