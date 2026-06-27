@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import difflib
+import html
 import re
 import time
 from dataclasses import dataclass
@@ -79,7 +80,8 @@ def _clean_abstract(value: Any) -> str | None:
 
 
 def _normalize_title(title: str) -> str:
-    """Lowercase, strip punctuation, collapse whitespace for exact comparison."""
+    """Lowercase, decode HTML entities, strip punctuation, collapse whitespace."""
+    title = html.unescape(title)  # &amp; → &, &quot; → ", etc. (CrossRef encodes &)
     title = title.lower()
     title = re.sub(r"[^\w\s]", " ", title)
     return re.sub(r"\s+", " ", title).strip()
