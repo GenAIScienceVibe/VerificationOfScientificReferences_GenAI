@@ -343,6 +343,43 @@ class MetadataLookupService:
         doi = normalize_doi_for_lookup(reference.extracted_doi)
 
         if not doi:
+            # Title-based DOI lookup: if the reference has an extracted title,
+            # try to resolve the DOI via SemanticScholar paper search before
+            # giving up. This handles management/humanities papers where DOIs
+            # are not printed in reference lists.
+            if reference.extracted_title and reference.extracted_title.strip():
+                title_response = self.semantic_scholar_client.search_by_title(
+                    title=reference.extracted_title,
+                    authors=reference.extracted_authors,
+                    year=reference.extracted_year,
+                )
+                if title_response.success and title_response.doi:
+                    resolved_doi = normalize_doi_for_lookup(title_response.doi)
+                    if resolved_doi:
+                        logger.info(
+                            "doi_resolved_via_title_search",
+                            extra={
+                                "reference_id": reference.id,
+                                "found_doi": resolved_doi,
+                                "title_similarity_passed": True,
+                                "lookup_source": "SemanticScholar-TitleSearch",
+                            },
+                        )
+                        doi = resolved_doi
+                        # Persist the discovered DOI so it is visible in the API
+                        # response and stored for future lookups.
+                        reference.extracted_doi = doi
+                else:
+                    logger.info(
+                        "title_search_no_confident_match",
+                        extra={
+                            "reference_id": reference.id,
+                            "error_code": title_response.error_code,
+                            "error_message": title_response.error_message,
+                        },
+                    )
+
+        if not doi:
             reference.doi_status = DoiStatus.MISSING.value
             reference.metadata_status = MetadataStatus.METADATA_UNAVAILABLE.value
             metadata = metadata_repo.upsert_for_reference(

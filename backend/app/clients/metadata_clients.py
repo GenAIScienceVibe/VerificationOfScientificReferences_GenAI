@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import difflib
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -74,6 +75,58 @@ def _clean_abstract(value: Any) -> str | None:
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text or None
+
+
+def _normalize_title(title: str) -> str:
+    """Lowercase, strip punctuation, collapse whitespace for fuzzy comparison."""
+    title = title.lower()
+    title = re.sub(r"[^\w\s]", " ", title)
+    return re.sub(r"\s+", " ", title).strip()
+
+
+def _title_similarity(a: str, b: str) -> float:
+    """Combined [0, 1] similarity score for two titles.
+
+    Uses the maximum of:
+    - Character-level SequenceMatcher ratio (handles typos and reorderings)
+    - Word-level coverage ratio (what fraction of the shorter title's words appear
+      in the longer title) — only applied when the shorter title has >= 6 words to
+      prevent false positives on very short titles
+
+    This makes the score robust to the common case where an extracted title is
+    the paper title without subtitle, which SequenceMatcher alone scores ~0.78-0.80.
+    """
+    if not a or not b:
+        return 0.0
+    na, nb = _normalize_title(a), _normalize_title(b)
+    char_ratio = difflib.SequenceMatcher(None, na, nb).ratio()
+    words_a = set(na.split())
+    words_b = set(nb.split())
+    shorter = words_a if len(words_a) <= len(words_b) else words_b
+    longer = words_b if shorter is words_a else words_a
+    if len(shorter) >= 6:
+        word_coverage = len(shorter & longer) / len(shorter)
+        return max(char_ratio, word_coverage)
+    return char_ratio
+
+
+def _authors_overlap(reference_authors_str: str, result_authors: list[str]) -> bool:
+    """Return True if at least one last name from the reference appears in the result."""
+    def last_names(text: str) -> set[str]:
+        names: set[str] = set()
+        for part in re.split(r"[;,]", text):
+            tokens = part.strip().split()
+            if tokens:
+                names.add(tokens[-1].lower())
+        return names
+
+    ref_last = last_names(reference_authors_str)
+    result_last: set[str] = set()
+    for name in result_authors:
+        tokens = name.strip().split()
+        if tokens:
+            result_last.add(tokens[-1].lower())
+    return bool(ref_last & result_last)
 
 
 class CrossrefClient:
@@ -381,6 +434,163 @@ class SemanticScholarClient:
             abstract=_first_string(payload.get("abstract")),
             url=oa_url or f"https://arxiv.org/abs/{arxiv_id}",
             raw_metadata_json=payload,
+            status_code=response.status_code,
+        )
+
+    def search_by_title(
+        self,
+        title: str,
+        authors: str | None = None,
+        year: int | None = None,
+        *,
+        min_title_similarity: float = 0.95,
+    ) -> MetadataLookupResponse:
+        """Search Semantic Scholar for a paper by title and return the best confident match.
+
+        False-match prevention (all checks must pass):
+        - Title similarity ≥ min_title_similarity (required gate, fuzzy normalized match)
+        - Year must match within 1 year when both reference and result have a year
+        - At least one author last name must overlap when both sides have authors
+
+        Returns success=False with a descriptive error_code if no confident match is found.
+        When success=True, the DOI field is populated from externalIds (or arXiv form as fallback).
+        """
+        url = f"{self.base_url}/graph/v1/paper/search"
+        params: dict[str, str] = {
+            "query": title.strip(),
+            "fields": "title,authors,year,externalIds,abstract,venue,openAccessPdf",
+            "limit": "5",
+        }
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.get(url, headers=headers, params=params)
+        except httpx.TimeoutException as exc:
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="SemanticScholar",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_LOOKUP_TIMEOUT",
+                error_message=str(exc),
+            )
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="SemanticScholar",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message=str(exc),
+            )
+
+        if response.status_code != 200:
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="SemanticScholar",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                status_code=response.status_code,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message=f"Semantic Scholar search returned HTTP {response.status_code}.",
+            )
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="SemanticScholar",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message=f"Malformed JSON from Semantic Scholar search: {exc}",
+            )
+
+        if not isinstance(payload, dict):
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="SemanticScholar",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="Semantic Scholar search response was not a JSON object.",
+            )
+
+        data = payload.get("data") or []
+        if not data:
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="SemanticScholar",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message="Semantic Scholar title search returned no results.",
+            )
+
+        best = data[0]  # ranked by SemanticScholar relevance; we check confidence below
+        result_title = best.get("title") or ""
+
+        # Gate 1 — title similarity (primary false-match guard)
+        similarity = _title_similarity(title, result_title)
+        if similarity < min_title_similarity:
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="SemanticScholar",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="TITLE_MATCH_INSUFFICIENT",
+                error_message=(
+                    f"Best match '{result_title}' had title similarity {similarity:.2f}, "
+                    f"below threshold {min_title_similarity}."
+                ),
+            )
+
+        # Gate 2 — year match (reject on hard mismatch, skip if either side has no year)
+        result_year: int | None = best.get("year")
+        if year is not None and result_year is not None and abs(year - result_year) > 1:
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="SemanticScholar",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="YEAR_MISMATCH",
+                error_message=f"Year mismatch: reference={year}, found={result_year}.",
+            )
+
+        # Gate 3 — author overlap (reject if both sides have authors but no last-name overlap)
+        result_authors_raw: list[str] = [
+            str(a.get("name", "")).strip()
+            for a in (best.get("authors") or [])
+            if isinstance(a, dict) and a.get("name")
+        ]
+        if authors and result_authors_raw and not _authors_overlap(authors, result_authors_raw):
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="SemanticScholar",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="AUTHOR_MISMATCH",
+                error_message="No author last-name overlap between reference and search result.",
+            )
+
+        # Confident match — extract DOI (prefer registered DOI, fall back to arXiv synthetic form)
+        external_ids = best.get("externalIds") or {}
+        found_doi: str | None = external_ids.get("DOI")
+        if not found_doi:
+            arxiv_id = external_ids.get("ArXiv")
+            found_doi = f"10.48550/arXiv.{arxiv_id}" if arxiv_id else None
+
+        oa_pdf = best.get("openAccessPdf") or {}
+        oa_url = oa_pdf.get("url") if isinstance(oa_pdf, dict) else None
+
+        return MetadataLookupResponse(
+            success=True,
+            lookup_source="SemanticScholar-TitleSearch",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            doi=found_doi,
+            title=result_title or None,
+            authors=result_authors_raw or None,
+            year=result_year,
+            venue=_first_string(best.get("venue")),
+            publisher=None,
+            abstract=_first_string(best.get("abstract")),
+            url=oa_url or (f"https://doi.org/{found_doi}" if found_doi else None),
+            raw_metadata_json=best,
             status_code=response.status_code,
         )
 

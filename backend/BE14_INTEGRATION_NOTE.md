@@ -119,6 +119,35 @@ Only `FULL_TEXT_AVAILABLE` allows the RAG pipeline to retrieve from the paper bo
 
 ---
 
+## Title-based DOI lookup fallback
+
+Papers in management, law, and humanities journals often omit DOIs from their reference lists. Previously these references immediately received `doi_status: MISSING` and all claims citing them returned `NEEDS_HUMAN_REVIEW`.
+
+A title-based fallback is now integrated into `_verify_reference()` in `doi_metadata_lookup.py`. When a reference has no extractable DOI but does have an extracted title, the system queries **Semantic Scholar's paper search API** (`/graph/v1/paper/search`) before marking the reference as missing.
+
+### How it works
+
+1. `SemanticScholarClient.search_by_title(title, authors, year)` sends the extracted title to SS search.
+2. The top result is evaluated against three false-match guards (all must pass):
+   - **Title similarity ≥ 0.95** — measured as `max(SequenceMatcher ratio, word-coverage ratio)`. The word-coverage component (fraction of shorter title's words that appear in the longer) handles the common case where the extracted title lacks a subtitle but all its words are in the SS title.
+   - **Year mismatch check** — if both reference and SS result have a year, they must agree within 1 year.
+   - **Author overlap check** — if both sides have authors, at least one last name must match.
+3. If all guards pass and SS returns a DOI, the discovered DOI is set on `reference.extracted_doi` and the normal CrossRef → OpenAlex → SemanticScholar → Unpaywall lookup chain continues with it.
+4. If no confident match is found, the reference is still marked `MISSING` as before.
+
+### Practical effect
+
+A Strategic Management Journal paper with 31/32 references that have no DOIs would previously result in all those claims getting `NEEDS_HUMAN_REVIEW`. With the title fallback, SS can resolve most of those references to DOIs, enabling full RAG verification.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `app/clients/metadata_clients.py` | `import difflib`; `_normalize_title()`, `_title_similarity()`, `_authors_overlap()` helpers; `SemanticScholarClient.search_by_title()` method |
+| `app/services/doi_metadata_lookup.py` | `_verify_reference()`: title-search block before the MISSING early-return |
+
+---
+
 ## Post-merge integration fixes (integration/backend-rag-merge)
 
 After merging `rag_dev_zac_hybrid` into the backend, the following additional fixes and changes were applied to make the full pipeline operational end-to-end.
