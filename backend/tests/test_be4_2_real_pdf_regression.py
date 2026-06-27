@@ -9,12 +9,12 @@ FIXTURE_DIR = Path(__file__).parent / "fixtures" / "real_pdf_text"
 
 
 def _read_lines(name: str) -> list[str]:
-    return [line.strip() for line in (FIXTURE_DIR / name).read_text().splitlines() if line.strip()]
+    return [line.strip() for line in (FIXTURE_DIR / name).read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
 def _assert_reference_section_quality(section_name: str, expected_name: str, min_coverage: float = 0.85) -> None:
     service = ReferenceExtractionService()
-    section = (FIXTURE_DIR / section_name).read_text()
+    section = (FIXTURE_DIR / section_name).read_text(encoding="utf-8")
     expected_dois = set(_read_lines(expected_name))
     parsed = service.extract_references(section)
     report = service.build_doi_coverage_report(source_text=section, parsed_references=parsed)
@@ -41,7 +41,7 @@ def test_pdf2_reference_section_recovers_expected_dois_without_preacher_contamin
 
 def test_pdf2_specific_line_broken_annurev_doi_is_correct() -> None:
     service = ReferenceExtractionService()
-    section = (FIXTURE_DIR / "pdf2_be42_reference_section.txt").read_text()
+    section = (FIXTURE_DIR / "pdf2_be42_reference_section.txt").read_text(encoding="utf-8")
     parsed = service.extract_references(section)
     dois = {item.extracted_doi for item in parsed if item.extracted_doi}
     assert "10.1146/annurev-psych-120710-100452" in dois

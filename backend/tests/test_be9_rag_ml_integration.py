@@ -118,13 +118,14 @@ def test_retrieval_results_endpoint_returns_latest_result() -> None:
     assert data["retrieval_results"][0]["retrieval_status"] == RetrievalStatus.SUCCEEDED.value
 
 
-def test_metadata_only_package_returns_metadata_chunk() -> None:
+def test_metadata_only_package_skips_rag_and_returns_no_evidence() -> None:
+    # METADATA_ONLY is in _skip_availabilities — Door 1 is bypassed entirely
     _doc_id, claim_id, _ref_id, package_id, _ = _create_claim_reference_with_package(abstract=None)
     response = client.post(f"/api/v1/claims/{claim_id}/retrieve-evidence", json={"evidence_package_id": package_id, "use_mock": True})
     assert response.status_code == 200
-    chunk = response.json()["data"]["top_chunks"][0]
-    assert chunk["evidence_type"] == "METADATA"
-    assert "AI Writing Assistants" in chunk["chunk_text"]
+    data = response.json()["data"]
+    assert data["retrieval_status"] == RetrievalStatus.NO_RELEVANT_EVIDENCE_FOUND.value
+    assert data["top_chunks"] == []
 
 
 def test_source_unavailable_package_skips_rag_call_and_stores_no_evidence_result() -> None:
@@ -162,8 +163,9 @@ def test_rag_response_validator_rejects_wrong_claim_id_and_bad_scores() -> None:
     validator = RagResponseValidator()
     with pytest.raises(ValueError, match="claim_id"):
         validator.validate({"claim_id": "other", "reference_id": "ref_1", "retrieval_status": "SUCCEEDED", "top_chunks": []}, claim_id="claim_1", reference_id="ref_1")
-    with pytest.raises(ValueError, match="similarity_score"):
-        validator.validate({"claim_id": "claim_1", "reference_id": "ref_1", "retrieval_status": "SUCCEEDED", "top_chunks": [{"chunk_text": "Bad", "similarity_score": 1.5}]}, claim_id="claim_1", reference_id="ref_1")
+    # Scores above 1.0 are clamped (not rejected) after SCRUM-262 normalization fix
+    clamped = validator.validate({"claim_id": "claim_1", "reference_id": "ref_1", "retrieval_status": "SUCCEEDED", "top_chunks": [{"chunk_text": "Bad", "similarity_score": 1.5}]}, claim_id="claim_1", reference_id="ref_1")
+    assert clamped["top_chunks"][0]["similarity_score"] == 1.0
     with pytest.raises(ValueError, match="support_status"):
         validator.validate({"claim_id": "claim_1", "reference_id": "ref_1", "retrieval_status": "SUCCEEDED", "support_status": "SUPPORTED", "top_chunks": []}, claim_id="claim_1", reference_id="ref_1")
 

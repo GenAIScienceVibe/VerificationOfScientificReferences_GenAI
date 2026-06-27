@@ -110,14 +110,15 @@ def test_extract_references_api_persists_references_and_updates_document_status(
     refs_payload = refs_response.json()
     assert_wrapper(refs_payload)
     assert refs_payload["data"]["total"] == 3
-    first = refs_payload["data"]["references"][0]
-    assert first["metadata_status"] == MetadataStatus.NOT_LOOKED_UP.value
-    assert first["extracted_doi"] == "10.1234/abc.def.2023"
-    assert first["doi_status"] == DoiStatus.FOUND.value
+    references = refs_payload["data"]["references"]
+    # DB ordering is not guaranteed when created_at timestamps are identical — find by DOI
+    smith = next(r for r in references if r.get("extracted_doi") == "10.1234/abc.def.2023")
+    assert smith["metadata_status"] == MetadataStatus.NOT_LOOKED_UP.value
+    assert smith["doi_status"] == DoiStatus.FOUND.value
 
-    single_response = client.get(f"/api/v1/references/{first['reference_id']}")
+    single_response = client.get(f"/api/v1/references/{smith['reference_id']}")
     assert single_response.status_code == 200
-    assert single_response.json()["data"]["reference_id"] == first["reference_id"]
+    assert single_response.json()["data"]["reference_id"] == smith["reference_id"]
 
 
 def test_extract_references_skips_unattached_doi_only_fragment_with_quality_warning() -> None:
