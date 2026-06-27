@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import difflib
 import re
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -245,6 +246,86 @@ class CrossrefClient:
         )
 
 
+    def search_by_title(
+        self,
+        title: str,
+        authors: str | None = None,
+        year: int | None = None,
+    ) -> MetadataLookupResponse:
+        """Search CrossRef for a paper by title using the bibliographic query endpoint.
+
+        CrossRef's polite pool (enabled by the mailto setting) allows high throughput
+        with no meaningful rate limit, making it the preferred first stop in the
+        title-based DOI resolution chain.
+
+        The same three false-match gates as SemanticScholarClient.search_by_title()
+        are applied: title exact/substring match, year ±1, first-author last name.
+        """
+        params: dict[str, str] = {
+            "query.bibliographic": title.strip(),
+            "rows": "5",
+            "sort": "score",
+            "order": "desc",
+        }
+        if self.settings.crossref_mailto:
+            params["mailto"] = self.settings.crossref_mailto
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        url = f"{self.base_url}/works"
+        try:
+            if self._client is not None:
+                response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.get(url, headers=headers, params=params)
+        except httpx.TimeoutException as exc:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="METADATA_LOOKUP_TIMEOUT", error_message=str(exc))
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="METADATA_SERVICE_UNAVAILABLE", error_message=str(exc))
+
+        if response.status_code != 200:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef", lookup_status=MetadataStatus.LOOKUP_FAILED.value, status_code=response.status_code, error_code="DOI_LOOKUP_FAILED", error_message=f"CrossRef search returned HTTP {response.status_code}.")
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="DOI_LOOKUP_FAILED", error_message=f"Malformed JSON: {exc}")
+
+        items = (payload.get("message") or {}).get("items") or []
+        if not items:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef", lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, error_code="METADATA_UNAVAILABLE", error_message="CrossRef title search returned no results.")
+
+        for item in items:
+            result_title = _first_string(item.get("title")) or ""
+            if not _title_matches(title, result_title):
+                continue
+            result_year = _extract_year(item)
+            if year is not None and result_year is not None and abs(year - result_year) > 1:
+                continue
+            result_authors = _extract_authors(item)
+            if authors and result_authors and not _first_author_matches(authors, result_authors):
+                continue
+            # All gates passed
+            found_doi = str(item.get("DOI") or "").lower().strip() or None
+            url_field = _first_string(item.get("URL")) or (f"https://doi.org/{found_doi}" if found_doi else None)
+            return MetadataLookupResponse(
+                success=True,
+                lookup_source="CrossRef-TitleSearch",
+                lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+                doi=found_doi,
+                title=result_title or None,
+                authors=result_authors or None,
+                year=result_year,
+                venue=_first_string(item.get("container-title") or item.get("short-container-title")),
+                publisher=_first_string(item.get("publisher")),
+                abstract=_clean_abstract(item.get("abstract")),
+                url=url_field,
+                raw_metadata_json=item,
+                status_code=response.status_code,
+            )
+
+        return MetadataLookupResponse(success=False, lookup_source="CrossRef", lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, error_code="TITLE_MATCH_INSUFFICIENT", error_message=f"No CrossRef result passed title/author/year gates for query '{title[:80]}'.")
+
+
 class OpenAlexClient:
     """OpenAlex abstract/open-access fallback client used by BE-5.
 
@@ -324,6 +405,92 @@ class OpenAlexClient:
             raw_metadata_json=payload,
             status_code=response.status_code,
         )
+
+
+    def search_by_title(
+        self,
+        title: str,
+        authors: str | None = None,
+        year: int | None = None,
+    ) -> MetadataLookupResponse:
+        """Search OpenAlex for a paper by title.
+
+        OpenAlex has generous rate limits (no hard cap with polite mailto) making
+        it a reliable second step in the title-based DOI resolution chain when
+        CrossRef finds no match.
+        """
+        params: dict[str, str] = {"search": title.strip(), "per-page": "5"}
+        if self.settings.crossref_mailto:
+            params["mailto"] = self.settings.crossref_mailto
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        url = f"{self.base_url}/works"
+        try:
+            if self._client is not None:
+                response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.get(url, headers=headers, params=params)
+        except httpx.TimeoutException as exc:
+            return MetadataLookupResponse(success=False, lookup_source="OpenAlex", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="METADATA_LOOKUP_TIMEOUT", error_message=str(exc))
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="OpenAlex", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="METADATA_SERVICE_UNAVAILABLE", error_message=str(exc))
+
+        if response.status_code != 200:
+            return MetadataLookupResponse(success=False, lookup_source="OpenAlex", lookup_status=MetadataStatus.LOOKUP_FAILED.value, status_code=response.status_code, error_code="DOI_LOOKUP_FAILED", error_message=f"OpenAlex search returned HTTP {response.status_code}.")
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="OpenAlex", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="DOI_LOOKUP_FAILED", error_message=f"Malformed JSON: {exc}")
+
+        results = payload.get("results") or []
+        if not results:
+            return MetadataLookupResponse(success=False, lookup_source="OpenAlex", lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, error_code="METADATA_UNAVAILABLE", error_message="OpenAlex title search returned no results.")
+
+        for item in results:
+            result_title = _first_string(item.get("title")) or ""
+            if not _title_matches(title, result_title):
+                continue
+            result_year: int | None = item.get("publication_year")
+            if year is not None and result_year is not None and abs(year - result_year) > 1:
+                continue
+            authorships = item.get("authorships") or []
+            result_authors = [
+                str(a.get("author", {}).get("display_name", "")).strip()
+                for a in authorships
+                if isinstance(a, dict) and isinstance(a.get("author"), dict) and a["author"].get("display_name")
+            ]
+            if authors and result_authors and not _first_author_matches(authors, result_authors):
+                continue
+            # All gates passed — extract DOI
+            raw_doi = str(item.get("doi") or "").lower()
+            for prefix in ("https://doi.org/", "http://doi.org/"):
+                if raw_doi.startswith(prefix):
+                    raw_doi = raw_doi[len(prefix):]
+            found_doi = raw_doi or None
+            abstract = _reconstruct_openalex_abstract(item.get("abstract_inverted_index"))
+            primary_loc = item.get("primary_location") or {}
+            source = primary_loc.get("source") if isinstance(primary_loc, dict) else None
+            venue = source.get("display_name") if isinstance(source, dict) else None
+            best_oa = item.get("best_oa_location") or {}
+            oa_url = (best_oa.get("pdf_url") or best_oa.get("landing_page_url")) if isinstance(best_oa, dict) else None
+            return MetadataLookupResponse(
+                success=True,
+                lookup_source="OpenAlex-TitleSearch",
+                lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+                doi=found_doi,
+                title=result_title or None,
+                authors=result_authors or None,
+                year=result_year,
+                venue=venue,
+                publisher=None,
+                abstract=abstract,
+                url=oa_url or (f"https://doi.org/{found_doi}" if found_doi else None),
+                raw_metadata_json=item,
+                status_code=response.status_code,
+            )
+
+        return MetadataLookupResponse(success=False, lookup_source="OpenAlex", lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, error_code="TITLE_MATCH_INSUFFICIENT", error_message=f"No OpenAlex result passed title/author/year gates for query '{title[:80]}'.")
 
 
 class SemanticScholarClient:
@@ -470,37 +637,49 @@ class SemanticScholarClient:
             "limit": "5",
         }
         headers = {"User-Agent": self.settings.metadata_user_agent}
-        try:
-            if self._client is not None:
-                response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
-            else:
-                with httpx.Client(timeout=self.timeout) as client:
-                    response = client.get(url, headers=headers, params=params)
-        except httpx.TimeoutException as exc:
-            return MetadataLookupResponse(
-                success=False,
-                lookup_source="SemanticScholar",
-                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
-                error_code="METADATA_LOOKUP_TIMEOUT",
-                error_message=str(exc),
-            )
-        except httpx.HTTPError as exc:
-            return MetadataLookupResponse(
-                success=False,
-                lookup_source="SemanticScholar",
-                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
-                error_code="METADATA_SERVICE_UNAVAILABLE",
-                error_message=str(exc),
-            )
+        # SS /paper/search rate-limits unauthenticated callers at ~5-10 req/min —
+        # much stricter than the DOI-lookup endpoints. A 3-second pause keeps us
+        # at ~20 req/min; combined with the 5-second 429 retry this stays safe.
+        time.sleep(3)
+        response = None
+        for attempt in range(2):
+            try:
+                if self._client is not None:
+                    response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+                else:
+                    with httpx.Client(timeout=self.timeout) as client:
+                        response = client.get(url, headers=headers, params=params)
+            except httpx.TimeoutException as exc:
+                return MetadataLookupResponse(
+                    success=False,
+                    lookup_source="SemanticScholar",
+                    lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                    error_code="METADATA_LOOKUP_TIMEOUT",
+                    error_message=str(exc),
+                )
+            except httpx.HTTPError as exc:
+                return MetadataLookupResponse(
+                    success=False,
+                    lookup_source="SemanticScholar",
+                    lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                    error_code="METADATA_SERVICE_UNAVAILABLE",
+                    error_message=str(exc),
+                )
+            if response.status_code == 429 and attempt == 0:
+                # Rate-limited: back off for 10 seconds and retry once
+                time.sleep(10)
+                continue
+            break
 
-        if response.status_code != 200:
+        if response is None or response.status_code != 200:
+            status_code = response.status_code if response is not None else None
             return MetadataLookupResponse(
                 success=False,
                 lookup_source="SemanticScholar",
                 lookup_status=MetadataStatus.LOOKUP_FAILED.value,
-                status_code=response.status_code,
+                status_code=status_code,
                 error_code="DOI_LOOKUP_FAILED",
-                error_message=f"Semantic Scholar search returned HTTP {response.status_code}.",
+                error_message=f"Semantic Scholar search returned HTTP {status_code}.",
             )
 
         try:

@@ -343,40 +343,55 @@ class MetadataLookupService:
         doi = normalize_doi_for_lookup(reference.extracted_doi)
 
         if not doi:
-            # Title-based DOI lookup: if the reference has an extracted title,
-            # try to resolve the DOI via SemanticScholar paper search before
-            # giving up. This handles management/humanities papers where DOIs
-            # are not printed in reference lists.
+            # Title-based DOI lookup: try CrossRef → OpenAlex → SemanticScholar in
+            # order of rate-limit generosity. CrossRef and OpenAlex have no meaningful
+            # rate limits with the mailto polite-pool setting, while SemanticScholar's
+            # /paper/search endpoint is restricted to ~5-10 unauthenticated req/min.
+            # All three use the same false-match gates (title substring + year ±1 +
+            # first-author last name). We stop at the first confident match.
             if reference.extracted_title and reference.extracted_title.strip():
-                title_response = self.semantic_scholar_client.search_by_title(
-                    title=reference.extracted_title,
-                    authors=reference.extracted_authors,
-                    year=reference.extracted_year,
-                )
-                if title_response.success and title_response.doi:
-                    resolved_doi = normalize_doi_for_lookup(title_response.doi)
-                    if resolved_doi:
+                _title_searchers = [
+                    ("CrossRef-TitleSearch", lambda: self.crossref_client.search_by_title(
+                        title=reference.extracted_title,
+                        authors=reference.extracted_authors,
+                        year=reference.extracted_year,
+                    )),
+                    ("OpenAlex-TitleSearch", lambda: self.openalex_client.search_by_title(
+                        title=reference.extracted_title,
+                        authors=reference.extracted_authors,
+                        year=reference.extracted_year,
+                    )),
+                    ("SemanticScholar-TitleSearch", lambda: self.semantic_scholar_client.search_by_title(
+                        title=reference.extracted_title,
+                        authors=reference.extracted_authors,
+                        year=reference.extracted_year,
+                    )),
+                ]
+                for source_name, searcher in _title_searchers:
+                    title_response = searcher()
+                    if title_response.success and title_response.doi:
+                        resolved_doi = normalize_doi_for_lookup(title_response.doi)
+                        if resolved_doi:
+                            logger.info(
+                                "doi_resolved_via_title_search",
+                                extra={
+                                    "reference_id": reference.id,
+                                    "found_doi": resolved_doi,
+                                    "lookup_source": source_name,
+                                },
+                            )
+                            doi = resolved_doi
+                            reference.extracted_doi = doi
+                            break
+                    else:
                         logger.info(
-                            "doi_resolved_via_title_search",
+                            "title_search_no_confident_match",
                             extra={
                                 "reference_id": reference.id,
-                                "found_doi": resolved_doi,
-                                "lookup_source": "SemanticScholar-TitleSearch",
+                                "lookup_source": source_name,
+                                "error_code": title_response.error_code,
                             },
                         )
-                        doi = resolved_doi
-                        # Persist the discovered DOI so it is visible in the API
-                        # response and stored for future lookups.
-                        reference.extracted_doi = doi
-                else:
-                    logger.info(
-                        "title_search_no_confident_match",
-                        extra={
-                            "reference_id": reference.id,
-                            "error_code": title_response.error_code,
-                            "error_message": title_response.error_message,
-                        },
-                    )
 
         if not doi:
             reference.doi_status = DoiStatus.MISSING.value
