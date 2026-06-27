@@ -361,7 +361,6 @@ class MetadataLookupService:
                             extra={
                                 "reference_id": reference.id,
                                 "found_doi": resolved_doi,
-                                "title_similarity_passed": True,
                                 "lookup_source": "SemanticScholar-TitleSearch",
                             },
                         )

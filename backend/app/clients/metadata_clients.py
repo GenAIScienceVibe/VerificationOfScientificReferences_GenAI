@@ -78,55 +78,62 @@ def _clean_abstract(value: Any) -> str | None:
 
 
 def _normalize_title(title: str) -> str:
-    """Lowercase, strip punctuation, collapse whitespace for fuzzy comparison."""
+    """Lowercase, strip punctuation, collapse whitespace for exact comparison."""
     title = title.lower()
     title = re.sub(r"[^\w\s]", " ", title)
     return re.sub(r"\s+", " ", title).strip()
 
 
-def _title_similarity(a: str, b: str) -> float:
-    """Combined [0, 1] similarity score for two titles.
+def _title_matches(ref_title: str, result_title: str) -> bool:
+    """Return True if the normalized reference title is an exact match or exact
+    substring of the normalized result title (handles main-title-without-subtitle),
+    OR if character-level similarity is >= 0.98 (allows 1-2 character OCR errors).
 
-    Uses the maximum of:
-    - Character-level SequenceMatcher ratio (handles typos and reorderings)
-    - Word-level coverage ratio (what fraction of the shorter title's words appear
-      in the longer title) — only applied when the shorter title has >= 6 words to
-      prevent false positives on very short titles
-
-    This makes the score robust to the common case where an extracted title is
-    the paper title without subtitle, which SequenceMatcher alone scores ~0.78-0.80.
+    Deliberately strict: a single swapped keyword fails this check. False-match
+    prevention is the priority — it is better to fall back to NEEDS_HUMAN_REVIEW
+    than to verify a claim against the wrong paper.
     """
-    if not a or not b:
-        return 0.0
-    na, nb = _normalize_title(a), _normalize_title(b)
-    char_ratio = difflib.SequenceMatcher(None, na, nb).ratio()
-    words_a = set(na.split())
-    words_b = set(nb.split())
-    shorter = words_a if len(words_a) <= len(words_b) else words_b
-    longer = words_b if shorter is words_a else words_a
-    if len(shorter) >= 6:
-        word_coverage = len(shorter & longer) / len(shorter)
-        return max(char_ratio, word_coverage)
-    return char_ratio
+    if not ref_title or not result_title:
+        return False
+    na = _normalize_title(ref_title)
+    nb = _normalize_title(result_title)
+    # Exact equality or one is contained in the other (subtitle case)
+    if na == nb or na in nb or nb in na:
+        return True
+    # Tight fuzzy fallback for 1-2 character OCR errors only
+    return difflib.SequenceMatcher(None, na, nb).ratio() >= 0.98
 
 
-def _authors_overlap(reference_authors_str: str, result_authors: list[str]) -> bool:
-    """Return True if at least one last name from the reference appears in the result."""
-    def last_names(text: str) -> set[str]:
-        names: set[str] = set()
-        for part in re.split(r"[;,]", text):
-            tokens = part.strip().split()
-            if tokens:
-                names.add(tokens[-1].lower())
-        return names
+def _first_author_matches(reference_authors_str: str, result_authors: list[str]) -> bool:
+    """Return True if the first author's last name from the reference appears in
+    any of the result's author names.
 
-    ref_last = last_names(reference_authors_str)
-    result_last: set[str] = set()
-    for name in result_authors:
-        tokens = name.strip().split()
-        if tokens:
-            result_last.add(tokens[-1].lower())
-    return bool(ref_last & result_last)
+    Using the first author (not any author) is intentional: last names like
+    'Smith' or 'Wang' are common, so matching against any author in a list would
+    produce too many false positives. The first author is the primary citation
+    identifier in bibliographic practice.
+
+    Returns True (i.e. does not block) when either side has no author data.
+    """
+    if not reference_authors_str or not reference_authors_str.strip() or not result_authors:
+        return True  # no data to check — do not block on absence of info
+
+    # Take the first semicolon-separated author entry
+    first_entry = re.split(r";", reference_authors_str.strip())[0].strip()
+    if not first_entry:
+        return True
+
+    # Determine last name: "Zhu, David H." -> "zhu" | "David H. Zhu" -> "zhu"
+    if "," in first_entry:
+        last_name = first_entry.split(",")[0].strip().lower()
+    else:
+        tokens = first_entry.split()
+        last_name = tokens[-1].lower() if tokens else ""
+
+    if not last_name:
+        return True
+
+    return any(last_name in name.lower() for name in result_authors)
 
 
 class CrossrefClient:
@@ -442,15 +449,16 @@ class SemanticScholarClient:
         title: str,
         authors: str | None = None,
         year: int | None = None,
-        *,
-        min_title_similarity: float = 0.95,
     ) -> MetadataLookupResponse:
         """Search Semantic Scholar for a paper by title and return the best confident match.
 
-        False-match prevention (all checks must pass):
-        - Title similarity ≥ min_title_similarity (required gate, fuzzy normalized match)
-        - Year must match within 1 year when both reference and result have a year
-        - At least one author last name must overlap when both sides have authors
+        False-match prevention — all three gates must pass:
+        1. Title: normalized reference title must equal or be an exact substring of
+           the SS result title (handles main-title-without-subtitle). A 0.98 char-ratio
+           fallback allows 1-2 OCR errors. A single swapped keyword fails.
+        2. Year: must agree within 1 year when both sides have a year.
+        3. First author: the first author's last name from the reference must appear
+           in the SS result's author list.
 
         Returns success=False with a descriptive error_code if no confident match is found.
         When success=True, the DOI field is populated from externalIds (or arXiv form as fallback).
@@ -528,21 +536,21 @@ class SemanticScholarClient:
         best = data[0]  # ranked by SemanticScholar relevance; we check confidence below
         result_title = best.get("title") or ""
 
-        # Gate 1 — title similarity (primary false-match guard)
-        similarity = _title_similarity(title, result_title)
-        if similarity < min_title_similarity:
+        # Gate 1 — title must be an exact match or exact substring after normalization
+        # (a single swapped keyword fails; see _title_matches docstring for details)
+        if not _title_matches(title, result_title):
             return MetadataLookupResponse(
                 success=False,
                 lookup_source="SemanticScholar",
                 lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
                 error_code="TITLE_MATCH_INSUFFICIENT",
                 error_message=(
-                    f"Best match '{result_title}' had title similarity {similarity:.2f}, "
-                    f"below threshold {min_title_similarity}."
+                    f"Best match '{result_title}' did not pass title exact-match check "
+                    f"(query: '{title[:80]}')."
                 ),
             )
 
-        # Gate 2 — year match (reject on hard mismatch, skip if either side has no year)
+        # Gate 2 — year must agree within 1 year (skip if either side has no year)
         result_year: int | None = best.get("year")
         if year is not None and result_year is not None and abs(year - result_year) > 1:
             return MetadataLookupResponse(
@@ -553,19 +561,19 @@ class SemanticScholarClient:
                 error_message=f"Year mismatch: reference={year}, found={result_year}.",
             )
 
-        # Gate 3 — author overlap (reject if both sides have authors but no last-name overlap)
+        # Gate 3 — first author's last name must appear in result's author list
         result_authors_raw: list[str] = [
             str(a.get("name", "")).strip()
             for a in (best.get("authors") or [])
             if isinstance(a, dict) and a.get("name")
         ]
-        if authors and result_authors_raw and not _authors_overlap(authors, result_authors_raw):
+        if authors and not _first_author_matches(authors, result_authors_raw):
             return MetadataLookupResponse(
                 success=False,
                 lookup_source="SemanticScholar",
                 lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
                 error_code="AUTHOR_MISMATCH",
-                error_message="No author last-name overlap between reference and search result.",
+                error_message="First author's last name does not appear in search result authors.",
             )
 
         # Confident match — extract DOI (prefer registered DOI, fall back to arXiv synthetic form)
