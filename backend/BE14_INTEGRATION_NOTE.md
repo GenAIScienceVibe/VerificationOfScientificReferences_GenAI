@@ -121,7 +121,7 @@ SOURCE_UNAVAILABLE    ← DOI did not resolve at all
 ## Known limitations
 
 - **Elsevier Gold OA**: Unpaywall may report `is_oa: true` but return no `url_for_pdf`. Elsevier requires a separate Text and Data Mining (TDM) API key for programmatic PDF access. In this case the system falls back to abstract-only, and the user can upload the PDF manually via the new endpoint.
-- **CORE API**: Integrated as a fourth source in the title-search chain and as a full-text fallback after Unpaywall. Active only when `CORE_API_KEY` is set in `.env`; skipped gracefully otherwise. Rate limit: 1,000 req/day on the free tier.
+- **CORE API**: Integrated as a fourth source in the title-search chain and as a full-text fallback after Unpaywall. Active only when `CORE_API_KEY` is set in `.env`; skipped gracefully otherwise. Rate limit: 10 req/sec (no daily cap on the free tier).
 - **Semantic Cache (BE-8)**: `SemanticCacheClient` exists as a class but performs no real embedding-based similarity lookup — it is a stub. The verification cache uses exact claim-ID matching instead. This is sufficient for demo and correctness; a real vector-based semantic cache would be a future enhancement.
 
 ---
