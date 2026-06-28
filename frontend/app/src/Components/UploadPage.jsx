@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
-import { uploadDocument, startPipelineRun } from '../api'
+import { uploadDocument, extractReferences, verifyDois, extractClaims, startPipelineRun } from '../api'
 
 function UploadPage() {
   const navigate = useNavigate()
@@ -27,6 +27,9 @@ function UploadPage() {
 
     try {
       const document = await uploadDocument(file)
+      await extractReferences(document.document_id)
+      await verifyDois(document.document_id)
+      await extractClaims(document.document_id)
       const pipelineRun = await startPipelineRun(document.document_id)
 
       navigate('/loading', {

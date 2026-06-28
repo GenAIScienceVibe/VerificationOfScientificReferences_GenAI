@@ -19,9 +19,33 @@ async function handleResponse(response) {
 export async function uploadDocument(file) {
   const formData = new FormData()
   formData.append('file', file)
+
   const response = await fetch(`${API_BASE_URL}/api/v1/documents/upload`, {
     method: 'POST',
     body: formData,
+  })
+  return handleResponse(response)
+}
+
+export async function extractReferences(documentId) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/documents/${documentId}/extract-references`, {
+    method: 'POST',
+  })
+  return handleResponse(response)
+}
+
+export async function verifyDois(documentId) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/documents/${documentId}/verify-dois`, {
+    method: 'POST',
+  })
+  return handleResponse(response)
+}
+
+export async function extractClaims(documentId) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/documents/${documentId}/extract-claims`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: 'citation_linked_only' }),
   })
   return handleResponse(response)
 }
@@ -48,8 +72,27 @@ export async function getDocumentStatus(documentId) {
   return handleResponse(response)
 }
 
+export async function getPipelineRun(pipelineRunId) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/pipeline-runs/${pipelineRunId}`)
+  return handleResponse(response)
+}
+
 export async function getVerificationResults(documentId) {
   const response = await fetch(`${API_BASE_URL}/api/v1/documents/${documentId}/verification-results`)
+  return handleResponse(response)
+}
+
+// Used for paywalled references the user manually supplies.
+// NOTE: only call this once a reference_id exists (i.e. after extract-references) -
+// not at initial upload time.
+export async function uploadReferenceSourcePdf(referenceId, file) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/references/${referenceId}/upload-source-pdf`, {
+    method: 'POST',
+    body: formData,
+  })
   return handleResponse(response)
 }
 
