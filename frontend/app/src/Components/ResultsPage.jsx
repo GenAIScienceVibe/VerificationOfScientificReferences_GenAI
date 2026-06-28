@@ -17,8 +17,9 @@ function mapToUiStatus(result) {
     case 'SUPPORTED': return 'supported'
     case 'PARTIALLY_SUPPORTED': return 'partial'
     case 'NOT_SUPPORTED': return 'unsupported'
-    case 'INSUFFICIENT_EVIDENCE': return 'unsupported'
-    default: return 'unsupported'
+    case 'INSUFFICIENT_EVIDENCE': return 'insufficient'
+    case 'NEEDS_HUMAN_REVIEW': return 'insufficient'
+    default: return 'insufficient'
   }
 }
 
@@ -66,6 +67,7 @@ function ResultsPage() {
     partial: { label: "Partially Supported", color: "#d97706", bg: "#fffbeb", border: "#fcd34d" },
     unsupported: { label: "Unsupported", color: "#dc2626", bg: "#fef2f2", border: "#fca5a5" },
     hallucinated: { label: "Hallucinated", color: "#6b21a8", bg: "#faf5ff", border: "#d8b4fe" },
+    insufficient: { label: "Insufficient Evidence", color: "#6b7280", bg: "#f3f4f6", border: "#d1d5db" },
   }
 
   const summaryItems = [

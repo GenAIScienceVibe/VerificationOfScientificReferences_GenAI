@@ -1,16 +1,26 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
-import { getDocumentStatus, TERMINAL_SUCCESS_STATUSES, TERMINAL_FAILURE_STATUSES } from '../api'
+import {
+  uploadDocument,
+  extractReferences,
+  verifyDois,
+  extractClaims,
+  startPipelineRun,
+  getDocumentStatus,
+  TERMINAL_SUCCESS_STATUSES,
+  TERMINAL_FAILURE_STATUSES,
+} from '../api'
 
 function LoadingPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const fileName = location.state?.fileName || "research_paper.pdf"
-  const documentId = location.state?.documentId
+  const file = location.state?.file
+  const fileName = location.state?.fileName || file?.name || "research_paper.pdf"
 
   const [progress, setProgress] = useState(0)
   const [currentStep, setCurrentStep] = useState(0)
   const pollRef = useRef(null)
+  const hasStarted = useRef(false)
 
   const steps = [
     { id: 1, label: "Reading PDF" },
@@ -20,61 +30,77 @@ function LoadingPage() {
   ]
 
   useEffect(() => {
-    if (!documentId) {
+    if (!file) {
       navigate('/error')
       return
     }
+    if (hasStarted.current) return
+    hasStarted.current = true
 
-    const poll = async () => {
+    const run = async () => {
       try {
-        const status = await getDocumentStatus(documentId)
-        const pct = status.progress_percentage ?? 0
-        setProgress(pct)
+        setCurrentStep(0)
+        setProgress(5)
+        const document = await uploadDocument(file)
+        setProgress(10)
 
-        if (TERMINAL_SUCCESS_STATUSES.includes(status.status) || pct >= 100) {
-          clearInterval(pollRef.current)
-          setProgress(100)
-          setTimeout(() => navigate('/results', { state: { fileName, documentId } }), 500)
-        } else if (TERMINAL_FAILURE_STATUSES.includes(status.status)) {
-          clearInterval(pollRef.current)
-          navigate('/error')
+        setCurrentStep(1)
+        await extractReferences(document.document_id)
+        setProgress(20)
+        await verifyDois(document.document_id)
+        setProgress(30)
+
+        setCurrentStep(2)
+        await extractClaims(document.document_id)
+        setProgress(45)
+
+        setCurrentStep(3)
+        const pipelineRun = await startPipelineRun(document.document_id)
+        setProgress(50)
+
+        const poll = async () => {
+          try {
+            const status = await getDocumentStatus(document.document_id)
+            const pct = status.progress_percentage ?? 0
+            setProgress(50 + Math.round(pct / 2))
+
+            if (TERMINAL_SUCCESS_STATUSES.includes(status.status) || pct >= 100) {
+              clearInterval(pollRef.current)
+              setProgress(100)
+              setTimeout(() => navigate('/results', {
+                state: { fileName, documentId: document.document_id }
+              }), 500)
+            } else if (TERMINAL_FAILURE_STATUSES.includes(status.status)) {
+              clearInterval(pollRef.current)
+              navigate('/error')
+            }
+          } catch (err) {
+            clearInterval(pollRef.current)
+            navigate('/error')
+          }
         }
+
+        poll()
+        pollRef.current = setInterval(poll, 2000)
       } catch (err) {
-        clearInterval(pollRef.current)
         navigate('/error')
       }
     }
 
-    poll()
-    pollRef.current = setInterval(poll, 2000)
+    run()
 
     return () => clearInterval(pollRef.current)
-  }, [documentId, navigate, fileName])
-
-  useEffect(() => {
-    if (progress < 25) setCurrentStep(0)
-    else if (progress < 50) setCurrentStep(1)
-    else if (progress < 75) setCurrentStep(2)
-    else setCurrentStep(3)
-  }, [progress])
+  }, [file, navigate, fileName])
 
   const getStatus = (i) => {
-    if (i === 0) {
-      return progress >= (100/3) ? "done" : "active"
-    }
-    const segmentSize = 100 / 3
-    const lineEnd = i * segmentSize
-    if (progress >= lineEnd) return "done"
+    if (i < currentStep) return "done"
+    if (i === currentStep) return "active"
     return "pending"
   }
 
   const getLineWidth = (lineIndex) => {
-    const segmentSize = 100 / 3
-    const start = lineIndex * segmentSize
-    const end = start + segmentSize
-    if (progress <= start) return "0%"
-    if (progress >= end) return "100%"
-    return `${((progress - start) / segmentSize) * 100}%`
+    if (lineIndex < currentStep) return "100%"
+    return "0%"
   }
 
   return (
@@ -89,6 +115,12 @@ function LoadingPage() {
       backgroundPosition: "center 350px",
       backgroundRepeat: "no-repeat"
     }}>
+      <style>{`
+        @keyframes verifai-step-spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
         background: "rgba(245,245,245,0.9)"
@@ -129,36 +161,50 @@ function LoadingPage() {
         </div>
 
         <div style={{ display: "flex", alignItems: "flex-start", marginBottom: "36px", justifyContent: "space-between" }}>
-          {steps.map((step, i) => (
-            <div key={step.id} style={{ display: "flex", alignItems: "flex-start", flex: i < steps.length - 1 ? 1 : "0 0 40px" }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "40px" }}>
-                <div style={{
-                  width: "40px", height: "40px", borderRadius: "50%", border: "2px solid",
-                  borderColor: getStatus(i) === "pending" ? "#ccc" : "#1a3a6b",
-                  background: getStatus(i) === "done" ? "#1a3a6b" : "white",
-                  color: getStatus(i) === "done" ? "white" : getStatus(i) === "active" ? "#1a3a6b" : "#ccc",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontWeight: "700", fontSize: "15px", flexShrink: 0
-                }}>
-                  {getStatus(i) === "done" ? "✓" : step.id}
+          {steps.map((step, i) => {
+            const status = getStatus(i)
+            return (
+              <div key={step.id} style={{ display: "flex", alignItems: "flex-start", flex: i < steps.length - 1 ? 1 : "0 0 40px" }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "40px" }}>
+                  <div style={{ position: "relative", width: "40px", height: "40px" }}>
+                    <div style={{
+                      width: "40px", height: "40px", borderRadius: "50%", border: "2px solid",
+                      borderColor: status === "pending" ? "#ccc" : status === "active" ? "#e0e7f3" : "#1a3a6b",
+                      background: status === "done" ? "#1a3a6b" : "white",
+                      color: status === "done" ? "white" : status === "active" ? "#1a3a6b" : "#ccc",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontWeight: "700", fontSize: "15px", flexShrink: 0
+                    }}>
+                      {status === "done" ? "✓" : step.id}
+                    </div>
+                    {status === "active" && (
+                      <div style={{
+                        position: "absolute", top: 0, left: 0,
+                        width: "40px", height: "40px", borderRadius: "50%",
+                        border: "2px solid transparent",
+                        borderTopColor: "#1a3a6b",
+                        animation: "verifai-step-spin 0.9s linear infinite",
+                      }} />
+                    )}
+                  </div>
+                  <span style={{ fontSize: "12px", fontWeight: "600", marginTop: "10px", color: "#222", textAlign: "center", width: "80px" }}>{step.label}</span>
+                  <span style={{ fontSize: "11px", color: status === "active" ? "#1a3a6b" : "#999", marginTop: "2px", textAlign: "center" }}>
+                    {status === "done" ? "Completed" : status === "active" ? "In progress" : "Pending"}
+                  </span>
                 </div>
-                <span style={{ fontSize: "12px", fontWeight: "600", marginTop: "10px", color: "#222", textAlign: "center", width: "80px" }}>{step.label}</span>
-                <span style={{ fontSize: "11px", color: getStatus(i) === "active" ? "#1a3a6b" : "#999", marginTop: "2px", textAlign: "center" }}>
-                  {getStatus(i) === "done" ? "Completed" : getStatus(i) === "active" ? "In progress" : "Pending"}
-                </span>
+                {i < steps.length - 1 && (
+                  <div style={{ flex: 1, height: "2px", background: "#e0e0e0", position: "relative", overflow: "hidden", marginTop: "19px" }}>
+                    <div style={{
+                      position: "absolute", top: 0, left: 0, height: "2px",
+                      background: "#1a3a6b",
+                      width: getLineWidth(i),
+                      transition: "width 0.3s ease"
+                    }} />
+                  </div>
+                )}
               </div>
-              {i < steps.length - 1 && (
-                <div style={{ flex: 1, height: "2px", background: "#e0e0e0", position: "relative", overflow: "hidden", marginTop: "19px" }}>
-                  <div style={{
-                    position: "absolute", top: 0, left: 0, height: "2px",
-                    background: "#1a3a6b",
-                    width: getLineWidth(i),
-                    transition: "width 0.3s ease"
-                  }} />
-                </div>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         <div style={{ background: "#eef2ff", borderRadius: "10px", padding: "14px 18px", marginBottom: "20px", fontSize: "13px", color: "#444", display: "flex", alignItems: "center", gap: "10px" }}>
@@ -175,4 +221,4 @@ function LoadingPage() {
   )
 }
 
-export default LoadingPage 
+export default LoadingPage

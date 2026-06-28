@@ -1,13 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
-import { uploadDocument, extractReferences, verifyDois, extractClaims, startPipelineRun } from '../api'
 
 function UploadPage() {
   const navigate = useNavigate()
   const [showReferenceUpload, setShowReferenceUpload] = useState(false)
   const [referenceFiles, setReferenceFiles] = useState([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState(null)
 
   const handleReferenceFiles = (e) => {
     const files = Array.from(e.target.files)
@@ -18,31 +15,13 @@ function UploadPage() {
     setReferenceFiles(prev => prev.filter((_, i) => i !== index))
   }
 
-  const handleFileSelected = async (e) => {
+  const handleFileSelected = (e) => {
     const file = e.target.files[0]
     if (!file) return
 
-    setError(null)
-    setIsSubmitting(true)
-
-    try {
-      const document = await uploadDocument(file)
-      await extractReferences(document.document_id)
-      await verifyDois(document.document_id)
-      await extractClaims(document.document_id)
-      const pipelineRun = await startPipelineRun(document.document_id)
-
-      navigate('/loading', {
-        state: {
-          fileName: file.name,
-          documentId: document.document_id,
-          pipelineRunId: pipelineRun.pipeline_run_id,
-        }
-      })
-    } catch (err) {
-      setError(err.message || 'Upload failed. Please try again.')
-      setIsSubmitting(false)
-    }
+    navigate('/loading', {
+      state: { file, fileName: file.name, referenceFiles }
+    })
   }
 
   return (
@@ -114,33 +93,26 @@ function UploadPage() {
           </div>
 
           <p style={{ fontWeight: "700", fontSize: "20px", color: "#111", marginBottom: "10px" }}>
-            {isSubmitting ? "Uploading..." : "Drop your PDF here"}
+            Drop your PDF here
           </p>
           <p style={{ color: "#888", fontSize: "15px", marginBottom: "28px" }}>
-            {isSubmitting ? "Starting verification, please wait" : "or click to browse your files"}
+            or click to browse your files
           </p>
-
-          {error && (
-            <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "16px" }}>{error}</p>
-          )}
 
           <input
             type="file"
             accept=".pdf"
             id="fileInput"
             style={{ display: "none" }}
-            disabled={isSubmitting}
             onChange={handleFileSelected}
           />
 
           <button
             onClick={() => document.getElementById('fileInput').click()}
-            disabled={isSubmitting}
             style={{
               background: "white", border: "1px solid #ccc", borderRadius: "8px",
-              padding: "12px 28px", cursor: isSubmitting ? "not-allowed" : "pointer", fontSize: "15px",
-              display: "inline-flex", alignItems: "center", gap: "8px", color: "#444",
-              opacity: isSubmitting ? 0.6 : 1,
+              padding: "12px 28px", cursor: "pointer", fontSize: "15px",
+              display: "inline-flex", alignItems: "center", gap: "8px", color: "#444"
             }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
