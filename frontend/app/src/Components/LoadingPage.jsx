@@ -1,12 +1,16 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { getDocumentStatus, TERMINAL_SUCCESS_STATUSES, TERMINAL_FAILURE_STATUSES } from '../api'
 
 function LoadingPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const fileName = location.state?.fileName || "research_paper.pdf"
+  const documentId = location.state?.documentId
+
   const [progress, setProgress] = useState(0)
   const [currentStep, setCurrentStep] = useState(0)
+  const pollRef = useRef(null)
 
   const steps = [
     { id: 1, label: "Reading PDF" },
@@ -16,18 +20,36 @@ function LoadingPage() {
   ]
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval)
-setTimeout(() => navigate('/results', { state: { fileName } }), 500)        
-  return 100
+    if (!documentId) {
+      navigate('/error')
+      return
+    }
+
+    const poll = async () => {
+      try {
+        const status = await getDocumentStatus(documentId)
+        const pct = status.progress_percentage ?? 0
+        setProgress(pct)
+
+        if (TERMINAL_SUCCESS_STATUSES.includes(status.status) || pct >= 100) {
+          clearInterval(pollRef.current)
+          setProgress(100)
+          setTimeout(() => navigate('/results', { state: { fileName, documentId } }), 500)
+        } else if (TERMINAL_FAILURE_STATUSES.includes(status.status)) {
+          clearInterval(pollRef.current)
+          navigate('/error')
         }
-        return prev + 1
-      })
-    }, 50)
-    return () => clearInterval(interval)
-  }, [])
+      } catch (err) {
+        clearInterval(pollRef.current)
+        navigate('/error')
+      }
+    }
+
+    poll()
+    pollRef.current = setInterval(poll, 2000)
+
+    return () => clearInterval(pollRef.current)
+  }, [documentId, navigate, fileName])
 
   useEffect(() => {
     if (progress < 25) setCurrentStep(0)
@@ -101,7 +123,7 @@ setTimeout(() => navigate('/results', { state: { fileName } }), 500)
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "36px" }}>
           <div style={{ flex: 1, background: "#e0e0e0", borderRadius: "99px", height: "8px" }}>
-            <div style={{ width: `${progress}%`, background: "#1a3a6b", borderRadius: "99px", height: "8px", transition: "width 0.1s linear" }} />
+            <div style={{ width: `${progress}%`, background: "#1a3a6b", borderRadius: "99px", height: "8px", transition: "width 0.3s ease" }} />
           </div>
           <span style={{ fontSize: "15px", fontWeight: "600", color: "#111", minWidth: "40px" }}>{progress}%</span>
         </div>
@@ -131,7 +153,7 @@ setTimeout(() => navigate('/results', { state: { fileName } }), 500)
                     position: "absolute", top: 0, left: 0, height: "2px",
                     background: "#1a3a6b",
                     width: getLineWidth(i),
-                    transition: "width 0.1s linear"
+                    transition: "width 0.3s ease"
                   }} />
                 </div>
               )}
@@ -153,4 +175,4 @@ setTimeout(() => navigate('/results', { state: { fileName } }), 500)
   )
 }
 
-export default LoadingPage
+export default LoadingPage 

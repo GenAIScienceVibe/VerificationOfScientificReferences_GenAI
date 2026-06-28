@@ -1,52 +1,65 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import CitationGraph from './CitationGraph'
 import logo from '../assets/Logo_VerifAi.png'
 import { generateVerificationPdf } from './pdfReport'
+import { getVerificationResults } from '../api'
+
+// Maps backend support_status (+ doi_status) onto the UI's 4-category model.
+// "hallucinated" has no direct backend equivalent yet - this treats an
+// invalid/unresolvable DOI combined with NOT_SUPPORTED as hallucinated.
+// Confirm this mapping with the backend team if it doesn't match their intent.
+function mapToUiStatus(result) {
+  const invalidDoi = result.doi_status && result.doi_status !== 'VALID'
+  if (invalidDoi && result.support_status === 'NOT_SUPPORTED') return 'hallucinated'
+
+  switch (result.support_status) {
+    case 'SUPPORTED': return 'supported'
+    case 'PARTIALLY_SUPPORTED': return 'partial'
+    case 'NOT_SUPPORTED': return 'unsupported'
+    case 'INSUFFICIENT_EVIDENCE': return 'unsupported'
+    default: return 'unsupported'
+  }
+}
 
 function ResultsPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const fileName = location.state?.fileName || "research_paper.pdf"
+  const documentId = location.state?.documentId
+
   const [activeFilter, setActiveFilter] = useState('All')
   const [activeView, setActiveView] = useState('overview')
   const [citationFilter, setCitationFilter] = useState('all')
 
-  const claims = [
-    {
-      id: 1,
-      status: "supported",
-      text: '"Regular exercise reduces the risk of heart disease by 35% [Johnson et al., 2019]"',
-      source: "Johnson et al., 2019",
-      reasoning: "The cited source explicitly reports a 35% reduction in cardiovascular events among participants in the exercise intervention arm, directly supporting the claim as stated.",
-      confidence: 0.91,
-    },
-    {
-      id: 2,
-      status: "partial",
-      text: '"Drug X reduces fever in 80% of cases within 2 hours of administration [Smith et al., 2021]"',
-      source: "Smith et al., 2021",
-      reasoning: "The referenced paper reports a 28% reduction, not 80% as claimed. The timeframe of 2 hours is consistent with the source, but the efficacy figure is significantly overstated.",
-      confidence: 0.62,
-      warning: "Human review recommended - the discrepancy in figures may indicate a data entry error or intentional misrepresentation.",
-    },
-    {
-      id: 3,
-      status: "unsupported",
-      text: '"Study shows X causes Y in 100% of cases [Brown et al., 2020]"',
-      source: "Brown et al., 2020",
-      reasoning: "The cited source does not support this claim. No such statistic was found in the referenced paper.",
-      confidence: 0.21,
-    },
-    {
-      id: 4,
-      status: "hallucinated",
-      text: '"Research proves Z is always true [White et al., 2022]"',
-      source: "White et al., 2022",
-      reasoning: "No such paper exists. The citation appears to be fabricated.",
-      confidence: 0.05,
-    },
-  ]
+  const [claims, setClaims] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    if (!documentId) {
+      navigate('/error')
+      return
+    }
+
+    getVerificationResults(documentId)
+      .then(data => {
+        const mappedClaims = data.results.map((r, idx) => ({
+          id: r.result_id || idx + 1,
+          status: mapToUiStatus(r),
+          text: `"${r.claim_text}" ${r.citation_text || ''}`.trim(),
+          source: r.reference_title || r.citation_text || 'Unknown source',
+          reasoning: r.explanation || 'No explanation available.',
+          confidence: r.confidence ?? 0,
+          warning: r.human_review_required
+            ? 'Human review recommended - this result may need manual verification.'
+            : undefined,
+          doiResolved: r.doi_status === 'VALID',
+        }))
+        setClaims(mappedClaims)
+      })
+      .catch(err => navigate('/error'))
+      .finally(() => setIsLoading(false))
+  }, [documentId, navigate])
 
   const statusConfig = {
     supported: { label: "Supported", color: "#16a34a", bg: "#f0fdf4", border: "#86efac" },
@@ -56,11 +69,26 @@ function ResultsPage() {
   }
 
   const summaryItems = [
-    { label: "Supported", count: 8, color: "#16a34a" },
-    { label: "Partially supported", count: 3, color: "#d97706" },
-    { label: "Unsupported", count: 2, color: "#dc2626" },
-    { label: "Hallucinated", count: 4, color: "#6b7280" },
+    { label: "Supported", count: claims.filter(c => c.status === 'supported').length, color: "#16a34a" },
+    { label: "Partially supported", count: claims.filter(c => c.status === 'partial').length, color: "#d97706" },
+    { label: "Unsupported", count: claims.filter(c => c.status === 'unsupported').length, color: "#dc2626" },
+    { label: "Hallucinated", count: claims.filter(c => c.status === 'hallucinated').length, color: "#6b7280" },
   ]
+
+  const totalClaims = claims.length
+  const credibilityScore = totalClaims > 0
+    ? Math.round(
+        ((summaryItems[0].count + summaryItems[1].count * 0.5) / totalClaims) * 100
+      )
+    : 0
+
+  const credibilityLabel = credibilityScore >= 80 ? "Reliable"
+    : credibilityScore >= 50 ? "Partially Reliable"
+    : "Low Reliability"
+
+  const credibilityColor = credibilityScore >= 80 ? "#16a34a"
+    : credibilityScore >= 50 ? "#d97706"
+    : "#dc2626"
 
   const filters = [
     { label: "All", key: "all", color: "#1a3a6b", border: "#1a3a6b" },
@@ -89,6 +117,14 @@ function ResultsPage() {
     generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo })
   }
 
+  if (isLoading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+        <p style={{ color: "#888", fontSize: "15px" }}>Loading verification results...</p>
+      </div>
+    )
+  }
+
   return (
     <div style={{ background: "#f5f5f5", minHeight: "100vh", padding: "32px 40px" }}>
 
@@ -101,18 +137,14 @@ function ResultsPage() {
             <div style={{ position: "relative", width: "120px", height: "120px", margin: "0 auto 12px" }}>
               <svg viewBox="0 0 120 120" width="120" height="120">
                 <circle cx="60" cy="60" r="50" fill="none" stroke="#e0e0e0" strokeWidth="12"/>
-                <circle cx="60" cy="60" r="50" fill="none" stroke="#1a3a6b" strokeWidth="12"
-                  strokeDasharray={`${2 * Math.PI * 50 * 0.72} ${2 * Math.PI * 50}`}
+                <circle cx="60" cy="60" r="50" fill="none" stroke={credibilityColor} strokeWidth="12"
+                  strokeDasharray={`${2 * Math.PI * 50 * (credibilityScore / 100)} ${2 * Math.PI * 50}`}
                   strokeDashoffset={2 * Math.PI * 50 * 0.25}
                   strokeLinecap="round" transform="rotate(-90 60 60)"/>
-                <circle cx="60" cy="60" r="50" fill="none" stroke="#d97706" strokeWidth="12"
-                  strokeDasharray={`${2 * Math.PI * 50 * 0.28} ${2 * Math.PI * 50}`}
-                  strokeDashoffset={-2 * Math.PI * 50 * 0.47}
-                  strokeLinecap="round" transform="rotate(-90 60 60)"/>
               </svg>
-              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", fontSize: "22px", fontWeight: "700", color: "#111" }}>72%</div>
+              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", fontSize: "22px", fontWeight: "700", color: "#111" }}>{credibilityScore}%</div>
             </div>
-            <p style={{ color: "#d97706", fontWeight: "600", fontSize: "14px", marginBottom: "8px" }}>Partially Reliable</p>
+            <p style={{ color: credibilityColor, fontWeight: "600", fontSize: "14px", marginBottom: "8px" }}>{credibilityLabel}</p>
             <p style={{ color: "#888", fontSize: "12px", lineHeight: "1.5" }}>Some claims are inaccurate or unsupported by their cited sources.</p>
           </div>
 
@@ -128,10 +160,15 @@ function ResultsPage() {
               </div>
             ))}
             <div style={{ height: "8px", borderRadius: "99px", overflow: "hidden", marginTop: "12px", display: "flex" }}>
-              <div style={{ width: "47%", background: "#16a34a" }} />
-              <div style={{ width: "18%", background: "#d97706" }} />
-              <div style={{ width: "12%", background: "#dc2626" }} />
-              <div style={{ width: "23%", background: "#6b7280" }} />
+              {summaryItems.map(item => (
+                <div
+                  key={item.label}
+                  style={{
+                    width: totalClaims > 0 ? `${(item.count / totalClaims) * 100}%` : "0%",
+                    background: item.color,
+                  }}
+                />
+              ))}
             </div>
           </div>
 
@@ -139,7 +176,7 @@ function ResultsPage() {
             <div style={{ background: "#eef2ff", borderRadius: "8px", padding: "10px", fontSize: "20px" }}>📄</div>
             <div>
               <p style={{ fontSize: "14px", fontWeight: "600", color: "#111" }}>{fileName}</p>
-              <p style={{ fontSize: "12px", color: "#888" }}>17 claims processed just now</p>
+              <p style={{ fontSize: "12px", color: "#888" }}>{totalClaims} claims processed</p>
             </div>
           </div>
 
@@ -185,7 +222,9 @@ function ResultsPage() {
               ← New document
             </button>
           </div>
-          <p style={{ color: "#888", fontSize: "14px", marginBottom: "20px" }}>17 claims checked · 10 DOIs resolved · 2 unresolvable</p>
+          <p style={{ color: "#888", fontSize: "14px", marginBottom: "20px" }}>
+            {totalClaims} claims checked · {claims.filter(c => c.doiResolved).length} DOIs resolved · {claims.filter(c => !c.doiResolved).length} unresolvable
+          </p>
 
           {activeView === 'overview' && (
             <>
@@ -205,57 +244,63 @@ function ResultsPage() {
                 ))}
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                {filteredClaims.map(claim => {
-                  const config = statusConfig[claim.status]
-                  return (
-                    <div key={claim.id} style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                        <span style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px" }}>CLAIM {claim.id}</span>
-                        <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}` }}>
-                          {config.label}
-                        </span>
-                      </div>
-
-                      <p style={{ fontSize: "14px", color: "#333", marginBottom: "16px", lineHeight: "1.6" }}>{claim.text}</p>
-
-                      <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-                        <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
-                          {claim.source}
-                        </span>
-                        <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
-                          DOI resolved
-                        </span>
-                      </div>
-
-                      <div style={{ background: "#f8f8f8", borderRadius: "8px", padding: "16px", marginBottom: claim.warning ? "12px" : "16px" }}>
-                        <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "8px" }}>AI REASONING</p>
-                        <p style={{ fontSize: "13px", color: "#444", lineHeight: "1.6" }}>{claim.reasoning}</p>
-                      </div>
-
-                      {claim.warning && (
-                        <div style={{ background: "#fffbeb", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
-                          <p style={{ fontSize: "13px", color: "#d97706", lineHeight: "1.5" }}>{claim.warning}</p>
+              {filteredClaims.length === 0 ? (
+                <p style={{ color: "#888", fontSize: "14px", textAlign: "center", padding: "40px 0" }}>
+                  No claims match this filter.
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {filteredClaims.map(claim => {
+                    const config = statusConfig[claim.status]
+                    return (
+                      <div key={claim.id} style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                          <span style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px" }}>CLAIM {claim.id}</span>
+                          <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}` }}>
+                            {config.label}
+                          </span>
                         </div>
-                      )}
 
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <span style={{ fontSize: "12px", color: "#888" }}>Confidence</span>
-                          <div style={{ width: "80px", height: "6px", background: "#e0e0e0", borderRadius: "99px", overflow: "hidden" }}>
-                            <div style={{ width: `${claim.confidence * 100}%`, height: "6px", background: getConfidenceColor(claim.confidence), borderRadius: "99px" }} />
+                        <p style={{ fontSize: "14px", color: "#333", marginBottom: "16px", lineHeight: "1.6" }}>{claim.text}</p>
+
+                        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+                          <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
+                            {claim.source}
+                          </span>
+                          <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
+                            {claim.doiResolved ? "DOI resolved" : "DOI unresolved"}
+                          </span>
+                        </div>
+
+                        <div style={{ background: "#f8f8f8", borderRadius: "8px", padding: "16px", marginBottom: claim.warning ? "12px" : "16px" }}>
+                          <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "8px" }}>AI REASONING</p>
+                          <p style={{ fontSize: "13px", color: "#444", lineHeight: "1.6" }}>{claim.reasoning}</p>
+                        </div>
+
+                        {claim.warning && (
+                          <div style={{ background: "#fffbeb", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
+                            <p style={{ fontSize: "13px", color: "#d97706", lineHeight: "1.5" }}>{claim.warning}</p>
                           </div>
-                          <span style={{ fontSize: "12px", color: "#888" }}>{claim.confidence}</span>
-                        </div>
-                        <button style={{ fontSize: "12px", color: "#888", background: "none", border: "none", cursor: "pointer" }}>
-                          Show source passage
-                        </button>
-                      </div>
+                        )}
 
-                    </div>
-                  )
-                })}
-              </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "12px", color: "#888" }}>Confidence</span>
+                            <div style={{ width: "80px", height: "6px", background: "#e0e0e0", borderRadius: "99px", overflow: "hidden" }}>
+                              <div style={{ width: `${claim.confidence * 100}%`, height: "6px", background: getConfidenceColor(claim.confidence), borderRadius: "99px" }} />
+                            </div>
+                            <span style={{ fontSize: "12px", color: "#888" }}>{claim.confidence}</span>
+                          </div>
+                          <button style={{ fontSize: "12px", color: "#888", background: "none", border: "none", cursor: "pointer" }}>
+                            Show source passage
+                          </button>
+                        </div>
+
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </>
           )}
 
