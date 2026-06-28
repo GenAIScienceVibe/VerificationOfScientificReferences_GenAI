@@ -53,7 +53,7 @@ function Footer() {
 {openModal === 'contact' && (
   <Modal title="Contact us" onClose={() => setOpenModal(null)}>
     <p>If you have any questions, feedback, or run into any issues, feel free to reach out to us at:</p>
-    <a href="mailto:Placeholder@tum.de" style={{ marginTop: "12px", display: "inline-block", fontWeight: "600", color: "#1a3a6b", textDecoration: "none" }}>Placeholder@tum.de</a>
+    <a href="mailto:contact@tum.de" style={{ marginTop: "12px", display: "inline-block", fontWeight: "600", color: "#1a3a6b", textDecoration: "none" }}>contact@tum.de</a>
   </Modal>
 )}
 
