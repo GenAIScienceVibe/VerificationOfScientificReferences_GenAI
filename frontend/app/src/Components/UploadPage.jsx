@@ -1,7 +1,19 @@
 import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 
 function UploadPage() {
   const navigate = useNavigate()
+  const [showReferenceUpload, setShowReferenceUpload] = useState(false)
+  const [referenceFiles, setReferenceFiles] = useState([])
+
+  const handleReferenceFiles = (e) => {
+    const files = Array.from(e.target.files)
+    setReferenceFiles(prev => [...prev, ...files])
+  }
+
+  const removeReferenceFile = (index) => {
+    setReferenceFiles(prev => prev.filter((_, i) => i !== index))
+  }
 
   return (
    <div style={{
@@ -86,7 +98,7 @@ function UploadPage() {
   onChange={(e) => {
     const file = e.target.files[0]
     if (file) {
-      navigate('/loading', { state: { fileName: file.name } })
+      navigate('/loading', { state: { fileName: file.name, referenceFiles } })
     }
   }}
 /> 
@@ -105,6 +117,93 @@ function UploadPage() {
           </button>
 
           <p style={{ color: "#aaa", fontSize: "12px", marginTop: "16px" }}>PDF only</p>
+        </div>
+
+        {/* Optional: upload additional reference documents */}
+        <div style={{
+          background: "white", borderRadius: "16px", padding: "24px 32px",
+          maxWidth: "600px", margin: "20px auto 0", boxShadow: "0 2px 16px rgba(0,0,0,0.07)",
+          textAlign: "left"
+        }}>
+          <button
+            onClick={() => setShowReferenceUpload(prev => !prev)}
+            style={{
+              width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+              background: "none", border: "none", cursor: "pointer", padding: 0
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "18px", width: "20px", flexShrink: 0, textAlign: "center" }}>📎</span>
+              <div style={{ textAlign: "left", marginLeft: "8px" }}>
+                <p style={{ fontWeight: "600", fontSize: "15px", color: "#111", margin: 0 }}>
+                  Add reference documents
+                </p>
+                <p style={{ color: "#888", fontSize: "13px", margin: "2px 0 0" }}>
+                  Optional — for sources we can't access automatically
+                </p>
+              </div>
+            </div>
+            <span style={{
+              fontSize: "20px", color: "#1a3a6b",
+              transform: showReferenceUpload ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.2s"
+            }}>
+              ⌄
+            </span>
+          </button>
+
+          {showReferenceUpload && (
+            <div style={{ marginTop: "20px", borderTop: "1px solid #eee", paddingTop: "20px" }}>
+              <p style={{ color: "#888", fontSize: "13px", lineHeight: "1.6", marginBottom: "16px" }}>
+                VerifAi automatically retrieves cited sources via open-access identifiers (DOI/CrossRef).
+                If a citation can't be resolved this way, you can upload a PDF of that source here — for
+                example a paper you already have access to — so we can still compare the claim against it.
+              </p>
+
+              <input
+                type="file"
+                accept=".pdf"
+                id="referenceInput"
+                multiple
+                style={{ display: "none" }}
+                onChange={handleReferenceFiles}
+              />
+
+              <button
+                onClick={() => document.getElementById('referenceInput').click()}
+                style={{
+                  background: "white", border: "1px dashed #c5cfe0", borderRadius: "8px",
+                  padding: "14px", cursor: "pointer", fontSize: "14px", width: "100%",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "#1a3a6b"
+                }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+                Add reference PDF(s)
+              </button>
+
+              {referenceFiles.length > 0 && (
+                <div style={{ marginTop: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {referenceFiles.map((file, i) => (
+                    <div key={i} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      background: "#f5f5f5", borderRadius: "6px", padding: "8px 12px", fontSize: "13px"
+                    }}>
+                      <span style={{ color: "#444", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        📄 {file.name}
+                      </span>
+                      <button
+                        onClick={() => removeReferenceFile(i)}
+                        style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "14px" }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
       </div>

@@ -50,12 +50,12 @@ function Footer() {
         </Modal>
       )}
 
-      {openModal === 'contact' && (
-        <Modal title="Contact us" onClose={() => setOpenModal(null)}>
-          <p>If you have any questions, feedback, or run into any issues, feel free to reach out to us at:</p>
-          <p style={{ marginTop: "12px", fontWeight: "600", color: "#1a3a6b" }}>contact@verifai.com</p>
-        </Modal>
-      )}
+{openModal === 'contact' && (
+  <Modal title="Contact us" onClose={() => setOpenModal(null)}>
+    <p>If you have any questions, feedback, or run into any issues, feel free to reach out to us at:</p>
+    <a href="mailto:Placeholder@tum.de" style={{ marginTop: "12px", display: "inline-block", fontWeight: "600", color: "#1a3a6b", textDecoration: "none" }}>Placeholder@tum.de</a>
+  </Modal>
+)}
 
       {openModal === 'imprint' && (
         <Modal title="Imprint" onClose={() => setOpenModal(null)}>

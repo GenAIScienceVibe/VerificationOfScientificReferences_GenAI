@@ -1,7 +1,8 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useState, useMemo } from 'react'
-import jsPDF from 'jspdf'
+import { useState } from 'react'
 import CitationGraph from './CitationGraph'
+import logo from '../assets/Logo_VerifAi.png'
+import { generateVerificationPdf } from './pdfReport'
 
 function ResultsPage() {
   const navigate = useNavigate()
@@ -54,6 +55,13 @@ function ResultsPage() {
     hallucinated: { label: "Hallucinated", color: "#6b21a8", bg: "#faf5ff", border: "#d8b4fe" },
   }
 
+  const summaryItems = [
+    { label: "Supported", count: 8, color: "#16a34a" },
+    { label: "Partially supported", count: 3, color: "#d97706" },
+    { label: "Unsupported", count: 2, color: "#dc2626" },
+    { label: "Hallucinated", count: 4, color: "#6b7280" },
+  ]
+
   const filters = [
     { label: "All", key: "all", color: "#1a3a6b", border: "#1a3a6b" },
     { label: "Supported", key: "supported", color: "#16a34a", border: "#86efac" },
@@ -78,46 +86,7 @@ function ResultsPage() {
   }
 
   const handleDownload = () => {
-    const doc = new jsPDF()
-    let y = 20
-
-    doc.setFontSize(18)
-    doc.setFont(undefined, 'bold')
-    doc.text('Verification Report', 14, y)
-    y += 10
-
-    doc.setFontSize(11)
-    doc.setFont(undefined, 'normal')
-    doc.text(`File: ${fileName}`, 14, y)
-    y += 8
-    doc.text('Credibility Score: 72% - Partially Reliable', 14, y)
-    y += 12
-
-    claims.forEach((claim) => {
-      if (y > 260) {
-        doc.addPage()
-        y = 20
-      }
-      doc.setFont(undefined, 'bold')
-      doc.text(`Claim ${claim.id} - ${statusConfig[claim.status].label}`, 14, y)
-      y += 7
-
-      doc.setFont(undefined, 'normal')
-      const claimLines = doc.splitTextToSize(claim.text, 180)
-      doc.text(claimLines, 14, y)
-      y += claimLines.length * 6 + 2
-
-      doc.setFont(undefined, 'italic')
-      const reasoningLines = doc.splitTextToSize(`AI reasoning: ${claim.reasoning}`, 180)
-      doc.text(reasoningLines, 14, y)
-      y += reasoningLines.length * 6 + 2
-
-      doc.setFont(undefined, 'normal')
-      doc.text(`Confidence: ${claim.confidence}`, 14, y)
-      y += 12
-    })
-
-    doc.save(`verifai_report_${fileName.replace('.pdf', '')}.pdf`)
+    generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo })
   }
 
   return (
@@ -149,12 +118,7 @@ function ResultsPage() {
 
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
             <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "16px" }}>CLAIMS SUMMARY</p>
-            {[
-              { label: "Supported", count: 8, color: "#16a34a" },
-              { label: "Partially supported", count: 3, color: "#d97706" },
-              { label: "Unsupported", count: 2, color: "#dc2626" },
-              { label: "Hallucinated", count: 4, color: "#6b7280" },
-            ].map(item => (
+            {summaryItems.map(item => (
               <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <span style={{ fontSize: "13px", color: "#444", display: "flex", alignItems: "center", gap: "8px" }}>
                   <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: item.color, display: "inline-block" }} />
