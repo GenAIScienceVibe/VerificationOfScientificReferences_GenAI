@@ -24,6 +24,33 @@ logger = logging.getLogger(__name__)
 DOI_CANDIDATE_REGEX = re.compile(r"(?:https?://(?:dx\.)?doi\.org/|doi\s*[: ]\s*)?(10\.\d{4,9}/\S+)", re.IGNORECASE)
 _ARXIV_DOI_RE = re.compile(r"10\.48550/arxiv\.(\d{4}\.\d{4,5}(?:v\d+)?)", re.IGNORECASE)
 
+# Matches the title after a year anchor in common reference formats:
+#   APA:              Smith, J. (2023). Title. Journal.
+#   SMJ / Harvard:    Smith J. 2023. Title. Journal.
+#   Broken fragment:  2003. Title. Journal.   (author split off by 2-column PDF)
+# Accepts year with or without parentheses; stops before venue (period + uppercase/digit),
+# doi:, URL, or end of string.
+_RAW_REF_TITLE_RE = re.compile(
+    r"(?:\(\d{4}[a-z]?\)|\b\d{4})\.\s+(.+?)(?=\.\s+[A-Z\d]|\s+doi\s*[: ]|\s+https?://|$)",
+    re.IGNORECASE,
+)
+
+
+def _extract_title_from_raw_reference(raw_reference: str) -> str | None:
+    """Extract a paper title from a raw reference string when extracted_title is unavailable.
+
+    Covers APA (Author (Year). Title. Venue.) and numbered formats ([1] / 1.).
+    Returns None when no reliable title can be found (too short or no year anchor).
+    """
+    if not raw_reference:
+        return None
+    m = _RAW_REF_TITLE_RE.search(raw_reference)
+    if m:
+        title = m.group(1).strip().rstrip(".")
+        if len(title) >= 10:
+            return title
+    return None
+
 
 def _arxiv_pdf_url(doi: str) -> str | None:
     """Return a direct arxiv.org PDF URL if doi is an arXiv DOI, else None."""
@@ -356,20 +383,23 @@ class MetadataLookupService:
             # /paper/search endpoint is restricted to ~5-10 unauthenticated req/min.
             # All three use the same false-match gates (title substring + year ±1 +
             # first-author last name). We stop at the first confident match.
-            if reference.extracted_title and reference.extracted_title.strip():
+            # Prefer the structured extracted_title; fall back to parsing raw_reference
+            # when the reference parser could not isolate the title (non-standard format).
+            search_title = (reference.extracted_title or "").strip() or _extract_title_from_raw_reference(reference.raw_reference)
+            if search_title:
                 _title_searchers = [
                     ("CrossRef-TitleSearch", lambda: self.crossref_client.search_by_title(
-                        title=reference.extracted_title,
+                        title=search_title,
                         authors=reference.extracted_authors,
                         year=reference.extracted_year,
                     )),
                     ("OpenAlex-TitleSearch", lambda: self.openalex_client.search_by_title(
-                        title=reference.extracted_title,
+                        title=search_title,
                         authors=reference.extracted_authors,
                         year=reference.extracted_year,
                     )),
                     ("SemanticScholar-TitleSearch", lambda: self.semantic_scholar_client.search_by_title(
-                        title=reference.extracted_title,
+                        title=search_title,
                         authors=reference.extracted_authors,
                         year=reference.extracted_year,
                     )),
@@ -377,7 +407,7 @@ class MetadataLookupService:
                 # CORE is added only when an API key is configured — the API requires auth.
                 if self.settings.core_api_key:
                     _title_searchers.append(("CORE-TitleSearch", lambda: self.core_client.search_by_title(
-                        title=reference.extracted_title,
+                        title=search_title,
                         authors=reference.extracted_authors,
                         year=reference.extracted_year,
                     )))

@@ -56,6 +56,11 @@ SYSTEM_PROMPT = (
 # Below this confidence, the verdict is flagged for human review (CLAUDE.md).
 HUMAN_REVIEW_CONFIDENCE_THRESHOLD = 0.5
 
+# How many times to retry the LLM call when the response is empty or None.
+# OpenRouter occasionally returns an empty completion on the first attempt;
+# retrying 2 more times (3 total) is enough to recover without notable delay.
+MAX_LLM_RETRIES = 3
+
 # Jinja2 environment, built once at import time. The template directory is
 # fixed and known ahead of time, so there is no need to defer this like the
 # OpenAI client (which depends on env vars that may not be set at import).
@@ -131,15 +136,28 @@ def generate_verdict(input_data: VerificationInput) -> str:
         input_data.doi, LLM_MODEL, input_data.citation_type, len(input_data.chunks),
     )
 
-    response = client.chat.completions.create(
-        model=LLM_MODEL,
-        temperature=LLM_TEMPERATURE,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-    )
-    return response.choices[0].message.content
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
+    ]
+
+    last_content: str | None = None
+    for attempt in range(1, MAX_LLM_RETRIES + 1):
+        response = client.chat.completions.create(
+            model=LLM_MODEL,
+            temperature=LLM_TEMPERATURE,
+            messages=messages,
+        )
+        last_content = response.choices[0].message.content
+        if last_content and last_content.strip():
+            return last_content
+        logger.warning(
+            "DOI %s — empty LLM response on attempt %d/%d, retrying.",
+            input_data.doi, attempt, MAX_LLM_RETRIES,
+        )
+
+    # All retries exhausted; return whatever we have (validator.py handles malformed JSON).
+    return last_content or ""
 
 
 def compute_human_review_required(
