@@ -126,6 +126,11 @@ def test_metadata_only_package_skips_rag_and_returns_no_evidence() -> None:
     data = response.json()["data"]
     assert data["retrieval_status"] == RetrievalStatus.NO_RELEVANT_EVIDENCE_FOUND.value
     assert data["top_chunks"] == []
+    assert data["semantic_cache_match"] == {
+        "matched": False,
+        "cached_result_id": None,
+        "similarity": None,
+    }
 
 
 def test_source_unavailable_package_skips_rag_call_and_stores_no_evidence_result() -> None:
@@ -136,6 +141,7 @@ def test_source_unavailable_package_skips_rag_call_and_stores_no_evidence_result
     data = response.json()["data"]
     assert data["retrieval_status"] == RetrievalStatus.NO_RELEVANT_EVIDENCE_FOUND.value
     assert data["top_chunks"] == []
+    assert data["semantic_cache_match"]["matched"] is False
     with SessionLocal() as db:
         stored = db.query(RagRetrievalResult).filter(RagRetrievalResult.claim_id == claim_id).one()
         assert stored.error_message.startswith("Evidence package has SOURCE_UNAVAILABLE")
@@ -196,6 +202,73 @@ class SemanticRagClient:
         )
 
 
+class TraceableRealRagClient:
+    def retrieve(self, request_payload: dict, *, use_mock: bool | None = None) -> RagClientResult:
+        return RagClientResult(
+            payload={
+                "claim_id": request_payload["claim_id"],
+                "reference_id": request_payload["reference_id"],
+                "retrieval_status": RetrievalStatus.SUCCEEDED.value,
+                "top_chunks": [
+                    {
+                        "chunk_id": "real_chunk_1",
+                        "chunk_text": "Persisted traceable real-adapter evidence.",
+                        "similarity_score": 0.88,
+                        "evidence_type": "ABSTRACT",
+                        "source": "metadata_abstract",
+                        "source_url": "https://doi.org/10.1234/demo",
+                    }
+                ],
+                "overall_similarity_score": 0.88,
+                "retrieval_confidence": 0.86,
+            },
+            mock_mode=False,
+        )
+
+
+class FailedRealRagClient:
+    def __init__(self, error_message: str = "Embedding service failed while preparing retrieval vectors.") -> None:
+        self.error_message = error_message
+
+    def retrieve(self, request_payload: dict, *, use_mock: bool | None = None) -> RagClientResult:
+        return RagClientResult(
+            payload={
+                "claim_id": request_payload["claim_id"],
+                "reference_id": request_payload["reference_id"],
+                "retrieval_status": RetrievalStatus.FAILED.value,
+                "top_chunks": [],
+                "overall_similarity_score": 0.0,
+                "retrieval_confidence": 0.0,
+                "error_message": self.error_message,
+            },
+            mock_mode=False,
+        )
+
+
+class UnsafeExceptionRagClient:
+    def retrieve(self, request_payload: dict, *, use_mock: bool | None = None) -> RagClientResult:
+        raise AppException(
+            status_code=503,
+            code=ErrorCode.RAG_SERVICE_UNAVAILABLE,
+            field="claim_id",
+            detail="file:///home/user/private/service.py",
+            message="RAG service unavailable",
+        )
+
+
+class UnsafeValidationRagClient:
+    def retrieve(self, request_payload: dict, *, use_mock: bool | None = None) -> RagClientResult:
+        return RagClientResult(
+            payload={
+                "claim_id": request_payload["claim_id"],
+                "reference_id": request_payload["reference_id"],
+                "retrieval_status": "Traceback: File /home/user/private/service.py line 42",
+                "top_chunks": [],
+            },
+            mock_mode=False,
+        )
+
+
 def test_invalid_rag_response_is_not_stored_as_success_and_returns_error() -> None:
     _doc_id, claim_id, _ref_id, package_id, _ = _create_claim_reference_with_package()
     with SessionLocal() as db:
@@ -206,6 +279,7 @@ def test_invalid_rag_response_is_not_stored_as_success_and_returns_error() -> No
         failures = db.query(RagRetrievalResult).filter(RagRetrievalResult.claim_id == claim_id).all()
         assert len(failures) == 1
         assert failures[0].retrieval_status == RetrievalStatus.FAILED.value
+        assert failures[0].semantic_cache_match_json["matched"] is False
 
 
 def test_timeout_is_stored_safely_as_timeout_result() -> None:
@@ -227,6 +301,112 @@ def test_semantic_cache_match_from_rag_is_validated_and_stored() -> None:
         assert result["semantic_cache_match"]["matched"] is True
         stored = db.query(RagRetrievalResult).filter(RagRetrievalResult.claim_id == claim_id).one()
         assert stored.semantic_cache_match_json["cached_result_id"] == "result_123"
+
+
+def test_real_adapter_provenance_and_cache_default_are_persisted() -> None:
+    _doc_id, claim_id, _ref_id, package_id, _ = _create_claim_reference_with_package()
+    with SessionLocal() as db:
+        result = RagRetrievalService(rag_client=TraceableRealRagClient()).retrieve_evidence_for_claim(
+            claim_id,
+            db,
+            evidence_package_id=package_id,
+            use_mock=False,
+        )
+        chunk = result["top_chunks"][0]
+        assert chunk["source"] == "metadata_abstract"
+        assert chunk["source_url"] == "https://doi.org/10.1234/demo"
+        assert result["semantic_cache_match"] == {
+            "matched": False,
+            "cached_result_id": None,
+            "similarity": None,
+        }
+
+        stored = db.query(RagRetrievalResult).filter(RagRetrievalResult.claim_id == claim_id).one()
+        assert stored.top_chunks_json[0]["source"] == "metadata_abstract"
+        assert stored.top_chunks_json[0]["source_url"] == "https://doi.org/10.1234/demo"
+        assert stored.semantic_cache_match_json["matched"] is False
+
+
+def test_failed_real_rag_detail_and_cache_default_are_persisted() -> None:
+    _doc_id, claim_id, _ref_id, package_id, _ = _create_claim_reference_with_package()
+    with SessionLocal() as db:
+        result = RagRetrievalService(rag_client=FailedRealRagClient()).retrieve_evidence_for_claim(
+            claim_id,
+            db,
+            evidence_package_id=package_id,
+            use_mock=False,
+        )
+
+        assert result["retrieval_status"] == RetrievalStatus.FAILED.value
+        assert result["error_message"] == "Embedding service failed while preparing retrieval vectors."
+        assert result["semantic_cache_match"]["matched"] is False
+
+        stored = db.query(RagRetrievalResult).filter(RagRetrievalResult.claim_id == claim_id).one()
+        assert stored.error_message == result["error_message"]
+        assert stored.semantic_cache_match_json["matched"] is False
+
+
+@pytest.mark.parametrize(
+    "unsafe_message",
+    [
+        "Traceback: File /home/user/private/service.py line 42",
+        "upstream token=dummy-private-value",
+    ],
+)
+def test_unsafe_failed_real_rag_detail_is_sanitized_before_persistence(
+    unsafe_message: str,
+) -> None:
+    _doc_id, claim_id, _ref_id, package_id, _ = _create_claim_reference_with_package()
+    with SessionLocal() as db:
+        result = RagRetrievalService(
+            rag_client=FailedRealRagClient(unsafe_message)
+        ).retrieve_evidence_for_claim(
+            claim_id,
+            db,
+            evidence_package_id=package_id,
+            use_mock=False,
+        )
+
+        assert result["error_message"] == "RAG retrieval did not return usable evidence."
+        stored = db.query(RagRetrievalResult).filter(RagRetrievalResult.claim_id == claim_id).one()
+        assert stored.error_message == result["error_message"]
+        assert stored.response_payload_json["error_message"] == result["error_message"]
+        assert unsafe_message not in str(stored.response_payload_json)
+
+
+def test_exception_failure_detail_is_sanitized_at_persistence_boundary() -> None:
+    _doc_id, claim_id, _ref_id, package_id, _ = _create_claim_reference_with_package()
+    with SessionLocal() as db:
+        service = RagRetrievalService(rag_client=UnsafeExceptionRagClient())
+        with pytest.raises(AppException):
+            service.retrieve_evidence_for_claim(
+                claim_id,
+                db,
+                evidence_package_id=package_id,
+                use_mock=False,
+            )
+
+        stored = db.query(RagRetrievalResult).filter(RagRetrievalResult.claim_id == claim_id).one()
+        assert stored.error_message == "RAG retrieval did not return usable evidence."
+        assert "file://" not in stored.error_message
+
+
+def test_validation_failure_detail_is_sanitized_before_persistence_and_response() -> None:
+    _doc_id, claim_id, _ref_id, package_id, _ = _create_claim_reference_with_package()
+    with SessionLocal() as db:
+        service = RagRetrievalService(rag_client=UnsafeValidationRagClient())
+        with pytest.raises(AppException) as exc:
+            service.retrieve_evidence_for_claim(
+                claim_id,
+                db,
+                evidence_package_id=package_id,
+                use_mock=False,
+            )
+
+        assert exc.value.error.detail == "RAG retrieval did not return usable evidence."
+        stored = db.query(RagRetrievalResult).filter(RagRetrievalResult.claim_id == claim_id).one()
+        assert stored.error_message == exc.value.error.detail
+        assert "Traceback" not in stored.error_message
 
 
 def test_retrieval_repository_can_return_multiple_attempts_when_requested() -> None:

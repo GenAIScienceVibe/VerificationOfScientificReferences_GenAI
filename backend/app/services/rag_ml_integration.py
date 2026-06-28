@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import ipaddress
 import logging
+import math
+import re
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 from sqlalchemy import select
@@ -19,10 +23,47 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_RETRIEVAL_STATUSES = {item.value for item in RetrievalStatus}
 ALLOWED_EVIDENCE_TYPES = {"ABSTRACT", "METADATA", "FULL_TEXT", "REFERENCE", "UNKNOWN", "MOCK"}
+ALLOWED_SOURCE_LABELS = {
+    "backend_full_text",
+    "metadata_abstract",
+    "metadata_fields",
+    "mock",
+    "mock_rag",
+    "preprint_abstract",
+    "rag_direct",
+    "unavailable",
+    "uploaded_full_text",
+}
+SAFE_RAG_FAILURE_MESSAGE = "RAG retrieval did not return usable evidence."
+_MAX_ERROR_MESSAGE_LENGTH = 500
+_SENSITIVE_ERROR_PATTERN = re.compile(
+    r"(?ix)(?:"
+    r"access[_ -]?token|refresh[_ -]?token|api[_ -]?key|"
+    r"authorization|password|secret|\btoken\b|\bbearer\b|"
+    r"\bsk-[a-z0-9_-]+"
+    r")"
+)
+_LOCAL_PATH_PATTERN = re.compile(
+    r"(?ix)(?:"
+    r"file://|"
+    r"(?<![\w:/])/(?:[^/\s\"'<>]+/)+[^/\s\"'<>]+|"
+    r"\b[a-z]:\\(?:[^\\\s\"'<>|]+\\)+[^\\\s\"'<>|]+|"
+    r"\\\\[^\\\s\"'<>|]+\\[^\\\s\"'<>|]+"
+    r")"
+)
+_STACK_TRACE_PATTERN = re.compile(
+    r"(?imx)(?:"
+    r"\btraceback\b|"
+    r"(?:^|\n)\s*file\s+[\"']?.+?[\"']?,?\s+line\s+\d+|"
+    r"(?:^|\n)\s*at\s+[\w.$<>]+\([^\n]*:\d+\)|"
+    r"(?:^|\n)\s*caused\s+by\s*:|"
+    r"(?:^|\n)\s*[\w.]+(?:error|exception)\s*:"
+    r")"
+)
 
 # Map backend DoiStatus values → RAG DoiStatus values (VALID / INVALID / UNRESOLVABLE)
 _DOI_STATUS_TO_RAG: dict[str, str] = {
-    DoiStatus.FOUND.value: "VALID",
+    DoiStatus.FOUND.value: "UNRESOLVABLE",
     DoiStatus.VALID.value: "VALID",
     DoiStatus.MISSING.value: "UNRESOLVABLE",
     DoiStatus.LOOKUP_FAILED.value: "UNRESOLVABLE",
@@ -52,9 +93,75 @@ def _iso(value: Any) -> str | None:
 
 
 def _clamp_top_k(value: int | None, default: int) -> int:
-    if value is None:
-        return default
-    return min(max(int(value), 1), 20)
+    try:
+        parsed = int(default if value is None else value)
+    except (TypeError, ValueError):
+        parsed = int(default)
+    return min(max(parsed, 1), 20)
+
+
+def _semantic_cache_default() -> dict[str, Any]:
+    return {"matched": False, "cached_result_id": None, "similarity": None}
+
+
+def _safe_source_url(value: Any) -> str | None:
+    """Return public HTTP(S) provenance URLs without local paths or credentials."""
+    candidate = str(value or "").strip()
+    if not candidate:
+        return None
+    parsed = urlsplit(candidate)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        return None
+    if parsed.username or parsed.password:
+        return None
+    hostname = parsed.hostname.casefold()
+    if hostname == "localhost" or hostname.endswith(".local"):
+        return None
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        address = None
+    if address is not None and (
+        address.is_private
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_reserved
+    ):
+        return None
+    return candidate
+
+
+def _source_label(availability: str) -> str:
+    if availability == "ABSTRACT_AVAILABLE":
+        return "metadata_abstract"
+    if availability == "FULL_TEXT_AVAILABLE":
+        return "uploaded_full_text"
+    if availability == "UNAVAILABLE":
+        return "unavailable"
+    return "rag_direct"
+
+
+def _safe_error_message(value: Any, *, fallback: str) -> str:
+    """Return a bounded single-line detail without credentials or local traces."""
+    safe_fallback = " ".join(str(fallback or SAFE_RAG_FAILURE_MESSAGE).split())
+    if (
+        not safe_fallback
+        or _SENSITIVE_ERROR_PATTERN.search(safe_fallback)
+        or _LOCAL_PATH_PATTERN.search(safe_fallback)
+        or _STACK_TRACE_PATTERN.search(safe_fallback)
+    ):
+        safe_fallback = SAFE_RAG_FAILURE_MESSAGE
+    safe_fallback = safe_fallback[:_MAX_ERROR_MESSAGE_LENGTH]
+
+    raw_message = str(value or "").strip()
+    if (
+        not raw_message
+        or _SENSITIVE_ERROR_PATTERN.search(raw_message)
+        or _LOCAL_PATH_PATTERN.search(raw_message)
+        or _STACK_TRACE_PATTERN.search(raw_message)
+    ):
+        return safe_fallback
+    return " ".join(raw_message.split())[:_MAX_ERROR_MESSAGE_LENGTH]
 
 
 @dataclass(frozen=True)
@@ -96,21 +203,45 @@ class RagResponseValidator:
             chunk["similarity_score"] = self._validate_score(chunk.get("similarity_score"), f"top_chunks[{index}].similarity_score")
             evidence_type = str(chunk.get("evidence_type") or "UNKNOWN").upper()
             chunk["evidence_type"] = evidence_type if evidence_type in ALLOWED_EVIDENCE_TYPES else "UNKNOWN"
+            source = str(chunk.get("source") or "unavailable").strip()
+            chunk["source"] = source if source in ALLOWED_SOURCE_LABELS else "rag_direct"
+            chunk["source_url"] = _safe_source_url(chunk.get("source_url"))
 
         for field in ("overall_similarity_score", "retrieval_confidence"):
             if response.get(field) is not None:
                 response[field] = self._validate_score(response.get(field), field)
 
         semantic = response.get("semantic_cache_match")
-        if semantic is not None:
+        if semantic is None:
+            semantic = _semantic_cache_default()
+        else:
             if not isinstance(semantic, dict):
                 raise ValueError("semantic_cache_match must be an object when provided.")
-            if "matched" in semantic and not isinstance(semantic.get("matched"), bool):
+            if not isinstance(semantic.get("matched", False), bool):
                 raise ValueError("semantic_cache_match.matched must be boolean.")
-            if semantic.get("similarity") is not None:
-                self._validate_score(semantic.get("similarity"), "semantic_cache_match.similarity")
+            semantic = {
+                "matched": semantic.get("matched", False),
+                "cached_result_id": semantic.get("cached_result_id"),
+                "similarity": (
+                    self._validate_score(
+                        semantic.get("similarity"),
+                        "semantic_cache_match.similarity",
+                    )
+                    if semantic.get("similarity") is not None
+                    else None
+                ),
+            }
+
+        if status == RetrievalStatus.SUCCEEDED.value:
+            response["error_message"] = None
+        else:
+            response["error_message"] = _safe_error_message(
+                response.get("error_message"),
+                fallback=SAFE_RAG_FAILURE_MESSAGE,
+            )
 
         response["top_chunks"] = chunks
+        response["semantic_cache_match"] = semantic
         return response
 
     def _validate_score(self, value: Any, field: str) -> float:
@@ -118,11 +249,11 @@ class RagResponseValidator:
             score = float(value)
         except (TypeError, ValueError) as exc:
             raise ValueError(f"{field} must be a number.") from exc
-        if score < 0:
-            raise ValueError(f"{field} must be >= 0.")
-        # Clamp scores slightly above 1.0 (e.g. from floating-point section-weight
-        # arithmetic in the RAG) rather than rejecting them outright.
-        return min(score, 1.0)
+        if not math.isfinite(score):
+            raise ValueError(f"{field} must be finite.")
+        if score < 0 or score > 1:
+            logger.warning("Normalizing out-of-range RAG score for %s.", field)
+        return min(max(score, 0.0), 1.0)
 
 
 class RagRequestBuilder:
@@ -237,11 +368,15 @@ class MockRagClient:
                     "overall_similarity_score": 0.0,
                     "retrieval_confidence": 0.0,
                     "semantic_cache_match": {"matched": False, "cached_result_id": None, "similarity": None},
+                    "error_message": "No source evidence text was available for retrieval.",
                 },
                 mock_mode=True,
             )
 
-        top_k = int((request_payload.get("retrieval_options") or {}).get("top_k") or 1)
+        top_k = _clamp_top_k(
+            (request_payload.get("retrieval_options") or {}).get("top_k"),
+            5,
+        )
         preview = " ".join(text.split())[:1500]
         chunks = [
             {
@@ -283,6 +418,10 @@ class RagDirectClient:
         from rag.ingestion.models import SourceEvidence  # noqa: PLC0415
 
         source_ev = request_payload.get("source_evidence") or {}
+        top_k = _clamp_top_k(
+            (request_payload.get("retrieval_options") or {}).get("top_k"),
+            5,
+        )
         req = RetrieveEvidenceRequest(
             claim_id=request_payload["claim_id"],
             reference_id=request_payload["reference_id"],
@@ -295,8 +434,11 @@ class RagDirectClient:
                 text=source_ev.get("text") or "",
                 source_url=source_ev.get("source_url") or "",
             ),
+            top_k=top_k,
         )
         response = retrieve_evidence(req)
+        source_label = _source_label(str(source_ev.get("evidence_availability") or ""))
+        source_url = _safe_source_url(source_ev.get("source_url"))
         payload: dict[str, Any] = {
             "claim_id": response.claim_id,
             "reference_id": response.reference_id,
@@ -307,11 +449,15 @@ class RagDirectClient:
                     "chunk_text": c.chunk_text,
                     "similarity_score": c.similarity_score,
                     "evidence_type": c.evidence_type,
+                    "source": source_label,
+                    "source_url": source_url,
                 }
-                for c in response.top_chunks
+                for c in response.top_chunks[:top_k]
             ],
             "overall_similarity_score": response.overall_similarity_score,
             "retrieval_confidence": response.retrieval_confidence,
+            "semantic_cache_match": dict(response.semantic_cache_match),
+            "error_message": response.error_message,
         }
         return RagClientResult(payload=payload, mock_mode=False)
 
@@ -415,7 +561,7 @@ class RagRetrievalService:
                 top_chunks=[],
                 overall_similarity_score=0.0,
                 retrieval_confidence=0.0,
-                semantic_cache_match=None,
+                semantic_cache_match=_semantic_cache_default(),
                 request_summary={"reason": reason, "evidence_package_id": package.id},
                 response_payload=None,
                 error_message=f"Evidence package has {package.evidence_availability}; Door 1 was skipped by BE-9 policy.",
@@ -437,6 +583,10 @@ class RagRetrievalService:
             db.commit()
             raise
         except ValueError as exc:
+            safe_error_message = _safe_error_message(
+                str(exc),
+                fallback=SAFE_RAG_FAILURE_MESSAGE,
+            )
             self._store_result(
                 db,
                 package=package,
@@ -444,13 +594,13 @@ class RagRetrievalService:
                 top_chunks=[],
                 overall_similarity_score=None,
                 retrieval_confidence=None,
-                semantic_cache_match=None,
+                semantic_cache_match=_semantic_cache_default(),
                 request_summary=self.request_builder.summary(request_payload),
                 response_payload=None,
-                error_message=str(exc),
+                error_message=safe_error_message,
             )
             db.commit()
-            raise AppException(status_code=502, code=ErrorCode.RAG_INVALID_RESPONSE, field="claim_id", detail=str(exc), message="Invalid RAG response") from exc
+            raise AppException(status_code=502, code=ErrorCode.RAG_INVALID_RESPONSE, field="claim_id", detail=safe_error_message, message="Invalid RAG response") from exc
 
         result = self._store_result(
             db,
@@ -462,7 +612,7 @@ class RagRetrievalService:
             semantic_cache_match=validated.get("semantic_cache_match"),
             request_summary=self.request_builder.summary(request_payload),
             response_payload={**validated, "mock_mode": client_result.mock_mode},
-            error_message=None,
+            error_message=validated.get("error_message"),
         )
         db.commit()
         db.refresh(result)
@@ -533,7 +683,7 @@ class RagRetrievalService:
             top_chunks=[],
             overall_similarity_score=None,
             retrieval_confidence=None,
-            semantic_cache_match=None,
+            semantic_cache_match=_semantic_cache_default(),
             request_summary=self.request_builder.summary(request_payload),
             response_payload=None,
             error_message=exc.error.detail,
@@ -553,6 +703,18 @@ class RagRetrievalService:
         response_payload: dict[str, Any] | None,
         error_message: str | None,
     ) -> RagRetrievalResult:
+        safe_error_message = None
+        safe_response_payload = response_payload
+        if retrieval_status != RetrievalStatus.SUCCEEDED.value:
+            safe_error_message = _safe_error_message(
+                error_message,
+                fallback=SAFE_RAG_FAILURE_MESSAGE,
+            )
+            if response_payload is not None:
+                safe_response_payload = {
+                    **response_payload,
+                    "error_message": safe_error_message,
+                }
         result = RagRetrievalResult(
             document_id=package.document_id,
             claim_id=package.claim_id,
@@ -562,10 +724,10 @@ class RagRetrievalService:
             top_chunks_json=top_chunks,
             overall_similarity_score=overall_similarity_score,
             retrieval_confidence=retrieval_confidence,
-            semantic_cache_match_json=semantic_cache_match,
+            semantic_cache_match_json=semantic_cache_match or _semantic_cache_default(),
             request_payload_summary=request_summary,
-            response_payload_json=response_payload,
-            error_message=error_message,
+            response_payload_json=safe_response_payload,
+            error_message=safe_error_message,
         )
         db.add(result)
         db.flush()
@@ -582,7 +744,7 @@ class RagRetrievalService:
             "top_chunks": result.top_chunks_json or [],
             "overall_similarity_score": result.overall_similarity_score,
             "retrieval_confidence": result.retrieval_confidence,
-            "semantic_cache_match": result.semantic_cache_match_json,
+            "semantic_cache_match": result.semantic_cache_match_json or _semantic_cache_default(),
             "request_payload_summary": result.request_payload_summary,
             "error_message": result.error_message,
             "created_at": _iso(result.created_at),

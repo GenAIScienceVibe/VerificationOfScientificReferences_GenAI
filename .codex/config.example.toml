@@ -1,0 +1,11 @@
+# Example Codex config for this repository.
+# Copy to your Codex config location if useful.
+
+model = "gpt-5.5"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+# Recommended workflow:
+# - QA Agent: read-only intent, no production code edits.
+# - Development/Fixing Agent: small scoped edits only.
+# - Re-validation Agent: no production code edits.

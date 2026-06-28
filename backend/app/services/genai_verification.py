@@ -128,7 +128,7 @@ class RealGenAiVerificationClient:
 
     # Maps backend DoiStatus values to the three values rag/api.py accepts.
     _DOI_MAP: dict[str, str] = {
-        "FOUND": "VALID", "VALID": "VALID",
+        "FOUND": "UNRESOLVABLE", "VALID": "VALID",
         "MISSING": "UNRESOLVABLE", "LOOKUP_FAILED": "UNRESOLVABLE",
         "MALFORMED": "INVALID", "INVALID": "INVALID",
     }

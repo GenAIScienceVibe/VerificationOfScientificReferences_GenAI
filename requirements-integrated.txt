@@ -1,0 +1,6 @@
+# Combined environment for the current in-process Backend + RAG integration.
+# Install from the repository root into backend/.venv:
+#   backend/.venv/bin/python -m pip install -r requirements-integrated.txt
+
+-r backend/requirements.txt
+-r rag/requirements.txt

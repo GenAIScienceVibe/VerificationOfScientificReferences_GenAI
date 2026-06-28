@@ -346,7 +346,10 @@ class MetadataLookupService:
         metadata_repo = SourceMetadataRepository(db)
         doi = normalize_doi_for_lookup(reference.extracted_doi)
 
-        if not doi:
+        # The disabled-mode guard must apply before title-based DOI resolution.
+        # The local missing/malformed handling below remains available so mock
+        # and offline pipelines persist safe statuses without provider calls.
+        if not doi and self.settings.metadata_lookup_enabled:
             # Title-based DOI lookup: try CrossRef → OpenAlex → SemanticScholar in
             # order of rate-limit generosity. CrossRef and OpenAlex have no meaningful
             # rate limits with the mailto polite-pool setting, while SemanticScholar's
