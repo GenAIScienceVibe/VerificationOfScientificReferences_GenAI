@@ -1,0 +1,10 @@
+Numbered Paper
+
+Body
+A study cites numbered references [1].
+
+References
+[1] Smith, J. (2023). Numbered AI reference. Journal One. doi:10.1111/numbered.2023
+[2] Johnson, A. (2021). Wrapped reference title
+continues on the next line. Journal Two. https://doi.org/10.2222/wrapped.2021.
+3. Broken, B. (2020). Broken DOI example. doi: 10.abc/bad

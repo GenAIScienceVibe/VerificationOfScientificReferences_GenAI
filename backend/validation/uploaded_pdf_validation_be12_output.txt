@@ -1,0 +1,75 @@
+================================================================================
+PDF: IRRDOLPUBLISHEDARTICLE.pdf
+document_id: doc_c3104ecd9d18
+references_detected: 30
+doi_summary: {'found': 26, 'missing': 4, 'malformed': 0}
+claims_extracted: 34
+evidence_packages_created: 42
+verification_results_in_report: 42
+report_generated: True
+report_id: report_44569330d589
+total_references_in_report: 30
+doi_summary_manually_checked: True
+high_risk_claims_listed: True
+report_sections_present: True
+limitations_section_present: True
+unsupported_labels_found: []
+feedback_api_tested: True
+mapping_feedback_tested: True
+uat_survey_tested: True
+latest_report_endpoint_ok: True
+mock_service_validation: True
+seeded_demo_cache_records: 1
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['Validation used mock RAG and mock GenAI because no real services were provided in the sandbox.', 'HTML report is the BE-12 MVP format; PDF export is intentionally not implemented.', 'Feedback is stored but not automatically applied as truth.']
+================================================================================
+PDF: Impact_of_Ease_of_Use_Usefulness_Attitude_and_Trus.pdf
+document_id: doc_1cd816185c2e
+references_detected: 24
+doi_summary: {'found': 21, 'missing': 3, 'malformed': 0}
+claims_extracted: 56
+evidence_packages_created: 87
+verification_results_in_report: 86
+report_generated: True
+report_id: report_a4ac50eb7c0b
+total_references_in_report: 24
+doi_summary_manually_checked: True
+high_risk_claims_listed: True
+report_sections_present: True
+limitations_section_present: True
+unsupported_labels_found: []
+feedback_api_tested: True
+mapping_feedback_tested: True
+uat_survey_tested: True
+latest_report_endpoint_ok: True
+mock_service_validation: True
+seeded_demo_cache_records: 1
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['Validation used mock RAG and mock GenAI because no real services were provided in the sandbox.', 'HTML report is the BE-12 MVP format; PDF export is intentionally not implemented.', 'Feedback is stored but not automatically applied as truth.']
+================================================================================
+PDF: SeminarPaper_20.01..pdf
+document_id: doc_6b49a81feca2
+references_detected: 37
+doi_summary: {'found': 21, 'missing': 16, 'malformed': 0}
+claims_extracted: 9
+evidence_packages_created: 11
+verification_results_in_report: 11
+report_generated: True
+report_id: report_2c3f79f6a7bd
+total_references_in_report: 37
+doi_summary_manually_checked: True
+high_risk_claims_listed: True
+report_sections_present: True
+limitations_section_present: True
+unsupported_labels_found: []
+feedback_api_tested: True
+mapping_feedback_tested: True
+uat_survey_tested: True
+latest_report_endpoint_ok: True
+mock_service_validation: True
+seeded_demo_cache_records: 1
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['Validation used mock RAG and mock GenAI because no real services were provided in the sandbox.', 'HTML report is the BE-12 MVP format; PDF export is intentionally not implemented.', 'Feedback is stored but not automatically applied as truth.']

@@ -1,0 +1,1256 @@
+{"timestamp": "2026-06-09T13:48:33.218282Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_4db1902fdd684aaf", "method": "POST", "path": "/api/v1/documents/upload", "status_code": 200, "duration_ms": 540.04}
+{"timestamp": "2026-06-09T13:48:33.222146Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/upload \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:33.232500Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_start", "request_id": "req_20ef07cd52c542ff"}
+{"timestamp": "2026-06-09T13:48:33.310318Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_completed", "request_id": "req_20ef07cd52c542ff"}
+{"timestamp": "2026-06-09T13:48:33.311130Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_20ef07cd52c542ff", "method": "POST", "path": "/api/v1/documents/doc_184c7becc4fa/extract-references", "status_code": 200, "duration_ms": 86.22}
+{"timestamp": "2026-06-09T13:48:33.316217Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_184c7becc4fa/extract-references \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:33.326985Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_start", "request_id": "req_731efe24c567484f"}
+{"timestamp": "2026-06-09T13:48:33.490726Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_completed", "request_id": "req_731efe24c567484f"}
+{"timestamp": "2026-06-09T13:48:33.493234Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_731efe24c567484f", "method": "POST", "path": "/api/v1/documents/doc_184c7becc4fa/extract-claims", "status_code": 200, "duration_ms": 174.18}
+{"timestamp": "2026-06-09T13:48:33.496590Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_184c7becc4fa/extract-claims \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:33.533556Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_start", "request_id": "req_604f0a49e47f4957"}
+{"timestamp": "2026-06-09T13:48:33.722704Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_completed", "request_id": "req_604f0a49e47f4957"}
+{"timestamp": "2026-06-09T13:48:33.723960Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_604f0a49e47f4957", "method": "POST", "path": "/api/v1/documents/doc_184c7becc4fa/prepare-evidence", "status_code": 200, "duration_ms": 225.08}
+{"timestamp": "2026-06-09T13:48:33.728465Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_184c7becc4fa/prepare-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:33.753901Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:33.777766Z", "level": "INFO", "logger": "app.services.verification_orchestrator", "message": "verification_pipeline_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.813188Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.817374Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:33.828324Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.836912Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.852128Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:33.852346Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:33.855148Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.857225Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:33.863497Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.864670Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:33.869463Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.873127Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.882603Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:33.882907Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:33.885060Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.888072Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:33.893137Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.894445Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:33.899479Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.905185Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.913519Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:33.913701Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:33.915038Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.916963Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:33.922013Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.923270Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:33.928723Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.932271Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.940188Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:33.940400Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:33.942086Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.943946Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:33.948760Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.949791Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:33.954604Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.958838Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.966717Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:33.966880Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:33.968117Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.969760Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:33.974027Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.974965Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:33.979509Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.982848Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.991370Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:33.991579Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:33.992842Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:33.994915Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:33.999886Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.003020Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.003330Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.003611Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.006520Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:34.010614Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.011968Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.017105Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.020698Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.028561Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.028725Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.030054Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.032111Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.036907Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.037921Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.042891Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.046644Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.054662Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.054837Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.056382Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.058414Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.063364Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.064380Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.068887Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.072193Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.080721Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.081027Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.083354Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.085421Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.090351Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.091429Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.097512Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.101564Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.109412Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.109581Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.110852Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.113256Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.119017Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.120238Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.124935Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.128502Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.135631Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.135901Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.137271Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.139031Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.143902Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.145390Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.151135Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.155118Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.163450Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.163681Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.165504Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.167609Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.172244Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.173496Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.184142Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.188375Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.195584Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.195781Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.197434Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.199617Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.204929Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.205913Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.210287Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.213948Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.221818Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.221986Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.223386Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.225241Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.229872Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.232533Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.232817Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.232964Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.234465Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:34.237330Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.238248Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.242759Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.246574Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.269010Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.269226Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.270681Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.272744Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.277545Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.278513Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.282848Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.286333Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.293767Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.293979Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.295425Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.297423Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.302011Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.302952Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.307398Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.311040Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.319132Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.319370Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.320641Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.322343Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.326907Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.328193Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.333151Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.336501Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.343957Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.344133Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.345419Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.347192Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.351386Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.352432Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.356823Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.360414Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.367880Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.368228Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.369852Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.371997Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.376861Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.377831Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.382600Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.386111Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.394900Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.395241Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.396827Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.398594Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.403458Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.404396Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.408532Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.412632Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.420455Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.420677Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.422205Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.424101Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.428631Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.429691Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.433944Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.437497Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.445239Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.445415Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.446694Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.448632Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.454236Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.455692Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.460559Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.464067Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.472424Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.472711Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.474237Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.476213Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.480877Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.481875Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.486153Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.489695Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.497579Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.497765Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.499426Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.501265Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.505452Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.506373Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.510574Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.514089Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.521636Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.521794Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.523078Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.524945Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.530067Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.530914Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.534799Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.538426Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.547402Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.547749Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.549178Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.550939Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.555949Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.556916Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.561274Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.565248Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.572522Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.572684Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.573847Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.575645Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.579690Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.580965Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.585580Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.589483Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.597294Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.597584Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.599248Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.601141Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.606469Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.607613Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.613163Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.617112Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.625510Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.625860Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.627840Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.629713Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.634821Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.635983Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.641002Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.644408Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.651305Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.651522Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.653123Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.655049Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.659351Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.660468Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.664992Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.668672Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.675911Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.676102Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.677321Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.679635Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.684630Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.685475Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.689229Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.692867Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.701559Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.701727Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.703040Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.705811Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.720773Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.721726Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.726185Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.730048Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.737204Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.737383Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.738592Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.740455Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.744946Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.746016Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.750308Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.753556Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.760570Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.760828Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.762328Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.764172Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.769713Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.770850Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.775515Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.780213Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.788273Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.788541Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.790349Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.792935Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.798534Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.800893Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.801143Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.801271Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.802983Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:34.806658Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.807751Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.812656Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.816783Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.825076Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.825270Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.826592Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.828468Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.833996Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.835618Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:34.840665Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.845313Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.853653Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.853890Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:34.855432Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.857503Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:34.863014Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.864967Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.865092Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.865181Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:34.866715Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:34.869618Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.873898Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "exact_cache_decision"}
+{"timestamp": "2026-06-09T13:48:34.876935Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_8f6cfb459a5441f6"}
+{"timestamp": "2026-06-09T13:48:34.889158Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_8f6cfb459a5441f6", "method": "POST", "path": "/api/v1/documents/doc_184c7becc4fa/pipeline-runs", "status_code": 200, "duration_ms": 1131.72}
+{"timestamp": "2026-06-09T13:48:34.892974Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_184c7becc4fa/pipeline-runs \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:34.902576Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_364841d6f4e7415f", "method": "GET", "path": "/api/v1/pipeline-runs/run_f7d6f3e49bf4/steps", "status_code": 200, "duration_ms": 6.36}
+{"timestamp": "2026-06-09T13:48:34.907830Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/pipeline-runs/run_f7d6f3e49bf4/steps \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:34.983052Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_6de3cf606aba4823", "method": "GET", "path": "/api/v1/documents/doc_184c7becc4fa/verification-results", "status_code": 200, "duration_ms": 71.36}
+{"timestamp": "2026-06-09T13:48:34.987249Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_184c7becc4fa/verification-results?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:35.001438Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_7b719dfdaf7f40e6", "method": "GET", "path": "/api/v1/documents/doc_184c7becc4fa/safety-summary", "status_code": 200, "duration_ms": 9.74}
+{"timestamp": "2026-06-09T13:48:35.004112Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_184c7becc4fa/safety-summary \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:35.020509Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_01d36386d57b40fb", "method": "GET", "path": "/api/v1/verification-results/result_d663ce77d529", "status_code": 200, "duration_ms": 13.86}
+{"timestamp": "2026-06-09T13:48:35.023676Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_d663ce77d529 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:35.033718Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_7a75bc95ac4844b5", "method": "GET", "path": "/api/v1/verification-results/result_70dacdc86b6f", "status_code": 200, "duration_ms": 7.37}
+{"timestamp": "2026-06-09T13:48:35.037215Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_70dacdc86b6f \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:35.048234Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_4b08c51ee86e4167", "method": "GET", "path": "/api/v1/verification-results/result_e4219cc1d9ef", "status_code": 200, "duration_ms": 6.72}
+{"timestamp": "2026-06-09T13:48:35.051276Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_e4219cc1d9ef \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:35.060485Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_2f26b1272a284ea8", "method": "GET", "path": "/api/v1/verification-results/result_f88683a0c29e", "status_code": 200, "duration_ms": 6.55}
+{"timestamp": "2026-06-09T13:48:35.062790Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_f88683a0c29e \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:35.077354Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_748d6659ab7d43ef", "method": "GET", "path": "/api/v1/verification-results/result_07a4e34f98be", "status_code": 200, "duration_ms": 8.16}
+{"timestamp": "2026-06-09T13:48:35.080604Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_07a4e34f98be \"HTTP/1.1 200 OK\""}
+================================================================================
+PDF: IRRDOLPUBLISHEDARTICLE.pdf
+document_id: doc_184c7becc4fa
+references_detected: 30
+doi_summary: {'found': 26, 'missing': 4, 'malformed': 0}
+claims_extracted: 34
+evidence_packages_created: 42
+pipeline_run_created: True
+pipeline_status: SUCCEEDED
+pipeline_steps_recorded: 10
+seeded_demo_cache_records: 1
+verification_results_produced: 42
+cache_hit_verifications: 1
+new_rag_genai_verifications: 37
+supported: 0
+partially_supported: 1
+not_supported: 0
+insufficient_evidence: 0
+needs_human_review: 41
+results_manually_checked: 5
+correct_evidence_used_links: 5
+confidence_explanation_observations: Mock GenAI produced deterministic explanations and confidence values; not final AI quality.
+safety_fallback_cases: 41
+human_review_flags: 41
+confidence_caps_applied: 41
+safety_checks_stored: 49
+safety_reasons_manually_checked: 4
+high_risk_results: 4
+medium_risk_results: 37
+unsupported_labels: []
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['Validation used mock RAG and mock GenAI because no real services were provided in the sandbox.', 'BE-11 deterministic safety rules were applied; mock RAG/GenAI still means final AI quality is not validated.', 'Seeded cache records are demo-only because BE-10/BE-11 validation still uses controlled demo cache records for cache-hit testing.']
+{"timestamp": "2026-06-09T13:48:35.267624Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_d429364d5c8f4134", "method": "POST", "path": "/api/v1/documents/upload", "status_code": 200, "duration_ms": 182.97}
+{"timestamp": "2026-06-09T13:48:35.271290Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/upload \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:35.278096Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_start", "request_id": "req_8a7126c15bfc4e38"}
+{"timestamp": "2026-06-09T13:48:35.335395Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_completed", "request_id": "req_8a7126c15bfc4e38"}
+{"timestamp": "2026-06-09T13:48:35.336151Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_8a7126c15bfc4e38", "method": "POST", "path": "/api/v1/documents/doc_24f52bd6ba3c/extract-references", "status_code": 200, "duration_ms": 62.36}
+{"timestamp": "2026-06-09T13:48:35.339349Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_24f52bd6ba3c/extract-references \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:35.345852Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_start", "request_id": "req_f2619fa13f0948f5"}
+{"timestamp": "2026-06-09T13:48:35.556356Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_completed", "request_id": "req_f2619fa13f0948f5"}
+{"timestamp": "2026-06-09T13:48:35.558254Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_f2619fa13f0948f5", "method": "POST", "path": "/api/v1/documents/doc_24f52bd6ba3c/extract-claims", "status_code": 200, "duration_ms": 216.45}
+{"timestamp": "2026-06-09T13:48:35.561225Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_24f52bd6ba3c/extract-claims \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:35.578321Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_start", "request_id": "req_b439d7e10ba4466d"}
+{"timestamp": "2026-06-09T13:48:35.802092Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_completed", "request_id": "req_b439d7e10ba4466d"}
+{"timestamp": "2026-06-09T13:48:35.803291Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_b439d7e10ba4466d", "method": "POST", "path": "/api/v1/documents/doc_24f52bd6ba3c/prepare-evidence", "status_code": 200, "duration_ms": 239.37}
+{"timestamp": "2026-06-09T13:48:35.806788Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_24f52bd6ba3c/prepare-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:35.817509Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:35.832445Z", "level": "INFO", "logger": "app.services.verification_orchestrator", "message": "verification_pipeline_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.855909Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.856938Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:35.862137Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.866995Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.875350Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:35.875540Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:35.876794Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.878515Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:35.883294Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.884332Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:35.889030Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.893213Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.902191Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:35.902372Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:35.903743Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.905601Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:35.910197Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.911788Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:35.917281Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.921067Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.928499Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:35.928696Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:35.929953Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.931848Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:35.937112Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.938152Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:35.942816Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.946845Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.973667Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:35.973983Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:35.975948Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.977979Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:35.982347Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.983326Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:35.988907Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:35.992833Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.000428Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.000713Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.002589Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.004496Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.008955Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.010841Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.011008Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.011122Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.013003Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:36.015916Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.016964Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.021833Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.025860Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.034472Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.034666Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.058921Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.061759Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.069632Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.070670Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.074810Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.079826Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.089697Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.089886Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.092066Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.094044Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.098854Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.100327Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.105235Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.110136Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.122450Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.122772Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.124720Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.126647Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.132893Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.135318Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.135530Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.135642Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.137672Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:36.140887Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.141891Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.146408Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.150894Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.159310Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.159548Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.161315Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.163384Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.167920Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.168883Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.173278Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.177762Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.185718Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.186007Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.187682Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.189675Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.194872Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.196039Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.201231Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.205917Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.215371Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.215795Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.217783Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.220078Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.225882Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.226839Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.231728Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.235829Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.245249Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.245486Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.247319Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.249711Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.254842Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.256725Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.262277Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.268253Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.277570Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.277850Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.279332Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.281367Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.285788Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.286704Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.290899Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.294568Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.303638Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.304003Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.305568Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.308132Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.313820Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.314768Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.319479Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.322826Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.331762Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.332106Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.334129Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.336315Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.341492Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.342550Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.347208Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.351767Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.360253Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.360535Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.361758Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.363888Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.368728Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.369948Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.374700Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.379169Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.387320Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.387629Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.389052Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.391124Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.395920Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.396937Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.402397Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.406883Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.414560Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.414839Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.416839Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.418927Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.424190Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.425232Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.430274Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.434429Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.443137Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.443458Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.445320Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.447644Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.453000Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.454961Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.455282Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.455564Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.457875Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:36.462357Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.463774Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.468614Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.473595Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.483308Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.483590Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.485256Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.487276Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.491752Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.492926Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.497786Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.503063Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.511278Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.511466Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.513002Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.514835Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.520619Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.521795Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.526754Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.530590Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.544610Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.544816Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.546464Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.548506Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.552507Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.553396Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.559296Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.564625Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.573747Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.573979Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.575643Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.577828Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.582862Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.584222Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.589341Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.593418Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.602361Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.602615Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.605218Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.607719Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.614774Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.616283Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.621834Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.626015Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.635497Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.635804Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.637444Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.639832Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.645451Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.646845Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.652656Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.657173Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.697275Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.697585Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.699511Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.701857Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.706971Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.708026Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.712331Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.716034Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.723773Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.724183Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.725627Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.727636Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.731796Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.733704Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.733932Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.734136Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.736053Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:36.739490Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.740665Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.745322Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.749023Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.756983Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.757150Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.758525Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.760636Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.764920Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.765846Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.770030Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.773705Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.781295Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.781493Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.783052Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.785073Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.789837Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.790969Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.795446Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.799202Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.806965Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.807119Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.808544Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.810298Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.814909Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.816972Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.817124Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.817483Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.819090Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:36.822418Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.823717Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.828406Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.832272Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.839667Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.839859Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.841104Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.842788Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.846859Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.847903Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.852444Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.857494Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.865410Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.865596Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.867278Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.869964Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.875511Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.876852Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.882273Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.886583Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.895116Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.895419Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.896938Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.898807Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.904092Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.905374Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.910279Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.914768Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.922541Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.922813Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.924892Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.927141Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.932837Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.933960Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.938229Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.942631Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.951650Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.951968Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.953416Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.955250Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.959742Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.960827Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.965075Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.968767Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.975641Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:36.975822Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:36.977204Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.979458Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:36.983573Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.984570Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:36.988541Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:36.993328Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.001675Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.001854Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.003259Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.004963Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.008728Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.009603Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.014575Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.018477Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.025551Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.025732Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.027285Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.029156Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.033818Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.034738Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.038775Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.044099Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.052962Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.053266Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.054892Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.056974Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.061760Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.064684Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.064814Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.065045Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.067366Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:37.070602Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.071667Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.076084Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.080899Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.089745Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.089962Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.091902Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.094278Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.098953Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.100087Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.104548Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.109365Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.117556Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.117860Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.119529Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.121385Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.125925Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.127366Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.132441Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.136838Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.145474Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.145676Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.147333Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.149303Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.153761Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.154666Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.158881Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.164177Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.173045Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.173309Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.174864Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.176932Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.183251Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.184452Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.189031Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.193088Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.201709Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.201878Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.203471Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.205346Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.210617Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.211727Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.216440Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.221313Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.229806Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.229990Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.231934Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.233913Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.238341Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.239325Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.243694Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.249057Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.257135Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.257334Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.258853Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.260981Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.266292Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.267346Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.272929Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.286614Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.296687Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.296988Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.298621Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.300804Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.305777Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.307129Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.311874Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.316876Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.328184Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.328364Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.329769Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.332101Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.337056Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.338300Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.343344Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.348408Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.358095Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.358284Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.360361Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.362380Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.367709Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.368839Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.373821Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.378298Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.386449Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.386624Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.387854Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.389647Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.394428Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.395569Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.400161Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.404460Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.412885Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.413110Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.452871Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.455260Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.459889Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.460828Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.466434Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.470581Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.479113Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.479403Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.481076Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.483468Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.488261Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.489281Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.494333Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.498931Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.508003Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.508246Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.509712Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.511637Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.516350Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.517296Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.521460Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.525997Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.535375Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.535573Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.536777Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.539438Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.544152Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.545581Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.550136Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.554406Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.563425Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.563713Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.565422Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.567480Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.572432Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.573622Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.578759Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.583133Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.591781Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.592049Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.593604Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.595789Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.600324Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.602142Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.608305Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.616139Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.627088Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.627373Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.628677Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.630445Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.634597Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.635622Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.640419Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.644215Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.651443Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.651597Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.653162Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.655505Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.678920Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.680360Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.685824Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.690738Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.697988Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.698182Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.700123Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.702538Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.709053Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.710018Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.715642Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.721457Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.730816Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.730978Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.732256Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.734426Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.740113Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.742372Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.742546Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.742700Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.744364Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:37.748154Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.749343Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.754317Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.759581Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.768953Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.769147Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.770603Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.772594Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.776696Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.777614Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.783288Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.790002Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.798672Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.798882Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.800437Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.802561Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.807488Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.808923Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.814553Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.819371Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.827471Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.827777Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.829195Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.831120Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.835858Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.836833Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.841827Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.845908Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.854363Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.854576Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.856344Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.858086Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.862922Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.864030Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.868810Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.874529Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.882417Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.882745Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.884574Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.886782Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.891295Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.892325Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.897091Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.901754Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.910016Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.910213Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.912306Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.914470Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.919833Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.921395Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.926878Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.932713Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.941691Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.941977Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.943565Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.945633Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.950863Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.952047Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.956650Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.961545Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.969831Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.970053Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.971758Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.973741Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:37.978361Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.979801Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:37.984608Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.989167Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:37.997780Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:37.997958Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:37.999494Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.001869Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:38.008210Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.009856Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:38.015156Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.019149Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.027669Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:38.028070Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:38.029778Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.032005Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:38.036827Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.037901Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:38.042409Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.047745Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.055479Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:38.055707Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:38.057485Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.059772Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:38.064732Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.066057Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:38.070736Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.074692Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.081650Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:38.081821Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:38.083306Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.084979Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:38.089162Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.090119Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:38.094398Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.098943Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.108128Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:38.108311Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:38.109607Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.111326Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:38.115594Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.116834Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:38.121402Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.125589Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.133713Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:38.134032Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:38.135872Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.138373Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:38.143232Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.144185Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:38.149186Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.153285Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.162140Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:38.162357Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:38.164152Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.166528Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:38.171939Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.173945Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:38.174182Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:38.174342Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:38.176063Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:38.178885Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.180165Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:38.185051Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.188886Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.196291Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:38.196494Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:38.197871Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.199859Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:38.204888Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.205798Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:38.210051Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.214587Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.223634Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:38.223933Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:38.225778Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.227615Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:38.231627Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.234384Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "exact_cache_decision"}
+{"timestamp": "2026-06-09T13:48:38.236963Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_49f8c331acf94930"}
+{"timestamp": "2026-06-09T13:48:38.247434Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_49f8c331acf94930", "method": "POST", "path": "/api/v1/documents/doc_24f52bd6ba3c/pipeline-runs", "status_code": 200, "duration_ms": 2427.14}
+{"timestamp": "2026-06-09T13:48:38.250304Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_24f52bd6ba3c/pipeline-runs \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:38.256645Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_f7011603f1974133", "method": "GET", "path": "/api/v1/pipeline-runs/run_cd33887db19b/steps", "status_code": 200, "duration_ms": 3.98}
+{"timestamp": "2026-06-09T13:48:38.259019Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/pipeline-runs/run_cd33887db19b/steps \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:38.354168Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_17f2f633e0e44b8d", "method": "GET", "path": "/api/v1/documents/doc_24f52bd6ba3c/verification-results", "status_code": 200, "duration_ms": 92.58}
+{"timestamp": "2026-06-09T13:48:38.357573Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_24f52bd6ba3c/verification-results?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:38.368991Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_037ec9e3d16e4a99", "method": "GET", "path": "/api/v1/documents/doc_24f52bd6ba3c/safety-summary", "status_code": 200, "duration_ms": 7.82}
+{"timestamp": "2026-06-09T13:48:38.371467Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_24f52bd6ba3c/safety-summary \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:38.379509Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_c6d80b29aedb43b9", "method": "GET", "path": "/api/v1/verification-results/result_6967574394f9", "status_code": 200, "duration_ms": 5.81}
+{"timestamp": "2026-06-09T13:48:38.381980Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_6967574394f9 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:38.390448Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_77ab57c75f294099", "method": "GET", "path": "/api/v1/verification-results/result_c99152a3505f", "status_code": 200, "duration_ms": 6.17}
+{"timestamp": "2026-06-09T13:48:38.392416Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_c99152a3505f \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:38.401271Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_e3dac9f2143548cd", "method": "GET", "path": "/api/v1/verification-results/result_4818cdb218d6", "status_code": 200, "duration_ms": 6.82}
+{"timestamp": "2026-06-09T13:48:38.404272Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_4818cdb218d6 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:38.413463Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_1214ed2938eb4bdf", "method": "GET", "path": "/api/v1/verification-results/result_0c883edc7e67", "status_code": 200, "duration_ms": 6.48}
+{"timestamp": "2026-06-09T13:48:38.416748Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_0c883edc7e67 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:38.425701Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_ab842b2c18664a15", "method": "GET", "path": "/api/v1/verification-results/result_81e827a5c2c5", "status_code": 200, "duration_ms": 6.48}
+{"timestamp": "2026-06-09T13:48:38.428061Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_81e827a5c2c5 \"HTTP/1.1 200 OK\""}
+================================================================================
+PDF: Impact_of_Ease_of_Use_Usefulness_Attitude_and_Trus.pdf
+document_id: doc_24f52bd6ba3c
+references_detected: 24
+doi_summary: {'found': 21, 'missing': 3, 'malformed': 0}
+claims_extracted: 56
+evidence_packages_created: 87
+pipeline_run_created: True
+pipeline_status: SUCCEEDED
+pipeline_steps_recorded: 10
+seeded_demo_cache_records: 1
+verification_results_produced: 86
+cache_hit_verifications: 1
+new_rag_genai_verifications: 77
+supported: 0
+partially_supported: 1
+not_supported: 0
+insufficient_evidence: 0
+needs_human_review: 85
+results_manually_checked: 5
+correct_evidence_used_links: 5
+confidence_explanation_observations: Mock GenAI produced deterministic explanations and confidence values; not final AI quality.
+safety_fallback_cases: 85
+human_review_flags: 85
+confidence_caps_applied: 85
+safety_checks_stored: 101
+safety_reasons_manually_checked: 4
+high_risk_results: 8
+medium_risk_results: 77
+unsupported_labels: []
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['Validation used mock RAG and mock GenAI because no real services were provided in the sandbox.', 'BE-11 deterministic safety rules were applied; mock RAG/GenAI still means final AI quality is not validated.', 'Seeded cache records are demo-only because BE-10/BE-11 validation still uses controlled demo cache records for cache-hit testing.']
+{"timestamp": "2026-06-09T13:48:38.740428Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_fc1a12dfaf3643d5", "method": "POST", "path": "/api/v1/documents/upload", "status_code": 200, "duration_ms": 309.27}
+{"timestamp": "2026-06-09T13:48:38.743799Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/upload \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:38.751018Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_start", "request_id": "req_af4c3d943ab545cd"}
+{"timestamp": "2026-06-09T13:48:38.831513Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_completed", "request_id": "req_af4c3d943ab545cd"}
+{"timestamp": "2026-06-09T13:48:38.832269Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_af4c3d943ab545cd", "method": "POST", "path": "/api/v1/documents/doc_e150ea1e0972/extract-references", "status_code": 200, "duration_ms": 85.76}
+{"timestamp": "2026-06-09T13:48:38.835327Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_e150ea1e0972/extract-references \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:38.842527Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_start", "request_id": "req_05089d5137e243cc"}
+{"timestamp": "2026-06-09T13:48:38.934897Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_completed", "request_id": "req_05089d5137e243cc"}
+{"timestamp": "2026-06-09T13:48:38.937475Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_05089d5137e243cc", "method": "POST", "path": "/api/v1/documents/doc_e150ea1e0972/extract-claims", "status_code": 200, "duration_ms": 99.54}
+{"timestamp": "2026-06-09T13:48:38.940556Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_e150ea1e0972/extract-claims \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:38.954766Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_start", "request_id": "req_efcbebe77b7845db"}
+{"timestamp": "2026-06-09T13:48:39.009979Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_completed", "request_id": "req_efcbebe77b7845db"}
+{"timestamp": "2026-06-09T13:48:39.010845Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_efcbebe77b7845db", "method": "POST", "path": "/api/v1/documents/doc_e150ea1e0972/prepare-evidence", "status_code": 200, "duration_ms": 67.92}
+{"timestamp": "2026-06-09T13:48:39.016708Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_e150ea1e0972/prepare-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:39.031261Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:39.050312Z", "level": "INFO", "logger": "app.services.verification_orchestrator", "message": "verification_pipeline_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.066613Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.069700Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.069858Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.070105Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.072091Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:39.074555Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.075924Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:39.081947Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.086167Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.096484Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.096718Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:39.098457Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.102010Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:39.111232Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.113586Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:39.119353Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.123609Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.133477Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.133802Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:39.135706Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.138246Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:39.143154Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.144724Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:39.149707Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.153353Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.162891Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.163337Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:39.165143Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.167283Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:39.172241Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.174489Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.175583Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.175886Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.177748Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": null}
+{"timestamp": "2026-06-09T13:48:39.181567Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.182779Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:39.187062Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.191850Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.199601Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.199860Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:39.201288Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.203657Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:39.209320Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.210815Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:39.215517Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.219330Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.228139Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.228452Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:39.230021Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.232504Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:39.238148Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.239305Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:39.244634Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.249533Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.261155Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.261381Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:39.262989Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.265428Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:39.271025Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.272555Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:39.277823Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.281416Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.290120Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.290745Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:39.292952Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.296244Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:39.301465Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.302420Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T13:48:39.307633Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.312172Z", "level": "INFO", "logger": "app.services.rag_ml_integration", "message": "rag_retrieval_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.320932Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_rule_triggered"}
+{"timestamp": "2026-06-09T13:48:39.321392Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_status_overridden"}
+{"timestamp": "2026-06-09T13:48:39.322855Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.324843Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T13:48:39.330531Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.333036Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "exact_cache_decision"}
+{"timestamp": "2026-06-09T13:48:39.336062Z", "level": "INFO", "logger": "app.services.safety_policy", "message": "safety_evaluation_completed", "request_id": "req_07720969a18c4562"}
+{"timestamp": "2026-06-09T13:48:39.345711Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_07720969a18c4562", "method": "POST", "path": "/api/v1/documents/doc_e150ea1e0972/pipeline-runs", "status_code": 200, "duration_ms": 310.55}
+{"timestamp": "2026-06-09T13:48:39.349772Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_e150ea1e0972/pipeline-runs \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:39.357518Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_3170d178e1a44443", "method": "GET", "path": "/api/v1/pipeline-runs/run_69de02b743f9/steps", "status_code": 200, "duration_ms": 4.85}
+{"timestamp": "2026-06-09T13:48:39.360609Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/pipeline-runs/run_69de02b743f9/steps \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:39.391026Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_6e5c5402f34540e2", "method": "GET", "path": "/api/v1/documents/doc_e150ea1e0972/verification-results", "status_code": 200, "duration_ms": 27.46}
+{"timestamp": "2026-06-09T13:48:39.394200Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_e150ea1e0972/verification-results?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:39.401604Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_f9df339a43524b00", "method": "GET", "path": "/api/v1/documents/doc_e150ea1e0972/safety-summary", "status_code": 200, "duration_ms": 5.34}
+{"timestamp": "2026-06-09T13:48:39.404556Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_e150ea1e0972/safety-summary \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:39.414768Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_7d124efe3aec42e1", "method": "GET", "path": "/api/v1/verification-results/result_90c7b4cb3fd7", "status_code": 200, "duration_ms": 7.7}
+{"timestamp": "2026-06-09T13:48:39.417697Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_90c7b4cb3fd7 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:39.427919Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_ad8e0d42af1b49ab", "method": "GET", "path": "/api/v1/verification-results/result_82a622be2823", "status_code": 200, "duration_ms": 7.2}
+{"timestamp": "2026-06-09T13:48:39.431048Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_82a622be2823 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:39.440218Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_88b8237d394b4b02", "method": "GET", "path": "/api/v1/verification-results/result_b9275b62238b", "status_code": 200, "duration_ms": 6.8}
+{"timestamp": "2026-06-09T13:48:39.444204Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_b9275b62238b \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:39.454427Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_933caba7f1f84f09", "method": "GET", "path": "/api/v1/verification-results/result_d7a3187122ce", "status_code": 200, "duration_ms": 6.9}
+{"timestamp": "2026-06-09T13:48:39.457502Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_d7a3187122ce \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T13:48:39.466173Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_620459069de64a6e", "method": "GET", "path": "/api/v1/verification-results/result_3634738dd50e", "status_code": 200, "duration_ms": 6.43}
+{"timestamp": "2026-06-09T13:48:39.468904Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/verification-results/result_3634738dd50e \"HTTP/1.1 200 OK\""}
+================================================================================
+PDF: SeminarPaper_20.01..pdf
+document_id: doc_e150ea1e0972
+references_detected: 37
+doi_summary: {'found': 21, 'missing': 16, 'malformed': 0}
+claims_extracted: 9
+evidence_packages_created: 11
+pipeline_run_created: True
+pipeline_status: SUCCEEDED
+pipeline_steps_recorded: 10
+seeded_demo_cache_records: 1
+verification_results_produced: 11
+cache_hit_verifications: 1
+new_rag_genai_verifications: 8
+supported: 0
+partially_supported: 1
+not_supported: 0
+insufficient_evidence: 0
+needs_human_review: 10
+results_manually_checked: 5
+correct_evidence_used_links: 5
+confidence_explanation_observations: Mock GenAI produced deterministic explanations and confidence values; not final AI quality.
+safety_fallback_cases: 10
+human_review_flags: 10
+confidence_caps_applied: 10
+safety_checks_stored: 14
+safety_reasons_manually_checked: 4
+high_risk_results: 2
+medium_risk_results: 8
+unsupported_labels: []
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['Validation used mock RAG and mock GenAI because no real services were provided in the sandbox.', 'BE-11 deterministic safety rules were applied; mock RAG/GenAI still means final AI quality is not validated.', 'Seeded cache records are demo-only because BE-10/BE-11 validation still uses controlled demo cache records for cache-hit testing.']

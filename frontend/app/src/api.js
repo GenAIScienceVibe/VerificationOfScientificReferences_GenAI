@@ -82,6 +82,13 @@ export async function getVerificationResults(documentId) {
   return handleResponse(response)
 }
 
+export async function prepareEvidence(documentId) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/documents/${documentId}/prepare-evidence`, {
+    method: 'POST',
+  })
+  return handleResponse(response)
+}
+
 // Used for paywalled references the user manually supplies.
 // NOTE: only call this once a reference_id exists (i.e. after extract-references) -
 // not at initial upload time.

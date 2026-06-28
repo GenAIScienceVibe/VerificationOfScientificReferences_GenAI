@@ -1,0 +1,38 @@
+### Health
+GET http://127.0.0.1:8000/api/v1/health
+
+### Readiness
+GET http://127.0.0.1:8000/api/v1/health/readiness
+
+### Submit demo text
+POST http://127.0.0.1:8000/api/v1/documents/text
+Content-Type: application/json
+
+{
+  "title": "BE13 Demo Paper",
+  "text": "Demo AI Education Paper\n\nAbstract\nAI writing assistants may reduce drafting time for students (Smith, 2023).\n\nIntroduction\nPrior research suggests that AI writing assistants can improve drafting speed (Smith, 2023). However, broad claims about learning outcomes need careful review (Lee, 2022).\n\nReferences\nSmith, J. (2023). AI Writing Assistants and Drafting Speed. Journal of AI Education. https://doi.org/10.1234/demo.ai.2023\nLee, A. (2022). Learning Outcomes Without DOI. Academic Press."
+}
+
+### Extract references
+POST http://127.0.0.1:8000/api/v1/documents/{{document_id}}/extract-references
+
+### Extract claims
+POST http://127.0.0.1:8000/api/v1/documents/{{document_id}}/extract-claims
+Content-Type: application/json
+
+{"mode":"citation_linked_only"}
+
+### Prepare evidence
+POST http://127.0.0.1:8000/api/v1/documents/{{document_id}}/prepare-evidence
+
+### Run verification pipeline
+POST http://127.0.0.1:8000/api/v1/documents/{{document_id}}/pipeline-runs
+Content-Type: application/json
+
+{"mode":"FULL_VERIFICATION","use_cache":true,"use_rag":true,"use_genai_safety_review":true,"generate_report":false}
+
+### Generate report
+POST http://127.0.0.1:8000/api/v1/documents/{{document_id}}/reports
+Content-Type: application/json
+
+{"format":"HTML","include_evidence_chunks":true,"include_human_review_items":true,"include_limitations":true}

@@ -221,3 +221,11 @@ frontend/package-lock.json
 node_modules/
 package-lock.json
 package.json
+
+# Backend runtime data (SQLite databases, uploaded files)
+backend/*.db
+backend/*.db-journal
+backend/*.db-shm
+backend/*.db-wal
+backend/data/uploads/
+integration/backend-rag-merge

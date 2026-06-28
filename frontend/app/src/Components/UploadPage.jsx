@@ -1,11 +1,20 @@
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
-import Mascot from './Mascot.jsx'
 
 function UploadPage() {
   const navigate = useNavigate()
+  const [mainFile, setMainFile] = useState(null)
   const [showReferenceUpload, setShowReferenceUpload] = useState(false)
   const [referenceFiles, setReferenceFiles] = useState([])
+
+  const handleMainFileSelected = (e) => {
+    const file = e.target.files[0]
+    if (file) setMainFile(file)
+  }
+
+  const removeMainFile = () => {
+    setMainFile(null)
+  }
 
   const handleReferenceFiles = (e) => {
     const files = Array.from(e.target.files)
@@ -16,12 +25,10 @@ function UploadPage() {
     setReferenceFiles(prev => prev.filter((_, i) => i !== index))
   }
 
-  const handleFileSelected = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-
+  const handleStartVerification = () => {
+    if (!mainFile) return
     navigate('/loading', {
-      state: { file, fileName: file.name, referenceFiles }
+      state: { file: mainFile, fileName: mainFile.name, referenceFiles }
     })
   }
 
@@ -43,10 +50,6 @@ function UploadPage() {
 }} />
 
       <div style={{ maxWidth: "900px", width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
-
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
-          <Mascot mood="idle" size={72} />
-        </div>
 
         <span style={{ background: "#dbeafe", color: "#1a3a6b", borderRadius: "20px", padding: "6px 16px", fontSize: "13px", fontWeight: "600" }}>
           AI - Powered Verification
@@ -90,42 +93,93 @@ function UploadPage() {
           background: "white", borderRadius: "16px", padding: "60px 48px",
           maxWidth: "600px", margin: "0 auto", boxShadow: "0 2px 16px rgba(0,0,0,0.07)"
         }}>
-          <div style={{ marginBottom: "16px" }}>
-            <svg width="56" height="56" viewBox="0 0 48 48" fill="none">
-              <path d="M24 32V20M24 20L18 26M24 20L30 26" stroke="#1a3a6b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M12 35C8 35 5 32 5 28C5 24.5 7.5 21.5 11 21C11 16 15 12 20 12C23 12 25.5 13.5 27 16C27.5 16 28 16 28.5 16C33 16 37 20 37 24.5C40 25 43 28 43 31.5C43 35 40 38 36 38H12V35Z" stroke="#1a3a6b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
+          {!mainFile ? (
+            <>
+              <div style={{ marginBottom: "16px" }}>
+                <svg width="56" height="56" viewBox="0 0 48 48" fill="none">
+                  <path d="M24 32V20M24 20L18 26M24 20L30 26" stroke="#1a3a6b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M12 35C8 35 5 32 5 28C5 24.5 7.5 21.5 11 21C11 16 15 12 20 12C23 12 25.5 13.5 27 16C27.5 16 28 16 28.5 16C33 16 37 20 37 24.5C40 25 43 28 43 31.5C43 35 40 38 36 38H12V35Z" stroke="#1a3a6b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
 
-          <p style={{ fontWeight: "700", fontSize: "20px", color: "#111", marginBottom: "10px" }}>
-            Drop your PDF here
-          </p>
-          <p style={{ color: "#888", fontSize: "15px", marginBottom: "28px" }}>
-            or click to browse your files
-          </p>
+              <p style={{ fontWeight: "700", fontSize: "20px", color: "#111", marginBottom: "10px" }}>
+                Drop your PDF here
+              </p>
+              <p style={{ color: "#888", fontSize: "15px", marginBottom: "28px" }}>
+                or click to browse your files
+              </p>
 
-          <input
-            type="file"
-            accept=".pdf"
-            id="fileInput"
-            style={{ display: "none" }}
-            onChange={handleFileSelected}
-          />
+              <input
+                type="file"
+                accept=".pdf"
+                id="fileInput"
+                style={{ display: "none" }}
+                onChange={handleMainFileSelected}
+              />
 
-          <button
-            onClick={() => document.getElementById('fileInput').click()}
-            style={{
-              background: "white", border: "1px solid #ccc", borderRadius: "8px",
-              padding: "12px 28px", cursor: "pointer", fontSize: "15px",
-              display: "inline-flex", alignItems: "center", gap: "8px", color: "#444"
-            }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            </svg>
-            Browse files
-          </button>
+              <button
+                onClick={() => document.getElementById('fileInput').click()}
+                style={{
+                  background: "white", border: "1px solid #ccc", borderRadius: "8px",
+                  padding: "12px 28px", cursor: "pointer", fontSize: "15px",
+                  display: "inline-flex", alignItems: "center", gap: "8px", color: "#444"
+                }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+                Browse files
+              </button>
 
-          <p style={{ color: "#aaa", fontSize: "12px", marginTop: "16px" }}>PDF only</p>
+              <p style={{ color: "#aaa", fontSize: "12px", marginTop: "16px" }}>PDF only</p>
+            </>
+          ) : (
+            <>
+              <div style={{ marginBottom: "20px" }}>
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                  <rect x="10" y="6" width="28" height="36" rx="3" fill="#eef2ff" stroke="#1a3a6b" strokeWidth="1.5"/>
+                  <line x1="16" y1="16" x2="32" y2="16" stroke="#1a3a6b" strokeWidth="1.5" strokeLinecap="round"/>
+                  <line x1="16" y1="22" x2="32" y2="22" stroke="#1a3a6b" strokeWidth="1.5" strokeLinecap="round"/>
+                  <line x1="16" y1="28" x2="26" y2="28" stroke="#1a3a6b" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </div>
+
+              <p style={{ fontWeight: "700", fontSize: "18px", color: "#111", marginBottom: "4px" }}>
+                Ready to verify
+              </p>
+
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: "#f5f5f5", borderRadius: "8px", padding: "12px 16px", margin: "20px 0",
+                border: "1px solid #e0e0e0"
+              }}>
+                <span style={{
+                  fontSize: "14px", color: "#333", overflow: "hidden",
+                  textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left"
+                }}>
+                  📄 {mainFile.name}
+                </span>
+                <button
+                  onClick={removeMainFile}
+                  style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "16px", flexShrink: 0, marginLeft: "12px" }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <button
+                onClick={handleStartVerification}
+                style={{
+                  width: "100%", background: "#1a3a6b", color: "white", border: "none",
+                  borderRadius: "10px", padding: "14px", cursor: "pointer", fontSize: "15px",
+                  fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px"
+                }}>
+                Start verification
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M13 6l6 6-6 6"/>
+                </svg>
+              </button>
+            </>
+          )}
         </div>
 
         {/* Optional: upload additional reference documents */}

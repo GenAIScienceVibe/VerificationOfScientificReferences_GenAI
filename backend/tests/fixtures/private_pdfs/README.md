@@ -1,0 +1,1 @@
+Private real PDFs used during QA can be placed here locally, but they should not be committed if they include student identifiers or private document content. BE-4.1 regression tests use sanitized text snippets in tests/fixtures/real_pdf_text instead.

@@ -1,0 +1,151 @@
+{
+  "total_cases": 5,
+  "total_hits": 5,
+  "total_errors": 0,
+  "accuracy_pct": 100.0,
+  "top_k": 3,
+  "embedding_model": "openai/text-embedding-3-small",
+  "timestamp": "2026-06-15T14:56:51.773204+00:00",
+  "results": [
+    {
+      "case_id": "case_001",
+      "claim": "Regular aerobic exercise reduces cardiovascular disease risk by 35%.",
+      "hit": true,
+      "rank_if_found": 1,
+      "top_chunks": [
+        {
+          "rank": 1,
+          "section": "results",
+          "weighted_score": 0.928639,
+          "text_preview": "After 24 months, participants who performed regular aerobic exercise showed a\n35 percent reduction in cardiovascular disease risk compared to sedentary\ncontrols. Secondary outcomes including resting b"
+        },
+        {
+          "rank": 2,
+          "section": "conclusion",
+          "weighted_score": 0.784889,
+          "text_preview": "Structured aerobic exercise substantially reduces cardiovascular disease risk.\nHealthcare providers should routinely prescribe physical activity as a primary\nprevention strategy for patients with elev"
+        },
+        {
+          "rank": 3,
+          "section": "methods",
+          "weighted_score": 0.745735,
+          "text_preview": "We conducted a randomised controlled trial with 1,200 adults aged 40 to 65.\nParticipants were assigned to either a structured aerobic exercise programme\n(150 minutes of moderate-intensity exercise per"
+        }
+      ],
+      "total_chunks_indexed": 6,
+      "error": null
+    },
+    {
+      "case_id": "case_002",
+      "claim": "Vitamin D supplementation increases bone mineral density in elderly patients.",
+      "hit": true,
+      "rank_if_found": 1,
+      "top_chunks": [
+        {
+          "rank": 1,
+          "section": "results",
+          "weighted_score": 0.93901,
+          "text_preview": "At 12 months, patients receiving daily vitamin D supplementation exhibited a\nsignificant increase in bone mineral density at both the lumbar spine and total\nhip compared to the placebo group. Mean lum"
+        },
+        {
+          "rank": 2,
+          "section": "conclusion",
+          "weighted_score": 0.921123,
+          "text_preview": "Daily vitamin D supplementation is a safe and effective intervention to\nimprove bone health in elderly patients with confirmed deficiency."
+        },
+        {
+          "rank": 3,
+          "section": "discussion",
+          "weighted_score": 0.880242,
+          "text_preview": "These results confirm that vitamin D supplementation meaningfully improves\nbone mineral density in deficient elderly patients. The effect size at the\nlumbar spine exceeds the minimum clinically import"
+        }
+      ],
+      "total_chunks_indexed": 6,
+      "error": null
+    },
+    {
+      "case_id": "case_003",
+      "claim": "Twenty-four hours of sleep deprivation significantly impairs working memory.",
+      "hit": true,
+      "rank_if_found": 1,
+      "top_chunks": [
+        {
+          "rank": 1,
+          "section": "results",
+          "weighted_score": 1.02123,
+          "text_preview": "Subjects who underwent 24 hours of total sleep deprivation showed significant\nimpairment in working memory performance across all three measures compared\nto their baseline rested condition. Mean n-bac"
+        },
+        {
+          "rank": 2,
+          "section": "conclusion",
+          "weighted_score": 0.847977,
+          "text_preview": "Even a single episode of 24-hour sleep deprivation produces robust and\nclinically significant impairments in working memory. Sleep hygiene\ninterventions should be treated as a public health priority."
+        },
+        {
+          "rank": 3,
+          "section": "methods",
+          "weighted_score": 0.767959,
+          "text_preview": "Forty healthy adult volunteers aged 18 to 35 completed a within-subjects\ncounterbalanced design. Each participant completed a standard battery of\nworking memory tasks (n-back task, digit span, and spa"
+        }
+      ],
+      "total_chunks_indexed": 6,
+      "error": null
+    },
+    {
+      "case_id": "case_004",
+      "claim": "Enhanced hospital hand hygiene protocols reduce healthcare-acquired infections by 40%.",
+      "hit": true,
+      "rank_if_found": 1,
+      "top_chunks": [
+        {
+          "rank": 1,
+          "section": "results",
+          "weighted_score": 1.072534,
+          "text_preview": "Implementation of enhanced hand hygiene protocols led to a 40 percent\nreduction in hospital-acquired infection rates compared to the pre-intervention\nperiod. The largest reductions were observed for c"
+        },
+        {
+          "rank": 2,
+          "section": "methods",
+          "weighted_score": 0.780397,
+          "text_preview": "A 24-month prospective interrupted time-series study was conducted across\neight general wards in a 900-bed tertiary hospital. The intervention comprised\ntargeted staff education sessions, installation"
+        },
+        {
+          "rank": 3,
+          "section": "conclusion",
+          "weighted_score": 0.72081,
+          "text_preview": "Multifaceted hand hygiene programmes substantially reduce hospital-acquired\ninfection burden. Continuous compliance monitoring and feedback are essential\ncomponents of any effective implementation str"
+        }
+      ],
+      "total_chunks_indexed": 6,
+      "error": null
+    },
+    {
+      "case_id": "case_005",
+      "claim": "Mediterranean diet adherence reduces cognitive decline risk by 30% in elderly adults.",
+      "hit": true,
+      "rank_if_found": 1,
+      "top_chunks": [
+        {
+          "rank": 1,
+          "section": "results",
+          "weighted_score": 1.106057,
+          "text_preview": "After 10 years of follow-up, elderly adults who adhered strictly to a\nMediterranean dietary pattern showed a 30 percent reduction in cognitive\ndecline risk compared to those with low adherence, after "
+        },
+        {
+          "rank": 2,
+          "section": "conclusion",
+          "weighted_score": 0.928801,
+          "text_preview": "High adherence to the Mediterranean diet is associated with meaningfully\nlower risk of cognitive decline in elderly adults. Dietary counselling\nshould be incorporated into cognitive ageing prevention "
+        },
+        {
+          "rank": 3,
+          "section": "methods",
+          "weighted_score": 0.854258,
+          "text_preview": "A total of 4,500 community-dwelling adults aged 65 and above were enrolled at\nbaseline. Dietary intake was assessed using a validated food frequency\nquestionnaire, and a Mediterranean diet adherence s"
+        }
+      ],
+      "total_chunks_indexed": 6,
+      "error": null
+    }
+  ]
+}

@@ -1,15 +1,11 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import CitationGraph from './CitationGraph'
 import logo from '../assets/Logo_VerifAi.png'
 import { generateVerificationPdf } from './pdfReport'
-import { getVerificationResults } from '../api'
-import Mascot from './Mascot.jsx'
+import { getVerificationResults, uploadReferenceSourcePdf } from '../api'
+import { getVerificationResults, uploadReferenceSourcePdf, prepareEvidence } from '../api'
 
-// Maps backend support_status (+ doi_status) onto the UI's 4-category model.
-// "hallucinated" has no direct backend equivalent yet - this treats an
-// invalid/unresolvable DOI combined with NOT_SUPPORTED as hallucinated.
-// Confirm this mapping with the backend team if it doesn't match their intent.
 function mapToUiStatus(result) {
   const invalidDoi = result.doi_status && result.doi_status !== 'VALID'
   if (invalidDoi && result.support_status === 'NOT_SUPPORTED') return 'hallucinated'
@@ -37,45 +33,62 @@ function ResultsPage() {
   const [claims, setClaims] = useState([])
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
+  // claimId -> 'uploading' | 'checking' | 'error' | 'no-reference'
+  const [refUploadStatus, setRefUploadStatus] = useState({})
+  const [flashUpload, setFlashUpload] = useState(false)
+  const claimsListRef = useRef(null)
+
+  const loadResults = () => {
     if (!documentId) {
       navigate('/error')
-      return
+      return Promise.resolve()
     }
-
-    getVerificationResults(documentId)
+    return getVerificationResults(documentId)
       .then(data => {
-        const mappedClaims = data.results.map((r, idx) => ({
-          id: r.result_id || idx + 1,
-          status: mapToUiStatus(r),
-          text: `"${r.claim_text}" ${r.citation_text || ''}`.trim(),
-          source: r.reference_title || r.citation_text || 'Unknown source',
-          reasoning: r.explanation || 'No explanation available.',
-          confidence: r.confidence ?? 0,
-          warning: r.human_review_required
-            ? 'Human review recommended - this result may need manual verification.'
-            : undefined,
-          doiResolved: r.doi_status === 'VALID',
-        }))
+        const mappedClaims = data.results.map((r, idx) => {
+          // Backend field naming can vary slightly - check the most likely candidates.
+          const referenceId = r.reference_id ?? r.referenceId ?? r.ref_id ?? null
+          if (!referenceId) {
+            console.warn('No reference_id found on verification result:', r)
+          }
+          return {
+            id: r.result_id || idx + 1,
+            referenceId,
+            status: mapToUiStatus(r),
+            text: `"${r.claim_text}" ${r.citation_text || ''}`.trim(),
+            source: r.reference_title || r.citation_text || 'Unknown source',
+            reasoning: r.explanation || 'No explanation available.',
+            confidence: r.confidence ?? 0,
+            warning: r.human_review_required
+              ? 'Human review recommended - this result may need manual verification.'
+              : undefined,
+            doiResolved: r.doi_status === 'VALID',
+          }
+        })
         setClaims(mappedClaims)
       })
       .catch(err => navigate('/error'))
-      .finally(() => setIsLoading(false))
-  }, [documentId, navigate])
+  }
+
+  useEffect(() => {
+    setIsLoading(true)
+    loadResults().finally(() => setIsLoading(false))
+  }, [documentId])
 
   const statusConfig = {
     supported: { label: "Supported", color: "#16a34a", bg: "#f0fdf4", border: "#86efac" },
     partial: { label: "Partially Supported", color: "#d97706", bg: "#fffbeb", border: "#fcd34d" },
     unsupported: { label: "Unsupported", color: "#dc2626", bg: "#fef2f2", border: "#fca5a5" },
     hallucinated: { label: "Hallucinated", color: "#6b21a8", bg: "#faf5ff", border: "#d8b4fe" },
-    insufficient: { label: "Insufficient Evidence", color: "#6b7280", bg: "#f3f4f6", border: "#d1d5db" },
+    insufficient: { label: "Insufficient Evidence", color: "#6b7280", bg: "#f9fafb", border: "#d1d5db" },
   }
 
   const summaryItems = [
     { label: "Supported", count: claims.filter(c => c.status === 'supported').length, color: "#16a34a" },
     { label: "Partially supported", count: claims.filter(c => c.status === 'partial').length, color: "#d97706" },
     { label: "Unsupported", count: claims.filter(c => c.status === 'unsupported').length, color: "#dc2626" },
-    { label: "Hallucinated", count: claims.filter(c => c.status === 'hallucinated').length, color: "#6b7280" },
+    { label: "Hallucinated", count: claims.filter(c => c.status === 'hallucinated').length, color: "#6b21a8" },
+    { label: "Insufficient evidence", count: claims.filter(c => c.status === 'insufficient').length, color: "#6b7280" },
   ]
 
   const totalClaims = claims.length
@@ -93,17 +106,13 @@ function ResultsPage() {
     : credibilityScore >= 50 ? "#d97706"
     : "#dc2626"
 
-  const mascotMood = credibilityScore >= 80 ? "happy"
-    : credibilityScore >= 50 ? "idle"
-    : credibilityScore >= 25 ? "sad"
-    : "shocked"
-
   const filters = [
     { label: "All", key: "all", color: "#1a3a6b", border: "#1a3a6b" },
     { label: "Supported", key: "supported", color: "#16a34a", border: "#86efac" },
     { label: "Partial", key: "partial", color: "#d97706", border: "#fcd34d" },
     { label: "Unsupported", key: "unsupported", color: "#dc2626", border: "#fca5a5" },
     { label: "Hallucinated", key: "hallucinated", color: "#6b21a8", border: "#d8b4fe" },
+    { label: "Insufficient Evidence", key: "insufficient", color: "#6b7280", border: "#d1d5db" },
   ]
 
   const filteredClaims = claims.filter(claim => {
@@ -112,6 +121,7 @@ function ResultsPage() {
     if (activeFilter === "Partial") return claim.status === "partial"
     if (activeFilter === "Unsupported") return claim.status === "unsupported"
     if (activeFilter === "Hallucinated") return claim.status === "hallucinated"
+    if (activeFilter === "Insufficient Evidence") return claim.status === "insufficient"
     return true
   })
 
@@ -125,6 +135,46 @@ function ResultsPage() {
     generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo })
   }
 
+  const jumpToUnresolvedSources = () => {
+    setActiveView('overview')
+    setActiveFilter('Insufficient Evidence')
+    setTimeout(() => {
+      claimsListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setFlashUpload(true)
+      setTimeout(() => setFlashUpload(false), 1800)
+    }, 80)
+  }
+
+  const [refUploadError, setRefUploadError] = useState({}) // claimId -> error message
+
+const handleManualReferenceUpload = async (claim, file) => {
+  if (!file) return
+
+  if (!claim.referenceId) {
+    console.error('Cannot upload: claim has no referenceId.', claim)
+    setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'no-reference' }))
+    return
+  }
+
+  setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'uploading' }))
+  setRefUploadError(prev => ({ ...prev, [claim.id]: null }))
+  try {
+    await uploadReferenceSourcePdf(claim.referenceId, file)
+    setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'checking' }))
+    await prepareEvidence(documentId)
+    await loadResults()
+    setRefUploadStatus(prev => {
+      const next = { ...prev }
+      delete next[claim.id]
+      return next
+    })
+  } catch (err) {
+    console.error('Reference upload failed:', err)
+    setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'error' }))
+    setRefUploadError(prev => ({ ...prev, [claim.id]: err.message }))
+  }
+}
+
   if (isLoading) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
@@ -136,15 +186,26 @@ function ResultsPage() {
   return (
     <div style={{ background: "#f5f5f5", minHeight: "100vh", padding: "32px 40px" }}>
 
+      <style>{`
+        @keyframes verifai-dot-pulse {
+          0%, 80%, 100% { opacity: 0.2; }
+          40% { opacity: 1; }
+        }
+        @keyframes verifai-step-spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes verifai-flash-highlight {
+          0%, 100% { background: #f9fafb; border-color: #d1d5db; box-shadow: none; }
+          25%, 75% { background: #eef2ff; border-color: #1a3a6b; box-shadow: 0 0 0 3px rgba(26,58,107,0.15); }
+        }
+      `}</style>
+
       <div style={{ display: "flex", gap: "24px", maxWidth: "1200px", margin: "0 auto" }}>
 
         <div style={{ width: "280px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "16px" }}>
 
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0", textAlign: "center" }}>
             <p style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", letterSpacing: "1px", marginBottom: "16px" }}>CREDIBILITY SCORE</p>
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
-              <Mascot mood={mascotMood} size={56} />
-            </div>
             <div style={{ position: "relative", width: "120px", height: "120px", margin: "0 auto 12px" }}>
               <svg viewBox="0 0 120 120" width="120" height="120">
                 <circle cx="60" cy="60" r="50" fill="none" stroke="#e0e0e0" strokeWidth="12"/>
@@ -224,6 +285,25 @@ function ResultsPage() {
             </button>
           </div>
 
+          {summaryItems[4].count > 0 && (
+            <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
+              <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "8px" }}>UNRESOLVED SOURCES</p>
+              <p style={{ fontSize: "12px", color: "#888", marginBottom: "14px", lineHeight: "1.5" }}>
+                {summaryItems[4].count} claim(s) couldn't be checked automatically.
+              </p>
+              <button
+                onClick={jumpToUnresolvedSources}
+                style={{
+                  width: "100%", background: "white", color: "#1a3a6b",
+                  border: "1px solid #1a3a6b",
+                  borderRadius: "8px", padding: "12px", cursor: "pointer",
+                  fontSize: "13px", fontWeight: "600"
+                }}>
+                Add reference documents to check claims
+              </button>
+            </div>
+          )}
+
         </div>
 
         <div style={{ flex: 1 }}>
@@ -239,7 +319,7 @@ function ResultsPage() {
 
           {activeView === 'overview' && (
             <>
-              <div style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>
+              <div ref={claimsListRef} style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>
                 {filters.map((filter) => (
                   <button
                     key={filter.label}
@@ -263,6 +343,8 @@ function ResultsPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                   {filteredClaims.map(claim => {
                     const config = statusConfig[claim.status]
+                    const showManualUpload = !claim.doiResolved || claim.status === 'insufficient'
+                    const uploadState = refUploadStatus[claim.id]
                     return (
                       <div key={claim.id} style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -291,6 +373,71 @@ function ResultsPage() {
                         {claim.warning && (
                           <div style={{ background: "#fffbeb", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
                             <p style={{ fontSize: "13px", color: "#d97706", lineHeight: "1.5" }}>{claim.warning}</p>
+                          </div>
+                        )}
+
+                        {showManualUpload && (
+                          <div style={{
+                            background: "#f9fafb", border: "1px dashed #d1d5db", borderRadius: "8px",
+                            padding: "12px 16px", marginBottom: "16px",
+                            animation: flashUpload ? "verifai-flash-highlight 0.6s ease-in-out 2" : "none",
+                          }}>
+                            {uploadState === 'checking' ? (
+                              <p style={{ fontSize: "13px", color: "#1a3a6b", display: "flex", alignItems: "center", gap: "2px" }}>
+                                Re-checking this claim automatically
+                                <span style={{ display: "inline-flex", gap: "2px", marginLeft: "4px" }}>
+                                  <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#1a3a6b", animation: "verifai-dot-pulse 1.2s infinite", animationDelay: "0s" }} />
+                                  <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#1a3a6b", animation: "verifai-dot-pulse 1.2s infinite", animationDelay: "0.2s" }} />
+                                  <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#1a3a6b", animation: "verifai-dot-pulse 1.2s infinite", animationDelay: "0.4s" }} />
+                                </span>
+                              </p>
+                            ) : (
+                              <>
+                                <input
+                                  type="file"
+                                  accept=".pdf"
+                                  id={`ref-upload-${claim.id}`}
+                                  style={{ display: "none" }}
+                                  onChange={(e) => {
+                                    const file = e.target.files[0]
+                                    if (file) handleManualReferenceUpload(claim, file)
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => document.getElementById(`ref-upload-${claim.id}`).click()}
+                                  disabled={uploadState === 'uploading'}
+                                  style={{
+                                    fontSize: "13px", color: "#1a3a6b", background: "none",
+                                    border: "none", cursor: "pointer",
+                                    fontWeight: "600", padding: 0, display: "flex", alignItems: "center", gap: "6px"
+                                  }}>
+                                  {uploadState === 'uploading' ? (
+                                    <>
+                                      <span style={{
+                                        width: "12px", height: "12px", borderRadius: "50%",
+                                        border: "2px solid #c5cfe0", borderTopColor: "#1a3a6b",
+                                        animation: "verifai-step-spin 0.8s linear infinite", display: "inline-block"
+                                      }} />
+                                      Uploading...
+                                    </>
+                                  ) : (
+                                    "📎 Add the reference manually"
+                                  )}
+                                </button>
+                                {uploadState === 'error' && (
+  <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "6px" }}>
+    {refUploadError[claim.id] || "Upload failed, please try again."}
+  </p>
+)}
+
+                                {uploadState === 'no-reference' && (
+                                  <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "6px" }}>
+                                    This claim has no linked reference ID - manual upload isn't possible here. Check the console for details.
+                                  </p>
+                                )}
+                              </>
+                            )}
                           </div>
                         )}
 

@@ -1,0 +1,4 @@
+Smith, J. (2023). Plain DOI. 10.1234/plain.doi
+Doe, J. (2022). DOI prefix. doi:10.5678/prefix.doi
+Lee, K. (2021). DOI URL. https://doi.org/10.9999/URL.DOI.2021.
+Wrong, W. (2020). Broken DOI. DOI: 10.abc/broken
