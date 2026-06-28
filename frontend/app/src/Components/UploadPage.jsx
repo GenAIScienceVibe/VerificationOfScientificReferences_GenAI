@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import Mascot from './Mascot.jsx'
 
 function UploadPage() {
   const navigate = useNavigate()
@@ -42,6 +43,10 @@ function UploadPage() {
 }} />
 
       <div style={{ maxWidth: "900px", width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
+
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
+          <Mascot mood="idle" size={72} />
+        </div>
 
         <span style={{ background: "#dbeafe", color: "#1a3a6b", borderRadius: "20px", padding: "6px 16px", fontSize: "13px", fontWeight: "600" }}>
           AI - Powered Verification

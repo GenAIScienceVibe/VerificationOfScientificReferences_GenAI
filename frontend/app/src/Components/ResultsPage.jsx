@@ -4,6 +4,7 @@ import CitationGraph from './CitationGraph'
 import logo from '../assets/Logo_VerifAi.png'
 import { generateVerificationPdf } from './pdfReport'
 import { getVerificationResults } from '../api'
+import Mascot from './Mascot.jsx'
 
 // Maps backend support_status (+ doi_status) onto the UI's 4-category model.
 // "hallucinated" has no direct backend equivalent yet - this treats an
@@ -92,6 +93,11 @@ function ResultsPage() {
     : credibilityScore >= 50 ? "#d97706"
     : "#dc2626"
 
+  const mascotMood = credibilityScore >= 80 ? "happy"
+    : credibilityScore >= 50 ? "idle"
+    : credibilityScore >= 25 ? "sad"
+    : "shocked"
+
   const filters = [
     { label: "All", key: "all", color: "#1a3a6b", border: "#1a3a6b" },
     { label: "Supported", key: "supported", color: "#16a34a", border: "#86efac" },
@@ -136,6 +142,9 @@ function ResultsPage() {
 
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0", textAlign: "center" }}>
             <p style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", letterSpacing: "1px", marginBottom: "16px" }}>CREDIBILITY SCORE</p>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
+              <Mascot mood={mascotMood} size={56} />
+            </div>
             <div style={{ position: "relative", width: "120px", height: "120px", margin: "0 auto 12px" }}>
               <svg viewBox="0 0 120 120" width="120" height="120">
                 <circle cx="60" cy="60" r="50" fill="none" stroke="#e0e0e0" strokeWidth="12"/>

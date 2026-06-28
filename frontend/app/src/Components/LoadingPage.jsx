@@ -10,6 +10,7 @@ import {
   TERMINAL_SUCCESS_STATUSES,
   TERMINAL_FAILURE_STATUSES,
 } from '../api'
+import Mascot from './Mascot.jsx'
 
 function LoadingPage() {
   const navigate = useNavigate()
@@ -128,17 +129,8 @@ function LoadingPage() {
 
       <div style={{ background: "white", borderRadius: "16px", padding: "48px 56px", maxWidth: "600px", width: "100%", textAlign: "center", boxShadow: "0 2px 16px rgba(0,0,0,0.07)", position: "relative", zIndex: 1 }}>
 
-        <div style={{ marginBottom: "24px" }}>
-          <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="12" y="8" width="40" height="52" rx="4" fill="#e8edf5" stroke="#c5cfe0" strokeWidth="1.5"/>
-            <line x1="20" y1="22" x2="44" y2="22" stroke="#a0aec0" strokeWidth="2" strokeLinecap="round"/>
-            <line x1="20" y1="30" x2="44" y2="30" stroke="#a0aec0" strokeWidth="2" strokeLinecap="round"/>
-            <line x1="20" y1="38" x2="36" y2="38" stroke="#a0aec0" strokeWidth="2" strokeLinecap="round"/>
-            <circle cx="52" cy="52" r="14" fill="white" stroke="#c5cfe0" strokeWidth="1.5"/>
-            <circle cx="52" cy="50" r="7" fill="none" stroke="#1a3a6b" strokeWidth="2"/>
-            <line x1="57" y1="55" x2="63" y2="61" stroke="#1a3a6b" strokeWidth="2.5" strokeLinecap="round"/>
-            <path d="M49 48 L51 50 L55 46" stroke="#f5a623" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "24px" }}>
+          <Mascot mood="thinking" size={80} />
         </div>
 
         <h2 style={{ fontWeight: "700", fontSize: "28px", marginBottom: "12px", color: "#111" }}>
