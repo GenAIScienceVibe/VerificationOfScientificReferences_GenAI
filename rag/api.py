@@ -68,6 +68,10 @@ RETRIEVAL_CANDIDATE_K = DOOR1_TOP_K * 3
 # already a 0-1 relevance probability and is never divided by this.
 MAX_SECTION_WEIGHT = max(SECTION_WEIGHTS.values())
 
+# Maximum LLM call attempts in verify_claim(). A single retry resolves the
+# transient empty-response case (content length 0) without burning extra quota.
+_LLM_MAX_ATTEMPTS = 2
+
 # Per-paper embedding cache for retrieve_evidence(). Key is reference_id (always
 # unique per paper) so multiple claims citing the same paper reuse embeddings.
 # Falls back to doi if reference_id is absent. In-memory only, never persisted.
@@ -338,10 +342,10 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
 
         # Step 3: embed every source chunk, reusing a cached embedding when
         # another claim earlier in this run already embedded the same paper.
-        # Key by reference_id (always unique) rather than doi (empty when DOI
-        # is missing, which would cause all DOI-less papers to collide in the
-        # same cache slot and return wrong chunks — SCRUM-264).
-        cache_key = request.reference_id or request.doi
+        # Key combines reference_id + doi so claims citing the same paper share
+        # the cache (SCRUM-264), while a different doi on the same reference_id
+        # gets its own slot instead of a stale hit.
+        cache_key = f"{request.reference_id}:{request.doi}"
         cached_embedder_output = _embedding_cache.get(cache_key)
         if cached_embedder_output is not None:
             embedder_output = cached_embedder_output
@@ -508,12 +512,34 @@ def verify_claim(request: VerifyClaimRequest) -> VerifyClaimResponse:
         doi="",  # not part of the Door 2 contract; only used for prompt context
     )
 
-    # Step 3: render the prompt and call the LLM.
-    try:
-        raw_response = generate_verdict(verification_input)
-    except Exception as exc:
-        logger.error("LLM verification call failed: %s", exc)
-        return _needs_human_review(f"LLM verification call failed: {exc}")
+    # Step 3: render the prompt and call the LLM; retry on empty responses.
+    # An empty response (content length 0) is a transient LLM failure — a
+    # single retry resolves it without burning meaningful quota. API errors
+    # are retried too, since the same transient network issues can cause them.
+    raw_response: str = ""
+    last_exc: Exception | None = None
+    for attempt in range(1, _LLM_MAX_ATTEMPTS + 1):
+        try:
+            raw_response = generate_verdict(verification_input)
+            if raw_response and raw_response.strip():
+                break
+            logger.warning(
+                "LLM returned empty response (attempt %d/%d) — retrying.",
+                attempt, _LLM_MAX_ATTEMPTS,
+            )
+        except Exception as exc:
+            last_exc = exc
+            logger.warning(
+                "LLM call failed (attempt %d/%d): %s",
+                attempt, _LLM_MAX_ATTEMPTS, exc,
+            )
+    else:
+        reason = (
+            f"LLM verification call failed: {last_exc}"
+            if last_exc
+            else "LLM returned empty response after retries."
+        )
+        return _needs_human_review(reason)
 
     # Step 4: low_confidence bridge — Door 2 gives us a similarity score, not
     # a boolean, so the same threshold vector_store.py uses internally is
