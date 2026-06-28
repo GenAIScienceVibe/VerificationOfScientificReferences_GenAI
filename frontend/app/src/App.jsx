@@ -1,121 +1,52 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import Header from './Components/Header'
+import Footer from './Components/Footer'
+import UploadPage from './Components/UploadPage'
+import LoadingPage from './Components/LoadingPage'
+import ErrorPage from './Components/ErrorPage'
+import ResultsPage from './Components/ResultsPage'
+import HowItWorksPage from './Components/HowItWorksPage'
+import background from './assets/background.png'
+import CitationGraph from './Components/CitationGraph'
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <BrowserRouter>
+      <div style={{ position: "relative", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column" }}>
 
-      <div className="ticks"></div>
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: "700px",
+          backgroundImage: `url(${background})`,
+          backgroundSize: "1200px auto",
+          backgroundPosition: "center 80px",
+          backgroundRepeat: "no-repeat",
+          zIndex: 0
+        }} />
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: "700px",
+          background: "rgba(245,245,245,0.92)",
+          zIndex: 0
+        }} />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+        <div style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column" }}>
+          <Header />
+          <div style={{ flex: 1 }}>
+            <Routes>
+              <Route path="/" element={<UploadPage />} />
+              <Route path="/loading" element={<LoadingPage />} />
+              <Route path="/error" element={<ErrorPage />} />
+              <Route path="/results" element={<ResultsPage />} />
+              <Route path="/how-it-works" element={<HowItWorksPage />} />
+              <Route path="/citation-graph" element={<CitationGraph />} />
+            </Routes>
+          </div>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <Footer />
+        </div>
+      </div>
+    </BrowserRouter>
   )
 }
 

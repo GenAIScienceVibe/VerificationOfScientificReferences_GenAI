@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.DS_Store
+frontend/package-lock.json
+node_modules/
+package-lock.json
+package.json
