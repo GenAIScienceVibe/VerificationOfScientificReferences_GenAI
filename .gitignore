@@ -229,3 +229,5 @@ backend/*.db-shm
 backend/*.db-wal
 backend/data/uploads/
 integration/backend-rag-merge
+backend/data/*.db
+backend/data/*.db-journal
