@@ -265,7 +265,12 @@ class SafetyPolicyService:
             ))
 
         if self.settings.safety_enable_genai_rag_conflict_check:
-            if result.support_status == SupportStatus.SUPPORTED.value and ((similarity or 0.0) < self.settings.safety_min_acceptable_similarity or result.evidence_used_count <= 0):
+            # Use `similarity is not None` guard: None means the score is unavailable
+            # (e.g. result served from cache with no fresh retrieval object), not that
+            # similarity is actually 0. Treating None as 0.0 would falsely trigger this
+            # rule for every valid cache hit and cap confidence to safety_max_confidence_with_low_similarity.
+            similarity_is_weak = similarity is not None and similarity < self.settings.safety_min_acceptable_similarity
+            if result.support_status == SupportStatus.SUPPORTED.value and (similarity_is_weak or result.evidence_used_count <= 0):
                 add(SafetyRuleHit(
                     rule="GENAI_SUPPORTED_BUT_WEAK_EVIDENCE",
                     issue="GenAI marked the claim as supported, but retrieved evidence was weak or missing.",

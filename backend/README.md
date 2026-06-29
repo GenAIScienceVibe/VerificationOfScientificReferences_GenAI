@@ -101,6 +101,8 @@ Frontend, RAG, GenAI, and external academic services must not write directly to 
 
 ## Setup
 
+Backend-only mock setup:
+
 ```bash
 cd backend
 python -m venv .venv
@@ -108,6 +110,18 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
+
+For the current direct-Python Backend + RAG integration, install the combined
+manifest from the repository root instead:
+
+```bash
+python -m venv backend/.venv
+backend/.venv/bin/python -m pip install -r requirements-integrated.txt
+```
+
+This installs both backend and `rag/requirements.txt` dependencies into
+`backend/.venv`. Importing `rag.api` does not require `OPENROUTER_API_KEY`; a key
+is required only when live embeddings or real Door 2 calls execute.
 
 ## Configuration
 
@@ -415,6 +429,20 @@ python scripts/init_db.py
 pytest -q
 python scripts/validate_uploaded_pdfs_be9.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf
 ```
+
+The current real path is an in-process import through `RagDirectClient`, so a
+backend-only environment cannot run it. After installing
+`requirements-integrated.txt`, validate the complete backend and RAG unit surface:
+
+```bash
+.venv/bin/python scripts/run_integrated_rag_checks.py
+```
+
+The command prints `INTEGRATED_VALIDATION_RESULT=PASS`, `FAIL`, or `BLOCKED` and
+returns exit code 0, 1, or 2 respectively. Missing RAG dependencies are `BLOCKED`,
+never a silent pass. Live API-key calls are not part of this unit/integration
+runner. A clean environment may download tiktoken's `cl100k_base` asset during
+the first tokenization test; it is cached for later runs.
 
 BE-9 is integration-only. It does not implement RAG/ML internals, embeddings, vector DB, GenAI verification, final support labels, safety scoring, report generation, or frontend UI.
 

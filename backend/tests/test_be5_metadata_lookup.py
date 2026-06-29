@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+from unittest.mock import Mock
+
 from testsupport.api_client import ApiTestClient as TestClient
 from sqlalchemy.orm import Session
 
 from app.clients.metadata_clients import MetadataLookupResponse
+from app.core.config import Settings
 from app.db.session import SessionLocal
 from app.main import app
 from app.models import Document, Reference, SourceMetadata
 from app.models.enums import DocumentStatus, DoiStatus, MetadataStatus, UploadType
-from app.services.doi_metadata_lookup import is_valid_doi_syntax, normalize_doi_for_lookup
+from app.services.doi_metadata_lookup import MetadataLookupService, is_valid_doi_syntax, normalize_doi_for_lookup
 from app.services.metadata_scoring import calculate_metadata_match
 from app.services.reference_extraction import ReferenceExtractionService
 
@@ -90,6 +93,56 @@ def crossref_timeout(self, doi: str) -> MetadataLookupResponse:  # noqa: ANN001
         error_code="METADATA_LOOKUP_TIMEOUT",
         error_message="Timeout",
     )
+
+
+def metadata_disabled_service() -> tuple[MetadataLookupService, list[Mock]]:
+    """Build a disabled service whose provider methods fail if invoked."""
+    crossref = Mock(name="crossref")
+    openalex = Mock(name="openalex")
+    semantic_scholar = Mock(name="semantic_scholar")
+    unpaywall = Mock(name="unpaywall")
+    core = Mock(name="core")
+    ssrn = Mock(name="ssrn")
+    doi_resolver = Mock(name="doi_resolver")
+
+    external_calls = [
+        crossref.search_by_title,
+        crossref.lookup_by_doi,
+        openalex.search_by_title,
+        openalex.lookup_by_doi,
+        semantic_scholar.search_by_title,
+        semantic_scholar.lookup_by_doi,
+        semantic_scholar.lookup_by_arxiv_id,
+        unpaywall.lookup_by_doi,
+        core.search_by_title,
+        core.get_fulltext_by_doi,
+        ssrn.get_abstract_for_doi,
+        doi_resolver.resolver_url,
+    ]
+    for provider_call in external_calls:
+        provider_call.side_effect = AssertionError("External metadata provider was called while disabled")
+
+    settings = Settings(
+        METADATA_LOOKUP_ENABLED="false",
+        CORE_API_KEY="disabled-mode-test-key",
+        UNPAYWALL_EMAIL="disabled-mode@example.test",
+    )
+    service = MetadataLookupService(
+        settings=settings,
+        crossref_client=crossref,
+        openalex_client=openalex,
+        semantic_scholar_client=semantic_scholar,
+        unpaywall_client=unpaywall,
+        core_client=core,
+        ssrn_client=ssrn,
+        doi_resolver_client=doi_resolver,
+    )
+    return service, external_calls
+
+
+def assert_no_external_calls(external_calls: list[Mock]) -> None:
+    for provider_call in external_calls:
+        provider_call.assert_not_called()
 
 
 def test_be42_reference_splitting_regression_for_multiline_following_doi() -> None:
@@ -294,3 +347,46 @@ def test_metadata_cache_reuse_for_same_doi(monkeypatch) -> None:
     assert client.post(f"/api/v1/references/{ref1}/verify-doi").status_code == 200
     assert client.post(f"/api/v1/references/{ref2}/verify-doi").status_code == 200
     assert calls["count"] == 1
+
+
+def test_metadata_disabled_blocks_all_providers_for_reference_with_doi(monkeypatch) -> None:
+    service, external_calls = metadata_disabled_service()
+    pdf_download = Mock(side_effect=AssertionError("External PDF download was called while disabled"))
+    monkeypatch.setattr("app.services.doi_metadata_lookup._extract_fulltext_from_url", pdf_download)
+    reference_id = create_reference(doi="10.1234/disabled.mode")
+
+    with SessionLocal() as db:
+        reference = db.get(Reference, reference_id)
+        result = service.verify_document_dois(reference.document_id, db)
+        db.refresh(reference)
+
+        assert result["lookup_failed"] == 1
+        assert result["errors"][0]["code"] == "METADATA_SERVICE_UNAVAILABLE"
+        assert reference.doi_status == DoiStatus.FOUND.value
+        assert reference.metadata_status == MetadataStatus.LOOKUP_FAILED.value
+
+    assert_no_external_calls(external_calls)
+    pdf_download.assert_not_called()
+
+
+def test_metadata_disabled_blocks_title_and_all_providers_for_missing_doi(monkeypatch) -> None:
+    service, external_calls = metadata_disabled_service()
+    pdf_download = Mock(side_effect=AssertionError("External PDF download was called while disabled"))
+    monkeypatch.setattr("app.services.doi_metadata_lookup._extract_fulltext_from_url", pdf_download)
+    reference_id = create_reference(doi=None, title="A title that must not be searched")
+
+    with SessionLocal() as db:
+        reference = db.get(Reference, reference_id)
+        result = service.verify_document_dois(reference.document_id, db)
+        db.refresh(reference)
+        metadata = db.query(SourceMetadata).filter(SourceMetadata.reference_id == reference_id).one()
+
+        assert result["missing_dois"] == 1
+        assert result["metadata_unavailable"] == 1
+        assert result["errors"] == []
+        assert reference.doi_status == DoiStatus.MISSING.value
+        assert reference.metadata_status == MetadataStatus.METADATA_UNAVAILABLE.value
+        assert metadata.raw_metadata_json == {"reason": "missing_doi"}
+
+    assert_no_external_calls(external_calls)
+    pdf_download.assert_not_called()

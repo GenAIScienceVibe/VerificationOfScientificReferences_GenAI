@@ -87,6 +87,63 @@ def fake_embed_chunks(input_data):
     )
 
 
+def count_source_embedding_calls(requests: list[RetrieveEvidenceRequest]) -> int:
+    """Run mocked Door 1 requests and count source-chunk embedding calls."""
+    chunk = make_chunk(0)
+    vector_output = VectorStoreOutput(
+        doi="irrelevant",
+        top_chunks=[RetrievedChunk(chunk=chunk, raw_score=0.9, weighted_score=0.9, rank=1)],
+        total_indexed=1,
+        retrieved_k=1,
+    )
+    bm25_output = Bm25RetrieverOutput(top_chunks=[], total_indexed=1, retrieved_k=0)
+    hybrid_output = HybridRetrieverOutput(
+        top_chunks=[
+            HybridRetrievedChunk(
+                chunk=chunk,
+                rrf_score=0.02,
+                dense_rank=1,
+                bm25_rank=None,
+                rerank_score=0.9,
+                rank=1,
+            ),
+        ],
+        total_unique=1,
+    )
+
+    with (
+        patch("rag.api.clean_text") as mock_clean,
+        patch("rag.api.chunk_text") as mock_chunk,
+        patch("rag.api.embed_chunks", side_effect=fake_embed_chunks) as mock_embed,
+        patch("rag.api.search", return_value=vector_output),
+        patch("rag.api.bm25_search", return_value=bm25_output),
+        patch("rag.api.merge", return_value=hybrid_output),
+    ):
+        mock_clean.return_value = CleanerOutput(
+            clean_text="cleaned text",
+            doi="irrelevant",
+            evidence_availability=EvidenceAvailability.ABSTRACT_AVAILABLE,
+            original_length=20,
+            cleaned_length=12,
+        )
+        mock_chunk.return_value = ChunkerOutput(
+            doi="irrelevant",
+            chunks=[chunk],
+            total_chunks=1,
+            sections_found=["results"],
+            fallback_used=False,
+        )
+        responses = [retrieve_evidence(request) for request in requests]
+
+    assert all(response.retrieval_status == RetrievalStatus.SUCCEEDED for response in responses)
+    source_calls = [
+        call
+        for call in mock_embed.call_args_list
+        if any(item.chunk_id == chunk.chunk_id for item in call.args[0].chunks)
+    ]
+    return len(source_calls)
+
+
 def make_door1_request(doi_status: DoiStatus = DoiStatus.VALID) -> RetrieveEvidenceRequest:
     """Build a Door 1 request matching the CLAUDE.md example payload."""
     return RetrieveEvidenceRequest(
@@ -189,6 +246,95 @@ def test_retrieve_evidence_success():
     assert response.top_chunks[0].similarity_score == 0.9
     assert response.overall_similarity_score == 0.9
     assert response.retrieval_confidence == pytest.approx(0.8)
+    assert response.semantic_cache_match == {
+        "matched": False,
+        "cached_result_id": None,
+        "similarity": None,
+    }
+    assert response.error_message is None
+
+
+@pytest.mark.parametrize(
+    ("requested_top_k", "expected_top_k"),
+    [
+        pytest.param(1, 1, id="top-k-one"),
+        pytest.param(3, 3, id="top-k-three"),
+        pytest.param(None, 5, id="top-k-default"),
+    ],
+)
+def test_retrieve_evidence_respects_requested_top_k(
+    requested_top_k: int | None,
+    expected_top_k: int,
+) -> None:
+    chunks = [make_chunk(index) for index in range(6)]
+    vector_output = VectorStoreOutput(
+        doi="10.1234/example.2019.001",
+        top_chunks=[
+            RetrievedChunk(
+                chunk=chunk,
+                raw_score=0.9 - index * 0.05,
+                weighted_score=0.9 - index * 0.05,
+                rank=index + 1,
+            )
+            for index, chunk in enumerate(chunks)
+        ],
+        total_indexed=len(chunks),
+        retrieved_k=len(chunks),
+    )
+    hybrid_output = HybridRetrieverOutput(
+        top_chunks=[
+            HybridRetrievedChunk(
+                chunk=chunk,
+                rrf_score=0.02 - index * 0.001,
+                dense_rank=index + 1,
+                bm25_rank=None,
+                rerank_score=0.9 - index * 0.05,
+                rank=index + 1,
+            )
+            for index, chunk in enumerate(chunks)
+        ],
+        total_unique=len(chunks),
+    )
+    request = make_door1_request()
+    if requested_top_k is not None:
+        request = request.model_copy(update={"top_k": requested_top_k})
+
+    with (
+        patch("rag.api.clean_text") as mock_clean,
+        patch("rag.api.chunk_text") as mock_chunk,
+        patch("rag.api.embed_chunks", side_effect=fake_embed_chunks),
+        patch("rag.api.search", return_value=vector_output) as mock_search,
+        patch(
+            "rag.api.bm25_search",
+            return_value=Bm25RetrieverOutput(
+                top_chunks=[],
+                total_indexed=len(chunks),
+                retrieved_k=0,
+            ),
+        ) as mock_bm25,
+        patch("rag.api.merge", return_value=hybrid_output) as mock_merge,
+    ):
+        mock_clean.return_value = CleanerOutput(
+            clean_text="cleaned text",
+            doi=request.doi,
+            evidence_availability=EvidenceAvailability.ABSTRACT_AVAILABLE,
+            original_length=20,
+            cleaned_length=12,
+        )
+        mock_chunk.return_value = ChunkerOutput(
+            doi=request.doi,
+            chunks=chunks,
+            total_chunks=len(chunks),
+            sections_found=["results"],
+            fallback_used=False,
+        )
+
+        response = retrieve_evidence(request)
+
+    assert len(response.top_chunks) == expected_top_k
+    assert mock_search.call_args.args[0].top_k == expected_top_k * 3
+    assert mock_bm25.call_args.args[0].top_k == expected_top_k * 3
+    assert mock_merge.call_args.args[0].top_k == expected_top_k
 
 
 def test_retrieve_evidence_success_falls_back_to_dense_score_when_rerank_missing():
@@ -300,6 +446,71 @@ def test_retrieve_evidence_normalizes_dense_fallback_scores_above_one():
     assert response.overall_similarity_score == pytest.approx(1.0)
 
 
+@pytest.mark.parametrize(
+    ("rerank_score", "expected_score"),
+    [
+        pytest.param(1.7, 1.0, id="above-one"),
+        pytest.param(-0.4, 0.0, id="negative"),
+    ],
+)
+def test_retrieve_evidence_normalizes_rerank_scores_to_backend_range(
+    rerank_score: float,
+    expected_score: float,
+) -> None:
+    chunk = make_chunk(0)
+    vector_output = VectorStoreOutput(
+        doi="10.1234/example.2019.001",
+        top_chunks=[RetrievedChunk(chunk=chunk, raw_score=0.8, weighted_score=0.8, rank=1)],
+        total_indexed=1,
+        retrieved_k=1,
+    )
+    hybrid_output = HybridRetrieverOutput(
+        top_chunks=[
+            HybridRetrievedChunk(
+                chunk=chunk,
+                rrf_score=0.02,
+                dense_rank=1,
+                bm25_rank=None,
+                rerank_score=rerank_score,
+                rank=1,
+            )
+        ],
+        total_unique=1,
+    )
+
+    with (
+        patch("rag.api.clean_text") as mock_clean,
+        patch("rag.api.chunk_text") as mock_chunk,
+        patch("rag.api.embed_chunks", side_effect=fake_embed_chunks),
+        patch("rag.api.search", return_value=vector_output),
+        patch(
+            "rag.api.bm25_search",
+            return_value=Bm25RetrieverOutput(top_chunks=[], total_indexed=1, retrieved_k=0),
+        ),
+        patch("rag.api.merge", return_value=hybrid_output),
+    ):
+        mock_clean.return_value = CleanerOutput(
+            clean_text="cleaned text",
+            doi="10.1234/example.2019.001",
+            evidence_availability=EvidenceAvailability.ABSTRACT_AVAILABLE,
+            original_length=20,
+            cleaned_length=12,
+        )
+        mock_chunk.return_value = ChunkerOutput(
+            doi="10.1234/example.2019.001",
+            chunks=[chunk],
+            total_chunks=1,
+            sections_found=["results"],
+            fallback_used=False,
+        )
+
+        response = retrieve_evidence(make_door1_request())
+
+    assert response.top_chunks[0].similarity_score == expected_score
+    assert response.overall_similarity_score == expected_score
+    assert response.retrieval_confidence == expected_score
+
+
 def test_retrieve_evidence_reuses_cached_embeddings_for_same_doi():
     """SCRUM-264: a second claim against the same DOI reuses the cached
     EmbedderOutput instead of re-embedding the source chunks. embed_chunks()
@@ -362,7 +573,7 @@ def test_retrieve_evidence_reuses_cached_embeddings_for_same_doi():
 
 
 def test_retrieve_evidence_does_not_reuse_cache_across_different_dois():
-    """A different DOI must not hit another DOI's cached embeddings."""
+    """A different DOI with the same reference_id must not hit cached embeddings."""
     chunk1 = make_chunk(0)
     vector_output = VectorStoreOutput(
         doi="irrelevant",
@@ -419,6 +630,80 @@ def test_retrieve_evidence_does_not_reuse_cache_across_different_dois():
     assert len(source_chunk_embed_calls) == 2
 
 
+@pytest.mark.parametrize(
+    (
+        "second_doi",
+        "second_text",
+        "second_source_url",
+        "second_availability",
+        "expected_source_embedding_calls",
+    ),
+    [
+        pytest.param(
+            "10.1234/example.2019.001",
+            "A changed source text payload.",
+            "https://doi.org/10.1234/example.2019.001",
+            EvidenceAvailability.ABSTRACT_AVAILABLE,
+            2,
+            id="same-doi-different-source-text",
+        ),
+        pytest.param(
+            "10.2222/different",
+            "A different paper's source text.",
+            "https://doi.org/10.2222/different",
+            EvidenceAvailability.ABSTRACT_AVAILABLE,
+            2,
+            id="different-doi-different-source-text",
+        ),
+        pytest.param(
+            " DOI:HTTPS://DOI.ORG/10.1234/EXAMPLE.2019.001 ",
+            "Abstract text of the source paper...",
+            "https://doi.org/10.1234/example.2019.001",
+            EvidenceAvailability.ABSTRACT_AVAILABLE,
+            1,
+            id="doi-case-and-prefix-normalize-to-same-key",
+        ),
+        pytest.param(
+            "10.1234/example.2019.001",
+            "Abstract text of the source paper...",
+            "https://repository.example/source.pdf",
+            EvidenceAvailability.ABSTRACT_AVAILABLE,
+            2,
+            id="same-doi-different-source-identity",
+        ),
+        pytest.param(
+            "10.1234/example.2019.001",
+            "Abstract text of the source paper...",
+            "https://doi.org/10.1234/example.2019.001",
+            EvidenceAvailability.FULL_TEXT_AVAILABLE,
+            2,
+            id="same-doi-different-evidence-availability",
+        ),
+    ],
+)
+def test_retrieve_evidence_cache_key_scopes_source_embeddings(
+    second_doi: str,
+    second_text: str,
+    second_source_url: str,
+    second_availability: EvidenceAvailability,
+    expected_source_embedding_calls: int,
+) -> None:
+    """Cache reuse requires the same normalized DOI and exact evidence identity."""
+    first = make_door1_request()
+    second = first.model_copy(
+        update={
+            "doi": second_doi,
+            "source_evidence": SourceEvidence(
+                evidence_availability=second_availability,
+                text=second_text,
+                source_url=second_source_url,
+            ),
+        }
+    )
+
+    assert count_source_embedding_calls([first, second]) == expected_source_embedding_calls
+
+
 def test_retrieve_evidence_invalid_doi_skips_pipeline():
     """INVALID doi_status returns FAILED immediately without touching the pipeline."""
     with patch("rag.api.clean_text", side_effect=AssertionError("pipeline must not run")):
@@ -426,6 +711,8 @@ def test_retrieve_evidence_invalid_doi_skips_pipeline():
 
     assert response.retrieval_status == RetrievalStatus.FAILED
     assert response.top_chunks == []
+    assert "DOI is invalid or unresolved" in response.error_message
+    assert response.semantic_cache_match["matched"] is False
 
 
 def test_retrieve_evidence_unresolvable_doi_skips_pipeline():
@@ -434,6 +721,30 @@ def test_retrieve_evidence_unresolvable_doi_skips_pipeline():
         response = retrieve_evidence(make_door1_request(doi_status=DoiStatus.UNRESOLVABLE))
 
     assert response.retrieval_status == RetrievalStatus.FAILED
+    assert "DOI is invalid or unresolved" in response.error_message
+
+
+def test_retrieve_evidence_empty_source_returns_safe_failure_without_pipeline_calls():
+    request = make_door1_request().model_copy(
+        update={
+            "source_evidence": SourceEvidence(
+                evidence_availability=EvidenceAvailability.ABSTRACT_AVAILABLE,
+                text="   ",
+                source_url="file:///private/source.pdf",
+            )
+        }
+    )
+    with patch("rag.api.clean_text") as mock_clean:
+        response = retrieve_evidence(request)
+
+    mock_clean.assert_not_called()
+    assert response.retrieval_status == RetrievalStatus.FAILED
+    assert response.error_message == "Source evidence is unavailable or empty."
+    assert response.semantic_cache_match == {
+        "matched": False,
+        "cached_result_id": None,
+        "similarity": None,
+    }
 
 
 def test_retrieve_evidence_no_chunks_returns_failed():
@@ -469,6 +780,7 @@ def test_retrieve_evidence_no_chunks_returns_failed():
         mock_merge.assert_not_called()
 
     assert response.retrieval_status == RetrievalStatus.FAILED
+    assert response.error_message == "Source evidence produced no retrievable chunks."
 
 
 def test_retrieve_evidence_pipeline_exception_returns_failed():
@@ -477,7 +789,10 @@ def test_retrieve_evidence_pipeline_exception_returns_failed():
     with (
         patch("rag.api.clean_text") as mock_clean,
         patch("rag.api.chunk_text") as mock_chunk,
-        patch("rag.api.embed_chunks", side_effect=EnvironmentError("OPENROUTER_API_KEY is not set")),
+        patch(
+            "rag.api.embed_chunks",
+            side_effect=EnvironmentError("OPENROUTER_API_KEY=sk-secret-value"),
+        ),
         patch("rag.api.search") as mock_search,
         patch("rag.api.bm25_search") as mock_bm25,
         patch("rag.api.merge") as mock_merge,
@@ -504,6 +819,38 @@ def test_retrieve_evidence_pipeline_exception_returns_failed():
         mock_merge.assert_not_called()
 
     assert response.retrieval_status == RetrievalStatus.FAILED
+    assert response.error_message == "Embedding service failed while preparing retrieval vectors."
+    assert "secret" not in response.error_message.casefold()
+
+
+def test_retrieve_evidence_internal_exception_returns_safe_failure_detail():
+    chunk = make_chunk(0)
+    with (
+        patch("rag.api.clean_text") as mock_clean,
+        patch("rag.api.chunk_text") as mock_chunk,
+        patch("rag.api.embed_chunks", side_effect=fake_embed_chunks),
+        patch("rag.api.search", side_effect=RuntimeError("token=private-token")),
+    ):
+        mock_clean.return_value = CleanerOutput(
+            clean_text="cleaned text",
+            doi="10.1234/example.2019.001",
+            evidence_availability=EvidenceAvailability.ABSTRACT_AVAILABLE,
+            original_length=20,
+            cleaned_length=12,
+        )
+        mock_chunk.return_value = ChunkerOutput(
+            doi="10.1234/example.2019.001",
+            chunks=[chunk],
+            total_chunks=1,
+            sections_found=["results"],
+            fallback_used=False,
+        )
+
+        response = retrieve_evidence(make_door1_request())
+
+    assert response.retrieval_status == RetrievalStatus.FAILED
+    assert response.error_message == "RAG retrieval failed due to an internal error."
+    assert "token" not in response.error_message.casefold()
 
 
 def test_retrieve_evidence_empty_hybrid_results_returns_failed():
@@ -541,6 +888,7 @@ def test_retrieve_evidence_empty_hybrid_results_returns_failed():
         response = retrieve_evidence(make_door1_request())
 
     assert response.retrieval_status == RetrievalStatus.FAILED
+    assert response.error_message == "No relevant evidence chunks were found."
 
 
 # ── Door 2: verify_claim() ────────────────────────────────────────────────────

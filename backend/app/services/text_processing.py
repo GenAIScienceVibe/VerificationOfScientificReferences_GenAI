@@ -233,8 +233,12 @@ def remove_repeated_page_artifacts_from_pages(page_texts: list[str]) -> list[str
     candidates: list[str] = []
     for page in page_texts:
         lines = [line.strip() for line in page.replace("\r", "\n").split("\n") if line.strip()]
-        candidates.extend(_line_key(line) for line in lines[:5])
-        candidates.extend(_line_key(line) for line in lines[-5:])
+        # Use a set per page so overlapping first-5/last-5 on short pages doesn't
+        # double-count legitimate content lines and falsely mark them as repeated artifacts.
+        page_candidates: set[str] = set()
+        page_candidates.update(_line_key(line) for line in lines[:5])
+        page_candidates.update(_line_key(line) for line in lines[-5:])
+        candidates.extend(page_candidates)
     counts = Counter(candidates)
     repeated = {key for key, count in counts.items() if count >= 2 and len(key) >= 5}
 

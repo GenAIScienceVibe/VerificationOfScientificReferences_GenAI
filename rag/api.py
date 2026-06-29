@@ -19,7 +19,10 @@ then merged via Reciprocal Rank Fusion and reranked by FlashRank
 (hybrid_retriever.py). See retrieve_evidence()'s Step 5 for the wiring.
 """
 
+import hashlib
 import logging
+import math
+from dataclasses import dataclass
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -56,10 +59,7 @@ logger = logging.getLogger(__name__)
 # Number of top chunks returned to the backend from Door 1.
 DOOR1_TOP_K = 5
 
-# Candidates each retriever (dense + BM25) fetches before RRF/FlashRank
-# narrow the pool down to DOOR1_TOP_K, mirroring the oversample-then-rerank
-# shape already used inside vector_store.py and hybrid_retriever.py.
-RETRIEVAL_CANDIDATE_K = DOOR1_TOP_K * 3
+MAX_DOOR1_TOP_K = 20
 
 # Dense fallback scores are cosine similarity (0-1) times a section weight
 # that can exceed 1.0 (e.g. 1.3 for Results/Methods/Experiments). Dividing
@@ -68,10 +68,36 @@ RETRIEVAL_CANDIDATE_K = DOOR1_TOP_K * 3
 # already a 0-1 relevance probability and is never divided by this.
 MAX_SECTION_WEIGHT = max(SECTION_WEIGHTS.values())
 
-# Per-paper embedding cache for retrieve_evidence(). Key is reference_id (always
-# unique per paper) so multiple claims citing the same paper reuse embeddings.
-# Falls back to doi if reference_id is absent. In-memory only, never persisted.
-_embedding_cache: dict[str, EmbedderOutput] = {}
+# Maximum LLM call attempts in verify_claim(). A single retry resolves the
+# transient empty-response case (content length 0) without burning extra quota.
+_LLM_MAX_ATTEMPTS = 2
+
+
+@dataclass(frozen=True)
+class _EmbeddingCacheKey:
+    """Identity of the exact source evidence used to produce embeddings."""
+
+    normalized_doi: str
+    reference_id: str
+    source_url: str
+    evidence_availability: str
+    source_text_sha256: str
+
+
+# Per-source embedding cache for retrieve_evidence(). Reuse is allowed only
+# when DOI, backend/source identity, evidence availability, and source text are
+# all unchanged. In-memory only, never persisted.
+_embedding_cache: dict[_EmbeddingCacheKey, EmbedderOutput] = {}
+
+_DOI_CACHE_PREFIXES = (
+    "https://doi.org/",
+    "http://doi.org/",
+    "https://dx.doi.org/",
+    "http://dx.doi.org/",
+    "doi.org/",
+    "dx.doi.org/",
+    "doi:",
+)
 
 
 # ── Shared request/response models ───────────────────────────────────────────
@@ -105,6 +131,40 @@ class RetrieveEvidenceRequest(BaseModel):
     source_evidence: SourceEvidence = Field(
         ..., description="Raw source text plus how much of the paper was available"
     )
+    top_k: int = Field(
+        default=DOOR1_TOP_K,
+        ge=1,
+        le=MAX_DOOR1_TOP_K,
+        description="Maximum number of ranked chunks to return",
+    )
+
+
+def _normalize_doi_for_cache(doi: str) -> str:
+    """Normalize DOI case and common resolver prefixes for cache identity."""
+    normalized = doi.strip()
+    while normalized:
+        folded = normalized.casefold()
+        prefix = next(
+            (item for item in _DOI_CACHE_PREFIXES if folded.startswith(item)),
+            None,
+        )
+        if prefix is None:
+            break
+        normalized = normalized[len(prefix):].strip()
+    return normalized.casefold()
+
+
+def _build_embedding_cache_key(request: RetrieveEvidenceRequest) -> _EmbeddingCacheKey:
+    """Build a deterministic key that cannot reuse embeddings across sources."""
+    source = request.source_evidence
+    text_fingerprint = hashlib.sha256(source.text.encode("utf-8")).hexdigest()
+    return _EmbeddingCacheKey(
+        normalized_doi=_normalize_doi_for_cache(request.doi),
+        reference_id=request.reference_id.strip(),
+        source_url=source.source_url.strip(),
+        evidence_availability=source.evidence_availability.value,
+        source_text_sha256=text_fingerprint,
+    )
 
 
 class RetrievalStatus(str, Enum):
@@ -130,13 +190,25 @@ class RetrieveEvidenceResponse(BaseModel):
     reference_id: str = Field(..., description="Echoed back from the request")
     retrieval_status: RetrievalStatus = Field(..., description="SUCCEEDED or FAILED")
     top_chunks: list[TopChunkResult] = Field(
-        default_factory=list, description="Top DOOR1_TOP_K chunks ranked by weighted similarity"
+        default_factory=list, description="Requested top-k chunks ranked by similarity"
     )
     overall_similarity_score: float = Field(
         default=0.0, description="Weighted similarity score of the single best-ranked chunk"
     )
     retrieval_confidence: float = Field(
         default=0.0, description="Average weighted similarity score across all returned chunks"
+    )
+    semantic_cache_match: dict[str, bool | str | float | None] = Field(
+        default_factory=lambda: {
+            "matched": False,
+            "cached_result_id": None,
+            "similarity": None,
+        },
+        description="Semantic-cache result; unmatched by default",
+    )
+    error_message: str | None = Field(
+        default=None,
+        description="Safe failure detail when retrieval_status is FAILED",
     )
 
 
@@ -211,13 +283,25 @@ def _embed_single_text(text: str, doi: str) -> list[float]:
     return embedded.embedded_chunks[0].embedding
 
 
-def _failed_retrieval(request: RetrieveEvidenceRequest) -> RetrieveEvidenceResponse:
+def _failed_retrieval(
+    request: RetrieveEvidenceRequest,
+    error_message: str,
+) -> RetrieveEvidenceResponse:
     """Build the FAILED response shared by every Door 1 early-exit path."""
     return RetrieveEvidenceResponse(
         claim_id=request.claim_id,
         reference_id=request.reference_id,
         retrieval_status=RetrievalStatus.FAILED,
+        error_message=error_message,
     )
+
+
+def _normalize_backend_score(value: float) -> float:
+    """Normalize an internal retrieval score to the backend's finite 0-1 range."""
+    score = float(value)
+    if not math.isfinite(score):
+        return 0.0
+    return min(max(score, 0.0), 1.0)
 
 
 # ── Door 2 private helpers ───────────────────────────────────────────────────
@@ -274,15 +358,15 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
            run (_embedding_cache, SCRUM-264).
         4. _embed_single_text() — embed the claim with the same model.
         5. Hybrid retrieval — dense search() and BM25 bm25_search() each
-           oversample RETRIEVAL_CANDIDATE_K candidates, then merge()
+           oversample three times the requested top_k, then merge()
            combines them via Reciprocal Rank Fusion and reranks the top
-           pool with FlashRank, narrowing down to DOOR1_TOP_K chunks.
+           pool with FlashRank, narrowing down to request.top_k chunks.
 
     Returns:
         RetrieveEvidenceResponse with:
           - retrieval_status: SUCCEEDED if at least one chunk was retrieved,
             FAILED otherwise.
-          - top_chunks: up to DOOR1_TOP_K chunks, each with a similarity_score
+          - top_chunks: up to request.top_k chunks, each with a similarity_score
             (FlashRank's relevance score when reranking succeeded, otherwise
             the chunk's dense cosine-weighted score divided by
             MAX_SECTION_WEIGHT as a fallback — both are normalized to the
@@ -308,7 +392,25 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
             "claim_id=%s reference_id=%s — doi_status=%s, skipping retrieval pipeline.",
             request.claim_id, request.reference_id, request.doi_status.value,
         )
-        return _failed_retrieval(request)
+        return _failed_retrieval(
+            request,
+            "Retrieval was skipped because the DOI is invalid or unresolved.",
+        )
+
+    source_text = request.source_evidence.text.strip()
+    if (
+        request.source_evidence.evidence_availability.value == "UNAVAILABLE"
+        or not source_text
+    ):
+        logger.warning(
+            "claim_id=%s reference_id=%s — source evidence is unavailable.",
+            request.claim_id,
+            request.reference_id,
+        )
+        return _failed_retrieval(
+            request,
+            "Source evidence is unavailable or empty.",
+        )
 
     try:
         # Step 1: strip noise (whitespace, page numbers, references section).
@@ -334,14 +436,29 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
                 "claim_id=%s reference_id=%s — chunking produced zero chunks.",
                 request.claim_id, request.reference_id,
             )
-            return _failed_retrieval(request)
+            return _failed_retrieval(
+                request,
+                "Source evidence produced no retrievable chunks.",
+            )
 
-        # Step 3: embed every source chunk, reusing a cached embedding when
-        # another claim earlier in this run already embedded the same paper.
-        # Key by reference_id (always unique) rather than doi (empty when DOI
-        # is missing, which would cause all DOI-less papers to collide in the
-        # same cache slot and return wrong chunks — SCRUM-264).
-        cache_key = request.reference_id or request.doi
+    except Exception as exc:
+        logger.error(
+            "claim_id=%s reference_id=%s — source preprocessing failed (%s).",
+            request.claim_id,
+            request.reference_id,
+            type(exc).__name__,
+        )
+        return _failed_retrieval(
+            request,
+            "Source evidence preprocessing failed.",
+        )
+
+    try:
+        # Step 3: embed every source chunk, reusing cached embeddings only when
+        # the normalized DOI, source identity, evidence type, and source-text
+        # fingerprint all match. A reference_id alone is not safe: the same
+        # reference can be corrected to a different DOI or source payload.
+        cache_key = _build_embedding_cache_key(request)
         cached_embedder_output = _embedding_cache.get(cache_key)
         if cached_embedder_output is not None:
             embedder_output = cached_embedder_output
@@ -352,21 +469,35 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
         # Step 4: embed the claim with the same embedding model.
         claim_embedding = _embed_single_text(request.claim_text, request.doi)
 
+    except Exception as exc:
+        logger.error(
+            "claim_id=%s reference_id=%s — embedding failed (%s).",
+            request.claim_id,
+            request.reference_id,
+            type(exc).__name__,
+        )
+        return _failed_retrieval(
+            request,
+            "Embedding service failed while preparing retrieval vectors.",
+        )
+
+    try:
         # Step 5: hybrid retrieval — dense FAISS search and BM25 keyword
         # search each oversample candidates, then merge() combines them via
         # RRF and reranks the top pool with FlashRank.
+        retrieval_candidate_k = request.top_k * 3
         vector_output = search(
             VectorStoreInput(
                 embedder_output=embedder_output,
                 query_embedding=claim_embedding,
-                top_k=RETRIEVAL_CANDIDATE_K,
+                top_k=retrieval_candidate_k,
             )
         )
         bm25_output = bm25_search(
             Bm25RetrieverInput(
                 chunks=chunker_output.chunks,
                 query=request.claim_text,
-                top_k=RETRIEVAL_CANDIDATE_K,
+                top_k=retrieval_candidate_k,
             )
         )
         hybrid_output = merge(
@@ -374,23 +505,31 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
                 dense_results=vector_output,
                 bm25_results=bm25_output,
                 claim=request.claim_text,
-                top_k=DOOR1_TOP_K,
+                top_k=request.top_k,
             )
         )
 
     except Exception as exc:
         logger.error(
-            "claim_id=%s reference_id=%s — retrieval pipeline failed: %s",
-            request.claim_id, request.reference_id, exc,
+            "claim_id=%s reference_id=%s — retrieval pipeline failed (%s).",
+            request.claim_id,
+            request.reference_id,
+            type(exc).__name__,
         )
-        return _failed_retrieval(request)
+        return _failed_retrieval(
+            request,
+            "RAG retrieval failed due to an internal error.",
+        )
 
     if not hybrid_output.top_chunks:
         logger.warning(
             "claim_id=%s reference_id=%s — hybrid retrieval returned zero chunks.",
             request.claim_id, request.reference_id,
         )
-        return _failed_retrieval(request)
+        return _failed_retrieval(
+            request,
+            "No relevant evidence chunks were found.",
+        )
 
     # similarity_score prefers FlashRank's relevance score (0-1, same scale
     # Door 2's SIMILARITY_THRESHOLD expects); falls back to the chunk's dense
@@ -400,9 +539,11 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
 
     def _similarity_score(hc) -> float:
         if hc.rerank_score is not None:
-            return hc.rerank_score
-        return dense_weighted_by_id.get(hc.chunk.chunk_id, 0.0) / MAX_SECTION_WEIGHT
+            return _normalize_backend_score(hc.rerank_score)
+        dense_score = dense_weighted_by_id.get(hc.chunk.chunk_id, 0.0) / MAX_SECTION_WEIGHT
+        return _normalize_backend_score(dense_score)
 
+    ranked_chunks = hybrid_output.top_chunks[: request.top_k]
     top_chunks = [
         TopChunkResult(
             chunk_id=hc.chunk.chunk_id,
@@ -410,9 +551,9 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
             similarity_score=_similarity_score(hc),
             evidence_type=hc.chunk.evidence_type,
         )
-        for hc in hybrid_output.top_chunks
+        for hc in ranked_chunks
     ]
-    similarity_scores = [_similarity_score(hc) for hc in hybrid_output.top_chunks]
+    similarity_scores = [_similarity_score(hc) for hc in ranked_chunks]
 
     return RetrieveEvidenceResponse(
         claim_id=request.claim_id,
@@ -508,12 +649,34 @@ def verify_claim(request: VerifyClaimRequest) -> VerifyClaimResponse:
         doi="",  # not part of the Door 2 contract; only used for prompt context
     )
 
-    # Step 3: render the prompt and call the LLM.
-    try:
-        raw_response = generate_verdict(verification_input)
-    except Exception as exc:
-        logger.error("LLM verification call failed: %s", exc)
-        return _needs_human_review(f"LLM verification call failed: {exc}")
+    # Step 3: render the prompt and call the LLM; retry on empty responses.
+    # An empty response (content length 0) is a transient LLM failure — a
+    # single retry resolves it without burning meaningful quota. API errors
+    # are retried too, since the same transient network issues can cause them.
+    raw_response: str = ""
+    last_exc: Exception | None = None
+    for attempt in range(1, _LLM_MAX_ATTEMPTS + 1):
+        try:
+            raw_response = generate_verdict(verification_input)
+            if raw_response and raw_response.strip():
+                break
+            logger.warning(
+                "LLM returned empty response (attempt %d/%d) — retrying.",
+                attempt, _LLM_MAX_ATTEMPTS,
+            )
+        except Exception as exc:
+            last_exc = exc
+            logger.warning(
+                "LLM call failed (attempt %d/%d): %s",
+                attempt, _LLM_MAX_ATTEMPTS, exc,
+            )
+    else:
+        reason = (
+            f"LLM verification call failed: {last_exc}"
+            if last_exc
+            else "LLM returned empty response after retries."
+        )
+        return _needs_human_review(reason)
 
     # Step 4: low_confidence bridge — Door 2 gives us a similarity score, not
     # a boolean, so the same threshold vector_store.py uses internally is
