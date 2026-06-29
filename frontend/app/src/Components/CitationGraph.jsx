@@ -3,60 +3,14 @@ import { useState, useMemo } from 'react'
 const HUB_R = 20
 const SOURCE_R = 9
 const CLAIM_R = 7
-const RING_1 = 130
+const RING_1 = 150
 const RING_2 = 300
+const MAX_LABEL_CHARS = 26
 
-const DEMO_EXTRA_CLAIMS = [
-  {
-    id: 'demo-1',
-    status: 'partial',
-    text: '"The same exercise program was also linked to a 15% drop in resting heart rate [Johnson et al., 2019]"',
-    source: 'Johnson et al., 2019',
-    isDemo: true,
-  },
-  {
-    id: 'demo-2',
-    status: 'supported',
-    text: '"The trial population included 1,200 adults across three age groups [Smith et al., 2021]"',
-    source: 'Smith et al., 2021',
-    isDemo: true,
-  },
-  {
-    id: 'demo-3',
-    status: 'unsupported',
-    text: '"The same dataset also shows Y causing Z in adolescents [White et al., 2022]"',
-    source: 'White et al., 2022',
-    isDemo: true,
-  },
-  {
-    id: 'demo-4',
-    status: 'supported',
-    text: '"Vitamin D supplementation is associated with reduced fracture risk in adults over 60 [Anderson et al., 2018]"',
-    source: 'Anderson et al., 2018',
-    isDemo: true,
-  },
-  {
-    id: 'demo-5',
-    status: 'supported',
-    text: '"Cognitive behavioral therapy shows lasting effectiveness for chronic insomnia [Martinez et al., 2020]"',
-    source: 'Martinez et al., 2020',
-    isDemo: true,
-  },
-  {
-    id: 'demo-6',
-    status: 'partial',
-    text: '"Intermittent fasting was linked to improved metabolic markers in 60% of participants [Lee et al., 2022]"',
-    source: 'Lee et al., 2022',
-    isDemo: true,
-  },
-  {
-    id: 'demo-7',
-    status: 'unsupported',
-    text: '"Meditation reduces anxiety symptoms by 50% [Kumar et al., 2021]"',
-    source: 'Kumar et al., 2021',
-    isDemo: true,
-  },
-]
+function truncate(text, maxLen = MAX_LABEL_CHARS) {
+  if (!text) return text
+  return text.length > maxLen ? text.slice(0, maxLen - 1).trimEnd() + '…' : text
+}
 
 function buildRadialLayout(allClaims) {
   const bySource = new Map()
@@ -68,8 +22,8 @@ function buildRadialLayout(allClaims) {
 
   const sourceEntries = Array.from(bySource.entries())
   const total = sourceEntries.length || 1
-  const cx = 440
-  const cy = 380
+  const cx = 500
+  const cy = 400
 
   const sourceNodes = []
   const claimNodes = []
@@ -100,26 +54,29 @@ function buildRadialLayout(allClaims) {
   return { cx, cy, sourceNodes, claimNodes }
 }
 
-function labelAnchor(x, y, angle, dist = 12) {
-  const cos = Math.cos(angle)
-  const sin = Math.sin(angle)
-  if (Math.abs(cos) > 0.35) {
-    const side = cos > 0 ? 1 : -1
-    return { x: x + side * dist, y: y + (sin >= 0 ? 4 : -4), anchor: side > 0 ? 'start' : 'end' }
-  }
-  const vSide = sin >= 0 ? 1 : -1
-  return { x: x + dist, y: y + vSide * dist, anchor: 'start' }
-}
-
 export default function CitationGraph({ claims, statusConfig, documentLabel = 'This paper', statusFilter = 'all' }) {
   const [activeId, setActiveId] = useState(null)
 
-  const allClaims = useMemo(() => [...claims, ...DEMO_EXTRA_CLAIMS], [claims])
+  const allClaims = useMemo(() => claims, [claims])
   const { cx, cy, sourceNodes, claimNodes } = useMemo(() => buildRadialLayout(allClaims), [allClaims])
   const active = allClaims.find((c) => c.id === activeId)
   const highlighted = statusFilter !== 'all' ? statusFilter : null
 
-  if (allClaims.length === 0) return null
+  if (allClaims.length === 0) {
+    return (
+      <div
+        style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '40px 24px',
+          border: '1px solid #e0e0e0',
+          textAlign: 'center',
+        }}
+      >
+        <p style={{ color: '#888', fontSize: '14px' }}>No claims to display yet.</p>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -146,7 +103,7 @@ export default function CitationGraph({ claims, statusConfig, documentLabel = 'T
           overflowX: 'auto',
         }}
       >
-        <svg width="100%" viewBox="0 0 900 760" style={{ display: 'block', minWidth: '700px' }}>
+        <svg width="100%" viewBox="0 0 1000 800" style={{ display: 'block', minWidth: '700px' }}>
           {sourceNodes.map((s) => {
             const sourceHasMatch = highlighted && claimNodes.some((c) => c.sourceId === s.id && c.status === highlighted)
             const bold = !highlighted || sourceHasMatch
@@ -185,21 +142,31 @@ export default function CitationGraph({ claims, statusConfig, documentLabel = 'T
           <text x={cx} y={cy + 4} textAnchor="middle" fontSize="10" fontWeight="600" fill="#fff">
             doc
           </text>
-          <text x={cx} y={cy - HUB_R - 8} textAnchor="middle" fontSize="10" fontWeight="600" fill="#1a3a6b">
-            {documentLabel}
+          <text x={cx} y={cy - HUB_R - 12} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1a3a6b">
+            {truncate(documentLabel, 34)}
           </text>
 
           {sourceNodes.map((s) => {
-            const lbl = labelAnchor(s.x, s.y, s.angle, 13)
             const sourceHasMatch = highlighted && claimNodes.some((c) => c.sourceId === s.id && c.status === highlighted)
             const dimmed = highlighted && !sourceHasMatch
+
+            // Sources roughly level with the hub (near-horizontal angle) would
+            // have their "above" label collide with the document title row
+            // sitting directly above the hub. Push those labels below the
+            // node instead; vertical-ish sources keep the label above.
+            const isNearHorizontal = Math.abs(Math.sin(s.angle)) < 0.5
+            const labelY = isNearHorizontal
+              ? s.y + SOURCE_R + 16
+              : s.y - SOURCE_R - 18
+            const subLabelY = isNearHorizontal ? labelY + 14 : labelY + 14
+
             return (
               <g key={s.id} opacity={dimmed ? 0.35 : 1}>
                 <circle cx={s.x} cy={s.y} r={SOURCE_R} fill="white" stroke="#1a3a6b" strokeWidth="1.5" />
-                <text x={lbl.x} y={lbl.y - 4} textAnchor={lbl.anchor} fontSize="10" fontWeight="600" fill="#111">
-                  {s.label}
+                <text x={s.x} y={labelY} textAnchor="middle" fontSize="11" fontWeight="700" fill="#111">
+                  {truncate(s.label)}
                 </text>
-                <text x={lbl.x} y={lbl.y + 9} textAnchor={lbl.anchor} fontSize="9" fill="#888">
+                <text x={s.x} y={subLabelY} textAnchor="middle" fontSize="9.5" fill="#888">
                   {s.count} claim{s.count > 1 ? 's' : ''}{s.flagged > 0 ? ` · ${s.flagged} flagged` : ''}
                 </text>
               </g>
@@ -211,7 +178,7 @@ export default function CitationGraph({ claims, statusConfig, documentLabel = 'T
             const isActive = activeId === c.id
             const matched = highlighted && c.status === highlighted
             const dimmed = highlighted && !matched
-            const lbl = labelAnchor(c.x, c.y, c.angle, 11)
+            const labelY = c.y + CLAIM_R + 16
             return (
               <g key={c.id} onClick={() => setActiveId(isActive ? null : c.id)} style={{ cursor: 'pointer' }} opacity={dimmed ? 0.25 : 1}>
                 <circle
@@ -222,8 +189,8 @@ export default function CitationGraph({ claims, statusConfig, documentLabel = 'T
                   stroke="white"
                   strokeWidth="1.5"
                 />
-                {(matched) && (
-                  <text x={lbl.x} y={lbl.y} textAnchor={lbl.anchor} fontSize="9.5" fill={cfg.color} fontWeight="600">
+                {matched && (
+                  <text x={c.x} y={labelY} textAnchor="middle" fontSize="10" fill={cfg.color} fontWeight="700">
                     {cfg.label}
                   </text>
                 )}
@@ -269,7 +236,6 @@ export default function CitationGraph({ claims, statusConfig, documentLabel = 'T
           </p>
           <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>
             Source: {active.source}
-            {active.isDemo ? ' (example citation, for illustration)' : ''}
           </p>
         </div>
       )}

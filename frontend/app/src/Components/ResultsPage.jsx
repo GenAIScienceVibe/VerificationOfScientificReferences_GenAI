@@ -3,12 +3,11 @@ import { useState, useEffect, useRef } from 'react'
 import CitationGraph from './CitationGraph'
 import logo from '../assets/Logo_VerifAi.png'
 import { generateVerificationPdf } from './pdfReport'
-import { getVerificationResults, uploadReferenceSourcePdf } from '../api'
-import { getVerificationResults, uploadReferenceSourcePdf, prepareEvidence } from '../api'
-
+import { getVerificationResults, uploadReferenceSourcePdf, prepareEvidence, startPipelineRun, getDocumentStatus, TERMINAL_SUCCESS_STATUSES, TERMINAL_FAILURE_STATUSES } from '../api'
 function mapToUiStatus(result) {
-  const invalidDoi = result.doi_status && result.doi_status !== 'VALID'
-  if (invalidDoi && result.support_status === 'NOT_SUPPORTED') return 'hallucinated'
+  // An invalid/unresolvable DOI is the strongest signal of a fabricated
+  // citation, regardless of which fallback status the backend assigned.
+  if (result.doi_status === 'INVALID') return 'hallucinated'
 
   switch (result.support_status) {
     case 'SUPPORTED': return 'supported'
@@ -18,6 +17,29 @@ function mapToUiStatus(result) {
     case 'NEEDS_HUMAN_REVIEW': return 'insufficient'
     default: return 'insufficient'
   }
+}
+
+// Heuristic hint for low-similarity "Insufficient Evidence" cases.
+// This does NOT change the actual status - it's just an explanatory
+// note for whoever is reviewing the results, since a low score could
+// mean either "not covered in this source" or "retrieval missed the
+// right passage due to wording differences" (the RAG vocabulary-gap
+// issue noted by the backend team).
+function getSimilarityHint(score) {
+  if (score == null) return null
+  if (score < 0.20) {
+    return {
+      label: `Low similarity score (${score.toFixed(2)})`,
+      detail: "This may indicate the claim isn't covered in this source at all.",
+    }
+  }
+  if (score < 0.50) {
+    return {
+      label: `Borderline similarity score (${score.toFixed(2)})`,
+      detail: "This is close to the threshold - it may just mean the search didn't find the right passage due to differing wording, rather than the claim being unsupported.",
+    }
+  }
+  return null
 }
 
 function ResultsPage() {
@@ -33,8 +55,8 @@ function ResultsPage() {
   const [claims, setClaims] = useState([])
   const [isLoading, setIsLoading] = useState(true)
 
-  // claimId -> 'uploading' | 'checking' | 'error' | 'no-reference'
   const [refUploadStatus, setRefUploadStatus] = useState({})
+  const [refUploadError, setRefUploadError] = useState({})
   const [flashUpload, setFlashUpload] = useState(false)
   const claimsListRef = useRef(null)
 
@@ -46,7 +68,6 @@ function ResultsPage() {
     return getVerificationResults(documentId)
       .then(data => {
         const mappedClaims = data.results.map((r, idx) => {
-          // Backend field naming can vary slightly - check the most likely candidates.
           const referenceId = r.reference_id ?? r.referenceId ?? r.ref_id ?? null
           if (!referenceId) {
             console.warn('No reference_id found on verification result:', r)
@@ -59,6 +80,7 @@ function ResultsPage() {
             source: r.reference_title || r.citation_text || 'Unknown source',
             reasoning: r.explanation || 'No explanation available.',
             confidence: r.confidence ?? 0,
+            similarityScore: r.overall_similarity_score ?? null,
             warning: r.human_review_required
               ? 'Human review recommended - this result may need manual verification.'
               : undefined,
@@ -145,9 +167,7 @@ function ResultsPage() {
     }, 80)
   }
 
-  const [refUploadError, setRefUploadError] = useState({}) // claimId -> error message
-
-const handleManualReferenceUpload = async (claim, file) => {
+  const handleManualReferenceUpload = async (claim, file) => {
   if (!file) return
 
   if (!claim.referenceId) {
@@ -160,8 +180,34 @@ const handleManualReferenceUpload = async (claim, file) => {
   setRefUploadError(prev => ({ ...prev, [claim.id]: null }))
   try {
     await uploadReferenceSourcePdf(claim.referenceId, file)
-    setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'checking' }))
     await prepareEvidence(documentId)
+
+    setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'checking' }))
+
+    // prepareEvidence only rebuilds evidence packages - it does NOT re-run
+    // verification. Trigger a fresh pipeline run and poll until it's done,
+    // then reload results so the new full text actually gets used.
+    await startPipelineRun(documentId)
+
+    await new Promise((resolve, reject) => {
+      const poll = setInterval(async () => {
+        try {
+          const status = await getDocumentStatus(documentId)
+          const pct = status.progress_percentage ?? 0
+          if (TERMINAL_SUCCESS_STATUSES.includes(status.status) || pct >= 100) {
+            clearInterval(poll)
+            resolve()
+          } else if (TERMINAL_FAILURE_STATUSES.includes(status.status)) {
+            clearInterval(poll)
+            reject(new Error('Re-verification failed.'))
+          }
+        } catch (err) {
+          clearInterval(poll)
+          reject(err)
+        }
+      }, 2000)
+    })
+
     await loadResults()
     setRefUploadStatus(prev => {
       const next = { ...prev }
@@ -245,9 +291,17 @@ const handleManualReferenceUpload = async (claim, file) => {
           </div>
 
           <div style={{ background: "white", borderRadius: "12px", padding: "16px 24px", border: "1px solid #e0e0e0", display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{ background: "#eef2ff", borderRadius: "8px", padding: "10px", fontSize: "20px" }}>📄</div>
-            <div>
-              <p style={{ fontSize: "14px", fontWeight: "600", color: "#111" }}>{fileName}</p>
+            <div style={{ background: "#eef2ff", borderRadius: "8px", padding: "10px", fontSize: "20px", flexShrink: 0 }}>📄</div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <p
+                title={fileName}
+                style={{
+                  fontSize: "14px", fontWeight: "600", color: "#111",
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+                }}
+              >
+                {fileName}
+              </p>
               <p style={{ fontSize: "12px", color: "#888" }}>{totalClaims} claims processed</p>
             </div>
           </div>
@@ -345,6 +399,9 @@ const handleManualReferenceUpload = async (claim, file) => {
                     const config = statusConfig[claim.status]
                     const showManualUpload = !claim.doiResolved || claim.status === 'insufficient'
                     const uploadState = refUploadStatus[claim.id]
+                    const similarityHint = claim.status === 'insufficient'
+                      ? getSimilarityHint(claim.similarityScore)
+                      : null
                     return (
                       <div key={claim.id} style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -365,10 +422,21 @@ const handleManualReferenceUpload = async (claim, file) => {
                           </span>
                         </div>
 
-                        <div style={{ background: "#f8f8f8", borderRadius: "8px", padding: "16px", marginBottom: claim.warning ? "12px" : "16px" }}>
+                        <div style={{ background: "#f8f8f8", borderRadius: "8px", padding: "16px", marginBottom: claim.warning || similarityHint ? "12px" : "16px" }}>
                           <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "8px" }}>AI REASONING</p>
                           <p style={{ fontSize: "13px", color: "#444", lineHeight: "1.6" }}>{claim.reasoning}</p>
                         </div>
+
+                        {similarityHint && (
+                          <div style={{ background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
+                            <p style={{ fontSize: "13px", fontWeight: "600", color: "#4b5563", marginBottom: "4px" }}>
+                              ⚠ {similarityHint.label}
+                            </p>
+                            <p style={{ fontSize: "12px", color: "#6b7280", lineHeight: "1.5" }}>
+                              {similarityHint.detail}
+                            </p>
+                          </div>
+                        )}
 
                         {claim.warning && (
                           <div style={{ background: "#fffbeb", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
@@ -425,15 +493,17 @@ const handleManualReferenceUpload = async (claim, file) => {
                                     "📎 Add the reference manually"
                                   )}
                                 </button>
+                                <p style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>
+                                  PDF only, max. 15 MB
+                                </p>
                                 {uploadState === 'error' && (
-  <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "6px" }}>
-    {refUploadError[claim.id] || "Upload failed, please try again."}
-  </p>
-)}
-
+                                  <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "6px" }}>
+                                    {refUploadError[claim.id] || "Upload failed, please try again."}
+                                  </p>
+                                )}
                                 {uploadState === 'no-reference' && (
                                   <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "6px" }}>
-                                    This claim has no linked reference ID - manual upload isn't possible here. Check the console for details.
+                                    This claim has no linked reference ID - manual upload isn't possible here.
                                   </p>
                                 )}
                               </>
@@ -483,6 +553,30 @@ const handleManualReferenceUpload = async (claim, file) => {
               <CitationGraph claims={claims} statusConfig={statusConfig} documentLabel={fileName} statusFilter={citationFilter} />
             </>
           )}
+
+          <div style={{ marginTop: "40px", paddingTop: "24px", borderTop: "1px solid #e0e0e0" }}>
+            <p style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "16px" }}>
+              UNDERSTANDING THESE RESULTS
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "16px" }}>
+              {Object.values(statusConfig).map(item => (
+                <div key={item.label} style={{
+                  display: "flex", alignItems: "center", gap: "8px",
+                  background: item.bg, border: `1px solid ${item.border}`,
+                  borderRadius: "8px", padding: "8px 14px"
+                }}>
+                  <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: item.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: "13px", color: "#333" }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: "13px", color: "#888", lineHeight: "1.6" }}>
+              Not sure how a verdict is determined, or why some sources can't be checked automatically?{' '}
+              <a href="/how-it-works" style={{ color: "#1a3a6b", fontWeight: "600", textDecoration: "underline" }}>
+                See how VerifAi works →
+              </a>
+            </p>
+          </div>
 
         </div>
       </div>

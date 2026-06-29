@@ -1,8 +1,19 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import Mascot from './Mascot.jsx'
 
 function ErrorPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const file = location.state?.file
+  const fileName = location.state?.fileName
+
+  const handleTryAgain = () => {
+    if (file) {
+      navigate('/loading', { state: { file, fileName: fileName || file.name } })
+    } else {
+      navigate('/')
+    }
+  }
 
   return (
     <div style={{
@@ -37,15 +48,17 @@ function ErrorPage() {
         <hr style={{ border: "none", borderTop: "1px solid #e0e0e0", marginBottom: "28px" }} />
 
         <div style={{ display: "flex", justifyContent: "center", gap: "16px" }}>
-          <button
-            onClick={() => navigate('/loading')}
-            style={{
-              background: "#1a3a6b", color: "white", border: "none",
-              borderRadius: "10px", padding: "12px 24px", cursor: "pointer",
-              fontSize: "14px", fontWeight: "600"
-            }}>
-            Try again
-          </button>
+          {file && (
+            <button
+              onClick={handleTryAgain}
+              style={{
+                background: "#1a3a6b", color: "white", border: "none",
+                borderRadius: "10px", padding: "12px 24px", cursor: "pointer",
+                fontSize: "14px", fontWeight: "600"
+              }}>
+              Try again
+            </button>
+          )}
           <button
             onClick={() => navigate('/')}
             style={{

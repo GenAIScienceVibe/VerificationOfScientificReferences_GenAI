@@ -30,9 +30,13 @@ function LoadingPage() {
     { id: 4, label: "Preparing report" },
   ]
 
+  const goToError = () => {
+    navigate('/error', { state: { file, fileName } })
+  }
+
   useEffect(() => {
     if (!file) {
-      navigate('/error')
+      navigate('/error', { state: { fileName } })
       return
     }
     if (hasStarted.current) return
@@ -73,18 +77,18 @@ function LoadingPage() {
               }), 500)
             } else if (TERMINAL_FAILURE_STATUSES.includes(status.status)) {
               clearInterval(pollRef.current)
-              navigate('/error')
+              goToError()
             }
           } catch (err) {
             clearInterval(pollRef.current)
-            navigate('/error')
+            goToError()
           }
         }
 
         poll()
         pollRef.current = setInterval(poll, 2000)
       } catch (err) {
-        navigate('/error')
+        goToError()
       }
     }
 
