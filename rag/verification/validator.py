@@ -17,6 +17,7 @@ confidence/verdict rule here.
 
 import json
 import logging
+import re
 
 from pydantic import ValidationError
 
@@ -29,6 +30,30 @@ FALLBACK_EXPLANATION_PREFIX = "Automatic NEEDS_HUMAN_REVIEW fallback — LLM out
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
+
+
+def _extract_json(raw: str) -> str:
+    """Extract the first valid JSON object from raw LLM output.
+
+    LLMs occasionally append commentary after the closing brace, or wrap the
+    JSON in markdown fences. json.JSONDecoder.raw_decode() stops at the end of
+    the first complete JSON object and discards any trailing text, recovering
+    from the 'Extra data' error that json.loads() would raise.
+    """
+    text = raw.strip()
+    # Strip ```json ... ``` fences
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```\s*$", "", text)
+        text = text.strip()
+    # Remove raw control characters that JSON forbids inside strings.
+    # LLMs occasionally emit unescaped bytes 0x00-0x1F (except \t \n \r).
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+    try:
+        obj, _ = json.JSONDecoder().raw_decode(text)
+        return json.dumps(obj)
+    except json.JSONDecodeError:
+        return raw  # Let validate_output handle it
 
 
 def _fallback_output(reason: str) -> VerificationOutput:
@@ -62,7 +87,7 @@ def validate_output(raw_json: str, low_confidence: bool = False) -> Verification
         NEEDS_HUMAN_REVIEW fallback instead of raising.
     """
     try:
-        data = attach_human_review_flag(raw_json, low_confidence)
+        data = attach_human_review_flag(_extract_json(raw_json), low_confidence)
     except json.JSONDecodeError as exc:
         logger.error("LLM verification response is not valid JSON: %s", exc)
         return _fallback_output(f"malformed JSON ({exc})")
