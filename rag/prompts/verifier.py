@@ -30,6 +30,7 @@ Key design choices:
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -149,12 +150,24 @@ def generate_verdict(input_data: VerificationInput) -> str:
             messages=messages,
         )
         last_content = response.choices[0].message.content
-        if last_content and last_content.strip():
+        if not last_content or not last_content.strip():
+            logger.warning(
+                "DOI %s — empty LLM response on attempt %d/%d, retrying.",
+                input_data.doi, attempt, MAX_LLM_RETRIES,
+            )
+            continue
+        # Quick JSON recoverability check: strip control chars and trailing text,
+        # then verify a JSON object can be decoded. Only accept the response if it
+        # is recoverable; otherwise retry to get a cleaner completion.
+        cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", last_content.strip())
+        try:
+            json.JSONDecoder().raw_decode(cleaned)
             return last_content
-        logger.warning(
-            "DOI %s — empty LLM response on attempt %d/%d, retrying.",
-            input_data.doi, attempt, MAX_LLM_RETRIES,
-        )
+        except json.JSONDecodeError:
+            logger.warning(
+                "DOI %s — malformed JSON on attempt %d/%d, retrying.",
+                input_data.doi, attempt, MAX_LLM_RETRIES,
+            )
 
     # All retries exhausted; return whatever we have (validator.py handles malformed JSON).
     return last_content or ""
