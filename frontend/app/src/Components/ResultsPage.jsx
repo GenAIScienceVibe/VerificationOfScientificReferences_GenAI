@@ -3,7 +3,19 @@ import { useState, useEffect, useRef } from 'react'
 import CitationGraph from './CitationGraph'
 import logo from '../assets/Logo_VerifAi.png'
 import { generateVerificationPdf } from './pdfReport'
-import { getVerificationResults, uploadReferenceSourcePdf, prepareEvidence, startPipelineRun, getDocumentStatus, TERMINAL_SUCCESS_STATUSES, TERMINAL_FAILURE_STATUSES } from '../api'
+import { getVerificationResults, getVerificationResult, getDocumentReferences, uploadReferenceSourcePdf, prepareEvidence, startPipelineRun, getDocumentStatus, TERMINAL_SUCCESS_STATUSES, TERMINAL_FAILURE_STATUSES } from '../api'
+const SAFETY_RULE_LABELS = {
+  DOI_MISSING:                  'No DOI',
+  DOI_NOT_VALID:                'Invalid DOI',
+  DOI_INVALID:                  'Invalid DOI',
+  SOURCE_UNAVAILABLE:           'Source unavailable',
+  METADATA_UNAVAILABLE:         'No metadata',
+  LOW_RAG_SIMILARITY:           'Low retrieval match',
+  LOW_SIMILARITY:               'Low similarity',
+  LOW_GENAI_CONFIDENCE:         'Low AI confidence',
+  GENAI_INVALID_OR_UNAVAILABLE: 'AI response failed',
+}
+
 function mapToUiStatus(result) {
   // An invalid/unresolvable DOI is the strongest signal of a fabricated
   // citation, regardless of which fallback status the backend assigned.
@@ -17,6 +29,26 @@ function mapToUiStatus(result) {
     case 'NEEDS_HUMAN_REVIEW': return 'insufficient'
     default: return 'insufficient'
   }
+}
+
+// Explanatory badge for "Insufficient Evidence" cases where the reason
+// is a known evidence gap (abstract-only or source unavailable), rather
+// than a retrieval or LLM confidence issue.
+function getEvidenceAvailabilityHint(evidenceAvailability, status) {
+  if (status !== 'insufficient') return null
+  if (evidenceAvailability === 'ABSTRACT_AVAILABLE') {
+    return {
+      label: 'Abstract only',
+      detail: 'Only the abstract was retrieved for this source — full-text verification was not possible. Upload the full paper PDF below to re-check this claim.',
+    }
+  }
+  if (evidenceAvailability === 'SOURCE_UNAVAILABLE') {
+    return {
+      label: 'Source unavailable',
+      detail: 'The full text of this source could not be retrieved (e.g. paywalled or not indexed). Upload the PDF below to enable verification.',
+    }
+  }
+  return null
 }
 
 // Heuristic hint for low-similarity "Insufficient Evidence" cases.
@@ -57,6 +89,8 @@ function ResultsPage() {
 
   const [refUploadStatus, setRefUploadStatus] = useState({})
   const [refUploadError, setRefUploadError] = useState({})
+  const [expandedPassages, setExpandedPassages] = useState({})
+  const [passageData, setPassageData] = useState({})
   const [flashUpload, setFlashUpload] = useState(false)
   const claimsListRef = useRef(null)
 
@@ -65,22 +99,43 @@ function ResultsPage() {
       navigate('/error')
       return Promise.resolve()
     }
-    return getVerificationResults(documentId)
-      .then(data => {
+    return Promise.all([
+      getVerificationResults(documentId),
+      getDocumentReferences(documentId).catch(() => ({ references: [] })),
+    ])
+      .then(([data, refData]) => {
+        const refMap = {}
+        for (const ref of (refData?.references ?? [])) {
+          if (ref.reference_id) {
+            refMap[ref.reference_id] = {
+              authors: ref.extracted_authors ?? null,
+              year: ref.extracted_year ?? null,
+            }
+          }
+        }
         const mappedClaims = data.results.map((r, idx) => {
           const referenceId = r.reference_id ?? r.referenceId ?? r.ref_id ?? null
           if (!referenceId) {
             console.warn('No reference_id found on verification result:', r)
           }
+          const refInfo = referenceId ? (refMap[referenceId] ?? null) : null
+          const authorLine = refInfo?.authors
+            ? `${refInfo.authors}${refInfo.year ? ` (${refInfo.year})` : ''}`
+            : null
           return {
             id: r.result_id || idx + 1,
             referenceId,
             status: mapToUiStatus(r),
             text: `"${r.claim_text}" ${r.citation_text || ''}`.trim(),
-            source: r.reference_title || r.citation_text || 'Unknown source',
+            source: r.reference_title
+              ? `${r.reference_title}${r.citation_text ? `  ·  ${r.citation_text}` : ''}`
+              : r.citation_text || 'Unknown source',
+            authorLine,
             reasoning: r.explanation || 'No explanation available.',
             confidence: r.confidence ?? 0,
             similarityScore: r.overall_similarity_score ?? null,
+            evidenceAvailability: r.evidence_availability ?? null,
+            safetyRules: r.safety_rules_triggered ?? [],
             warning: r.human_review_required
               ? 'Human review recommended - this result may need manual verification.'
               : undefined,
@@ -116,8 +171,8 @@ function ResultsPage() {
   const totalClaims = claims.length
   const credibilityScore = totalClaims > 0
     ? Math.round(
-        ((summaryItems[0].count + summaryItems[1].count * 0.5) / totalClaims) * 100
-      )
+        ((summaryItems[0].count + summaryItems[1].count * 0.5) / totalClaims) * 1000
+      ) / 10
     : 0
 
   const credibilityLabel = credibilityScore >= 80 ? "Reliable"
@@ -260,7 +315,7 @@ function ResultsPage() {
                   strokeDashoffset={2 * Math.PI * 50 * 0.25}
                   strokeLinecap="round" transform="rotate(-90 60 60)"/>
               </svg>
-              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", fontSize: "22px", fontWeight: "700", color: "#111" }}>{credibilityScore}%</div>
+              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", fontSize: "20px", fontWeight: "700", color: "#111" }}>{credibilityScore.toFixed(1)}%</div>
             </div>
             <p style={{ color: credibilityColor, fontWeight: "600", fontSize: "14px", marginBottom: "8px" }}>{credibilityLabel}</p>
             <p style={{ color: "#888", fontSize: "12px", lineHeight: "1.5" }}>Some claims are inaccurate or unsupported by their cited sources.</p>
@@ -402,6 +457,7 @@ function ResultsPage() {
                     const similarityHint = claim.status === 'insufficient'
                       ? getSimilarityHint(claim.similarityScore)
                       : null
+                    const evidenceHint = getEvidenceAvailabilityHint(claim.evidenceAvailability, claim.status)
                     return (
                       <div key={claim.id} style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -413,19 +469,49 @@ function ResultsPage() {
 
                         <p style={{ fontSize: "14px", color: "#333", marginBottom: "16px", lineHeight: "1.6" }}>{claim.text}</p>
 
-                        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+                        <p style={{ fontSize: "13px", color: "#666", marginBottom: claim.authorLine ? "4px" : "8px", fontStyle: "italic" }}>
+                          {claim.source}
+                        </p>
+                        {claim.authorLine && (
+                          <p style={{ fontSize: "12px", color: "#999", marginBottom: "8px" }}>
+                            {claim.authorLine}
+                          </p>
+                        )}
+                        <div style={{ display: "flex", gap: "8px", marginBottom: claim.safetyRules.length > 0 ? "8px" : "16px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
-                            {claim.source}
-                          </span>
-                          <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
-                            {claim.doiResolved ? "DOI resolved" : "DOI unresolved"}
+                            {claim.doiResolved ? "✓ DOI resolved" : "✗ DOI unresolved"}
                           </span>
                         </div>
+
+                        {claim.safetyRules.length > 0 && (
+                          <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
+                            {[...new Set(claim.safetyRules.map(r => SAFETY_RULE_LABELS[r] ?? r))].map(label => (
+                              <span key={label} style={{
+                                fontSize: "11px", fontWeight: "600", color: "#92400e",
+                                background: "#fef3c7", padding: "3px 10px",
+                                borderRadius: "99px", border: "1px solid #fcd34d"
+                              }}>
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
                         <div style={{ background: "#f8f8f8", borderRadius: "8px", padding: "16px", marginBottom: claim.warning || similarityHint ? "12px" : "16px" }}>
                           <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "8px" }}>AI REASONING</p>
                           <p style={{ fontSize: "13px", color: "#444", lineHeight: "1.6" }}>{claim.reasoning}</p>
                         </div>
+
+                        {evidenceHint && (
+                          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
+                            <p style={{ fontSize: "13px", fontWeight: "600", color: "#1d4ed8", marginBottom: "4px" }}>
+                              ℹ {evidenceHint.label}
+                            </p>
+                            <p style={{ fontSize: "12px", color: "#3b82f6", lineHeight: "1.5" }}>
+                              {evidenceHint.detail}
+                            </p>
+                          </div>
+                        )}
 
                         {similarityHint && (
                           <div style={{ background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
@@ -494,7 +580,7 @@ function ResultsPage() {
                                   )}
                                 </button>
                                 <p style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>
-                                  PDF only, max. 15 MB
+                                  PDF only, max. 50 MB
                                 </p>
                                 {uploadState === 'error' && (
                                   <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "6px" }}>
@@ -517,12 +603,53 @@ function ResultsPage() {
                             <div style={{ width: "80px", height: "6px", background: "#e0e0e0", borderRadius: "99px", overflow: "hidden" }}>
                               <div style={{ width: `${claim.confidence * 100}%`, height: "6px", background: getConfidenceColor(claim.confidence), borderRadius: "99px" }} />
                             </div>
-                            <span style={{ fontSize: "12px", color: "#888" }}>{claim.confidence}</span>
+                            <span style={{ fontSize: "12px", color: "#888" }}>{(claim.confidence * 100).toFixed(1)}%</span>
                           </div>
-                          <button style={{ fontSize: "12px", color: "#888", background: "none", border: "none", cursor: "pointer" }}>
-                            Show source passage
+                          <button
+                            style={{ fontSize: "12px", color: "#1a3a6b", background: "none", border: "none", cursor: "pointer", fontWeight: "600" }}
+                            onClick={async () => {
+                              const isOpen = expandedPassages[claim.id]
+                              setExpandedPassages(prev => ({ ...prev, [claim.id]: !isOpen }))
+                              if (!isOpen && !passageData[claim.id]) {
+                                try {
+                                  const detail = await getVerificationResult(claim.id)
+                                  const chunks = (detail.retrieved_evidence ?? [])
+                                    .flatMap(r => r.top_chunks ?? [r])
+                                  setPassageData(prev => ({ ...prev, [claim.id]: chunks }))
+                                } catch {
+                                  setPassageData(prev => ({ ...prev, [claim.id]: [] }))
+                                }
+                              }
+                            }}
+                          >
+                            {expandedPassages[claim.id] ? '▲ Hide source passage' : '▼ Show source passage'}
                           </button>
                         </div>
+
+                        {expandedPassages[claim.id] && (
+                          <div style={{ marginTop: "16px", borderTop: "1px solid #e0e0e0", paddingTop: "16px" }}>
+                            <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "12px" }}>SOURCE PASSAGES USED</p>
+                            {passageData[claim.id] === undefined ? (
+                              <p style={{ fontSize: "13px", color: "#888" }}>Loading...</p>
+                            ) : passageData[claim.id].length === 0 ? (
+                              <p style={{ fontSize: "13px", color: "#888" }}>No source passages were retrieved for this claim.</p>
+                            ) : (
+                              passageData[claim.id].map((chunk, i) => (
+                                <div key={i} style={{ background: "#f8f8f8", borderRadius: "8px", padding: "12px 16px", marginBottom: "10px", borderLeft: "3px solid #1a3a6b" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                      {chunk.section ?? chunk.evidence_type ?? 'Passage'} {chunk.similarity_score != null ? `· ${(chunk.similarity_score * 100).toFixed(1)}% match` : ''}
+                                    </span>
+                                    {chunk.source_url && (
+                                      <a href={chunk.source_url} target="_blank" rel="noreferrer" style={{ fontSize: "11px", color: "#1a3a6b" }}>Open PDF ↗</a>
+                                    )}
+                                  </div>
+                                  <p style={{ fontSize: "13px", color: "#444", lineHeight: "1.6", margin: 0 }}>{chunk.chunk_text ?? chunk.text}</p>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
 
                       </div>
                     )
