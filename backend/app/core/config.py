@@ -51,6 +51,7 @@ class Settings(BaseModel):
     unpaywall_email: str | None = Field(default=None, alias="UNPAYWALL_EMAIL")
     core_api_key: str | None = Field(default=None, alias="CORE_API_KEY")
     core_base_url: str = Field(default="https://api.core.ac.uk/v3", alias="CORE_BASE_URL")
+    google_books_api_key: str | None = Field(default=None, alias="GOOGLE_BOOKS_API_KEY")
     fulltext_max_bytes: int = Field(default=50 * 1024 * 1024, alias="FULLTEXT_MAX_BYTES")
     fulltext_max_chars: int = Field(default=150_000, alias="FULLTEXT_MAX_CHARS")
     metadata_max_retries: int = Field(default=2, alias="METADATA_MAX_RETRIES")

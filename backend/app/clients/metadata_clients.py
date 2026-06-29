@@ -4,6 +4,7 @@ import difflib
 import html
 import re
 import time
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any
 
@@ -326,6 +327,67 @@ class CrossrefClient:
             )
 
         return MetadataLookupResponse(success=False, lookup_source="CrossRef", lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, error_code="TITLE_MATCH_INSUFFICIENT", error_message=f"No CrossRef result passed title/author/year gates for query '{title[:80]}'.")
+
+    def lookup_by_isbn(self, isbn: str) -> MetadataLookupResponse:
+        """Look up a book by ISBN via CrossRef's filter endpoint.
+
+        CrossRef indexes many books with ISBNs even when no DOI is assigned to
+        journal articles — this is the most reliable way to find DOIs for textbooks
+        like 'Hayes (2018)' that are cited without a DOI in APA bibliographies.
+
+        Args:
+            isbn: ISBN-10 or ISBN-13 (hyphens and spaces are stripped automatically).
+
+        Returns:
+            MetadataLookupResponse with DOI and metadata when found, success=False otherwise.
+        """
+        isbn_clean = re.sub(r"[-\s]", "", isbn)
+        params: dict[str, str] = {"filter": f"isbn:{isbn_clean}", "rows": "3"}
+        if self.settings.crossref_mailto:
+            params["mailto"] = self.settings.crossref_mailto
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        url = f"{self.base_url}/works"
+        try:
+            if self._client is not None:
+                response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.get(url, headers=headers, params=params)
+        except httpx.TimeoutException as exc:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef-ISBN", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="METADATA_LOOKUP_TIMEOUT", error_message=str(exc))
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef-ISBN", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="METADATA_SERVICE_UNAVAILABLE", error_message=str(exc))
+
+        if response.status_code != 200:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef-ISBN", lookup_status=MetadataStatus.LOOKUP_FAILED.value, status_code=response.status_code, error_code="DOI_LOOKUP_FAILED", error_message=f"CrossRef ISBN search returned HTTP {response.status_code}.")
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef-ISBN", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="DOI_LOOKUP_FAILED", error_message=f"Malformed JSON: {exc}")
+
+        items = (payload.get("message") or {}).get("items") or []
+        if not items:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef-ISBN", lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, error_code="METADATA_UNAVAILABLE", error_message=f"CrossRef found no record for ISBN {isbn_clean}.")
+
+        item = items[0]
+        found_doi = str(item.get("DOI") or "").lower().strip() or None
+        url_field = _first_string(item.get("URL")) or (f"https://doi.org/{found_doi}" if found_doi else None)
+        return MetadataLookupResponse(
+            success=True,
+            lookup_source="CrossRef-ISBN",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            doi=found_doi,
+            title=_first_string(item.get("title")),
+            authors=_extract_authors(item),
+            year=_extract_year(item),
+            venue=_first_string(item.get("container-title") or item.get("short-container-title")),
+            publisher=_first_string(item.get("publisher")),
+            abstract=_clean_abstract(item.get("abstract")),
+            url=url_field,
+            raw_metadata_json=item,
+            status_code=response.status_code,
+        )
 
 
 class OpenAlexClient:
@@ -1085,6 +1147,352 @@ def _reconstruct_openalex_abstract(inverted_index: Any) -> str | None:
     if not position_word:
         return None
     return " ".join(position_word[i] for i in sorted(position_word)).strip() or None
+
+
+class PubMedClient:
+    """NCBI PubMed E-utilities client for abstract retrieval.
+
+    PubMed has strong coverage of psychology, medicine, neuroscience, and life
+    sciences — domains where CrossRef and OpenAlex often lack abstracts. Uses
+    the free E-utilities API (no key required, polite-pool email recommended).
+
+    Two calls per lookup: esearch (DOI → PMID) then efetch (PMID → abstract XML).
+    Called only when all other abstract providers returned nothing.
+    """
+
+    _BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def _params(self, extra: dict[str, str]) -> dict[str, str]:
+        """Build E-utilities params, adding the polite-pool email when available."""
+        p: dict[str, str] = {"tool": "verifai", **extra}
+        if self.settings.crossref_mailto:
+            p["email"] = self.settings.crossref_mailto
+        return p
+
+    def _get(self, endpoint: str, params: dict[str, str]) -> httpx.Response | None:
+        url = f"{self._BASE}/{endpoint}"
+        try:
+            if self._client is not None:
+                return self._client.get(url, params=params, timeout=self.timeout)
+            with httpx.Client(timeout=self.timeout) as client:
+                return client.get(url, params=params)
+        except httpx.HTTPError:
+            return None
+
+    def lookup_by_doi(self, doi: str) -> MetadataLookupResponse:
+        """Return abstract and metadata for a paper identified by DOI.
+
+        Step 1: esearch — translate DOI to PubMed ID (PMID).
+        Step 2: efetch — retrieve the PubMed XML record and parse abstract,
+                title, authors, and year.
+
+        Returns success=False when PubMed has no record for the DOI, or when
+        the record exists but has no abstract (common for older articles).
+        """
+        r = self._get("esearch.fcgi", self._params({
+            "db": "pubmed", "term": f"{doi}[doi]", "retmode": "json", "retmax": "1",
+        }))
+        if r is None or r.status_code != 200:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message="PubMed esearch request failed.",
+            )
+
+        try:
+            search_payload = r.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi,
+                error_code="DOI_LOOKUP_FAILED", error_message="PubMed esearch returned malformed JSON.",
+            )
+
+        pmid_list = (search_payload.get("esearchresult") or {}).get("idlist") or []
+        if not pmid_list:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, doi=doi,
+                error_code="METADATA_UNAVAILABLE",
+                error_message="PubMed found no record for this DOI.",
+            )
+
+        pmid = str(pmid_list[0])
+
+        r2 = self._get("efetch.fcgi", self._params({
+            "db": "pubmed", "id": pmid, "rettype": "abstract", "retmode": "xml",
+        }))
+        if r2 is None or r2.status_code != 200:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi,
+                error_code="DOI_LOOKUP_FAILED", error_message="PubMed efetch request failed.",
+            )
+
+        try:
+            root = ET.fromstring(r2.text)
+        except ET.ParseError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi,
+                error_code="DOI_LOOKUP_FAILED", error_message="PubMed returned malformed XML.",
+            )
+
+        # AbstractText may be split into structured sections (Background, Methods, …)
+        abstract_parts = [el.text for el in root.iter("AbstractText") if el.text]
+        abstract = " ".join(abstract_parts).strip() or None
+
+        if not abstract:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, doi=doi,
+                error_code="METADATA_UNAVAILABLE",
+                error_message="PubMed record exists but has no abstract.",
+            )
+
+        title_el = root.find(".//ArticleTitle")
+        title = (title_el.text or "").strip() or None
+
+        authors: list[str] = []
+        for author_el in root.iter("Author"):
+            last = author_el.findtext("LastName") or ""
+            fore = author_el.findtext("ForeName") or author_el.findtext("Initials") or ""
+            name = f"{fore} {last}".strip() if fore else last.strip()
+            if name:
+                authors.append(name)
+
+        year: int | None = None
+        pub_date = root.find(".//PubDate")
+        if pub_date is not None:
+            try:
+                year = int(pub_date.findtext("Year") or "")
+            except ValueError:
+                pass
+
+        return MetadataLookupResponse(
+            success=True,
+            lookup_source="PubMed",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            doi=doi,
+            title=title,
+            authors=authors or None,
+            year=year,
+            abstract=abstract,
+            url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+            raw_metadata_json={"pmid": pmid},
+            status_code=r2.status_code,
+        )
+
+    def search_by_title(
+        self,
+        title: str,
+        authors: str | None = None,
+        year: int | None = None,
+    ) -> MetadataLookupResponse:
+        """Search PubMed by title and return the best confident match with its DOI.
+
+        Uses the same three false-match gates as the other title-search clients:
+        title exact/substring match, year ±1, first-author last name.
+
+        Step 1: esearch with [Title] field tag → up to 5 PMIDs.
+        Step 2: esummary (batch) → structured JSON with DOI, authors, pubdate.
+
+        PubMed rate limit: < 3 req/sec with tool+email params (polite pool) —
+        no practical constraint for our volume.
+        """
+        query = f"{title.strip()}[Title]"
+        r = self._get("esearch.fcgi", self._params({
+            "db": "pubmed", "term": query, "retmode": "json", "retmax": "5",
+        }))
+        if r is None or r.status_code != 200:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message="PubMed esearch request failed.",
+            )
+
+        try:
+            search_payload = r.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="PubMed esearch returned malformed JSON.",
+            )
+
+        pmids = (search_payload.get("esearchresult") or {}).get("idlist") or []
+        if not pmids:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message=f"PubMed title search returned no results for '{title[:80]}'.",
+            )
+
+        r2 = self._get("esummary.fcgi", self._params({
+            "db": "pubmed", "id": ",".join(pmids[:5]), "retmode": "json",
+        }))
+        if r2 is None or r2.status_code != 200:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="PubMed esummary request failed.",
+            )
+
+        try:
+            summary = r2.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="PubMed esummary returned malformed JSON.",
+            )
+
+        result_map = summary.get("result") or {}
+        for pmid in (result_map.get("uids") or pmids):
+            item = result_map.get(str(pmid)) or {}
+
+            result_title = str(item.get("title") or "")
+            if not _title_matches(title, result_title):
+                continue
+
+            pubdate = str(item.get("pubdate") or "")
+            year_match = re.match(r"\d{4}", pubdate)
+            result_year: int | None = int(year_match.group()) if year_match else None
+            if year is not None and result_year is not None and abs(year - result_year) > 1:
+                continue
+
+            result_authors = [
+                str(a.get("name", "")).strip()
+                for a in (item.get("authors") or [])
+                if isinstance(a, dict) and a.get("name")
+            ]
+            if authors and result_authors and not _first_author_matches(authors, result_authors):
+                continue
+
+            found_doi: str | None = None
+            for aid in (item.get("articleids") or []):
+                if isinstance(aid, dict) and aid.get("idtype") == "doi":
+                    found_doi = str(aid.get("value") or "").strip() or None
+                    break
+
+            return MetadataLookupResponse(
+                success=True,
+                lookup_source="PubMed-TitleSearch",
+                lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+                doi=found_doi,
+                title=result_title or None,
+                authors=result_authors or None,
+                year=result_year,
+                url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+                raw_metadata_json=item,
+                status_code=r2.status_code,
+            )
+
+        return MetadataLookupResponse(
+            success=False, lookup_source="PubMed",
+            lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+            error_code="TITLE_MATCH_INSUFFICIENT",
+            error_message=f"No PubMed result passed title/author/year gates for query '{title[:80]}'.",
+        )
+
+
+class GoogleBooksClient:
+    """Google Books API client for ISBN resolution of textbooks.
+
+    Textbooks are frequently cited in academic papers without a DOI — they
+    have ISBNs instead. Google Books has near-complete coverage of published
+    books and returns ISBN-13, which can then be fed to CrossRef's ISBN filter
+    to obtain the registered DOI (if one exists).
+
+    The API is free up to 1,000 req/day without a key, and 10,000 req/day with
+    a free GOOGLE_BOOKS_API_KEY. The key is optional — the client works without it.
+    """
+
+    _BASE = "https://www.googleapis.com/books/v1"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def find_isbn_by_title(
+        self,
+        title: str,
+        authors: str | None = None,
+        year: int | None = None,
+    ) -> str | None:
+        """Search Google Books by title and return the ISBN-13 (or ISBN-10) of the best match.
+
+        Applies the same false-match gates as all other title-search clients:
+        title exact/substring match, year ±1, first-author last name.
+
+        Returns the ISBN string (digits only, no hyphens) or None on any failure.
+        The caller is expected to pipe the ISBN to CrossrefClient.lookup_by_isbn()
+        to resolve it into a DOI.
+        """
+        params: dict[str, str] = {
+            "q": f"intitle:{title.strip()}",
+            "maxResults": "5",
+            "printType": "books",
+        }
+        if self.settings.google_books_api_key:
+            params["key"] = self.settings.google_books_api_key
+
+        url = f"{self._BASE}/volumes"
+        try:
+            if self._client is not None:
+                response = self._client.get(url, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.get(url, params=params)
+        except httpx.HTTPError:
+            return None
+
+        if response.status_code != 200:
+            return None
+
+        try:
+            payload = response.json()
+        except ValueError:
+            return None
+
+        for item in (payload.get("items") or []):
+            volume = item.get("volumeInfo") or {}
+            result_title = str(volume.get("title") or "")
+            if not _title_matches(title, result_title):
+                continue
+
+            pub_date = str(volume.get("publishedDate") or "")
+            year_match = re.match(r"\d{4}", pub_date)
+            result_year: int | None = int(year_match.group()) if year_match else None
+            if year is not None and result_year is not None and abs(year - result_year) > 1:
+                continue
+
+            result_authors = [str(a) for a in (volume.get("authors") or []) if a]
+            if authors and result_authors and not _first_author_matches(authors, result_authors):
+                continue
+
+            # Prefer ISBN-13, fall back to ISBN-10
+            for preferred_type in ("ISBN_13", "ISBN_10"):
+                for identifier in (volume.get("industryIdentifiers") or []):
+                    if isinstance(identifier, dict) and identifier.get("type") == preferred_type:
+                        raw = str(identifier.get("identifier") or "")
+                        isbn = re.sub(r"[-\s]", "", raw)
+                        if isbn:
+                            return isbn
+
+        return None
 
 
 class DoiResolverClient:

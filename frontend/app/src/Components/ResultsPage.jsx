@@ -119,7 +119,10 @@ function ResultsPage() {
             console.warn('No reference_id found on verification result:', r)
           }
           const refInfo = referenceId ? (refMap[referenceId] ?? null) : null
-          const authorLine = refInfo?.authors
+          const hasAuthors = !!refInfo?.authors
+          // When author info is available, show title alone; author line carries the year.
+          // When no author info, append citation_text to the title as fallback.
+          const authorLine = hasAuthors
             ? `${refInfo.authors}${refInfo.year ? ` (${refInfo.year})` : ''}`
             : null
           return {
@@ -128,7 +131,9 @@ function ResultsPage() {
             status: mapToUiStatus(r),
             text: `"${r.claim_text}" ${r.citation_text || ''}`.trim(),
             source: r.reference_title
-              ? `${r.reference_title}${r.citation_text ? `  ·  ${r.citation_text}` : ''}`
+              ? hasAuthors
+                ? r.reference_title
+                : `${r.reference_title}${r.citation_text ? `  ·  ${r.citation_text}` : ''}`
               : r.citation_text || 'Unknown source',
             authorLine,
             reasoning: r.explanation || 'No explanation available.',

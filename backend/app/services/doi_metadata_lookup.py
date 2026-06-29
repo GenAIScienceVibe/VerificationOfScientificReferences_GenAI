@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 import pymupdf
 
-from app.clients.metadata_clients import CoreClient, CrossrefClient, DoiResolverClient, MetadataLookupResponse, OpenAlexClient, SemanticScholarClient, SsrnClient, UnpaywallClient
+from app.clients.metadata_clients import CoreClient, CrossrefClient, DoiResolverClient, GoogleBooksClient, MetadataLookupResponse, OpenAlexClient, PubMedClient, SemanticScholarClient, SsrnClient, UnpaywallClient
 from app.core.config import Settings, get_settings
 from app.core.errors import AppException, ErrorCode
 from app.models import Document, Reference, SourceMetadata
@@ -50,6 +50,25 @@ def _extract_title_from_raw_reference(raw_reference: str) -> str | None:
         if len(title) >= 10:
             return title
     return None
+
+
+# Matches ISBN-13 (978/979 prefix) and ISBN-10, with optional separators.
+_ISBN_RE = re.compile(
+    r"\b(?:97[89][-\s]?(?:\d[-\s]?){9}\d|(?:\d[-\s]?){9}[\dXx])\b"
+)
+
+
+def _extract_isbn(raw_reference: str) -> str | None:
+    """Extract the first ISBN-10 or ISBN-13 found in a raw reference string.
+
+    Many textbook citations in APA bibliographies include an ISBN explicitly
+    (e.g. 'ISBN 978-1-4625-2175-4'). Extracting it lets us query CrossRef by
+    ISBN when no DOI is present — the most reliable path for books.
+
+    Returns the ISBN with hyphens/spaces stripped, or None if none is found.
+    """
+    m = _ISBN_RE.search(raw_reference)
+    return re.sub(r"[-\s]", "", m.group(0)) if m else None
 
 
 def _arxiv_pdf_url(doi: str) -> str | None:
@@ -246,6 +265,8 @@ class MetadataLookupService:
         unpaywall_client: UnpaywallClient | None = None,
         core_client: CoreClient | None = None,
         ssrn_client: SsrnClient | None = None,
+        pubmed_client: PubMedClient | None = None,
+        google_books_client: GoogleBooksClient | None = None,
         doi_resolver_client: DoiResolverClient | None = None,
     ) -> None:
         self.settings = settings or get_settings()
@@ -255,6 +276,8 @@ class MetadataLookupService:
         self.unpaywall_client = unpaywall_client or UnpaywallClient(self.settings)
         self.core_client = core_client or CoreClient(self.settings)
         self.ssrn_client = ssrn_client or SsrnClient(self.settings)
+        self.pubmed_client = pubmed_client or PubMedClient(self.settings)
+        self.google_books_client = google_books_client or GoogleBooksClient(self.settings)
         self.doi_resolver_client = doi_resolver_client or DoiResolverClient(self.settings)
 
     def verify_reference_doi(self, reference_id: str, db: Session, *, request_id: str | None = None, force_refresh: bool = False) -> dict[str, Any]:
@@ -378,11 +401,13 @@ class MetadataLookupService:
         # and offline pipelines persist safe statuses without provider calls.
         if not doi and self.settings.metadata_lookup_enabled:
             # Title-based DOI lookup: try CrossRef → OpenAlex → SemanticScholar in
-            # order of rate-limit generosity. CrossRef and OpenAlex have no meaningful
-            # rate limits with the mailto polite-pool setting, while SemanticScholar's
-            # /paper/search endpoint is restricted to ~5-10 unauthenticated req/min.
-            # All three use the same false-match gates (title substring + year ±1 +
-            # first-author last name). We stop at the first confident match.
+            # Order of rate-limit generosity: CrossRef and OpenAlex (unlimited with
+            # polite-pool mailto), PubMed (< 3 req/sec, very generous), then
+            # SemanticScholar (restricted to ~5-10 unauthenticated req/min), then
+            # CORE (10 req/sec with API key). All use the same false-match gates
+            # (title substring + year ±1 + first-author last name) and stop at the
+            # first confident match. PubMed is placed 3rd for strong coverage of
+            # psychology, medicine, and social-science journals.
             # Prefer the structured extracted_title; fall back to parsing raw_reference
             # when the reference parser could not isolate the title (non-standard format).
             search_title = (reference.extracted_title or "").strip() or _extract_title_from_raw_reference(reference.raw_reference)
@@ -394,6 +419,11 @@ class MetadataLookupService:
                         year=reference.extracted_year,
                     )),
                     ("OpenAlex-TitleSearch", lambda: self.openalex_client.search_by_title(
+                        title=search_title,
+                        authors=reference.extracted_authors,
+                        year=reference.extracted_year,
+                    )),
+                    ("PubMed-TitleSearch", lambda: self.pubmed_client.search_by_title(
                         title=search_title,
                         authors=reference.extracted_authors,
                         year=reference.extracted_year,
@@ -435,6 +465,67 @@ class MetadataLookupService:
                                 "lookup_source": source_name,
                                 "error_code": title_response.error_code,
                             },
+                        )
+
+        # ISBN fallback — for textbooks that lack DOIs but include an ISBN in
+        # the reference string (e.g. "ISBN 978-1-4625-2175-4"). CrossRef indexes
+        # most major publishers by ISBN and can return the registered DOI.
+        if not doi and self.settings.metadata_lookup_enabled:
+            isbn = _extract_isbn(reference.raw_reference or "")
+            if isbn:
+                isbn_response = self.crossref_client.lookup_by_isbn(isbn)
+                if isbn_response.success and isbn_response.doi:
+                    resolved_doi = normalize_doi_for_lookup(isbn_response.doi)
+                    if resolved_doi:
+                        doi = resolved_doi
+                        reference.extracted_doi = doi
+                        logger.info(
+                            "doi_resolved_via_isbn",
+                            extra={"reference_id": reference.id, "isbn": isbn, "found_doi": doi},
+                        )
+
+        # Google Books fallback — for textbooks where no DOI exists and no ISBN
+        # is written in the reference string. Google Books has near-complete book
+        # coverage and returns ISBN-13; we pipe that to CrossRef to find the DOI.
+        if not doi and self.settings.metadata_lookup_enabled and search_title:
+            gb_isbn = self.google_books_client.find_isbn_by_title(
+                search_title,
+                authors=reference.extracted_authors,
+                year=reference.extracted_year,
+            )
+            if gb_isbn:
+                gb_response = self.crossref_client.lookup_by_isbn(gb_isbn)
+                if gb_response.success and gb_response.doi:
+                    resolved_doi = normalize_doi_for_lookup(gb_response.doi)
+                    if resolved_doi:
+                        doi = resolved_doi
+                        reference.extracted_doi = doi
+                        logger.info(
+                            "doi_resolved_via_google_books",
+                            extra={"reference_id": reference.id, "isbn": gb_isbn, "found_doi": doi},
+                        )
+
+        # raw_reference broader search — last resort when extracted_title was
+        # too short or truncated to match. CrossRef's query.bibliographic
+        # endpoint accepts full APA strings (author, year, title, venue) so
+        # sending the first 200 chars of the raw reference can surface matches
+        # that a truncated title query would miss.
+        if not doi and self.settings.metadata_lookup_enabled:
+            raw_query = (reference.raw_reference or "")[:200].strip()
+            if raw_query and raw_query != search_title:
+                raw_response = self.crossref_client.search_by_title(
+                    title=raw_query,
+                    authors=reference.extracted_authors,
+                    year=reference.extracted_year,
+                )
+                if raw_response.success and raw_response.doi:
+                    resolved_doi = normalize_doi_for_lookup(raw_response.doi)
+                    if resolved_doi:
+                        doi = resolved_doi
+                        reference.extracted_doi = doi
+                        logger.info(
+                            "doi_resolved_via_raw_reference",
+                            extra={"reference_id": reference.id, "found_doi": doi},
                         )
 
         if not doi:
@@ -595,6 +686,15 @@ class MetadataLookupService:
                     ),
                 )
                 logger.info("abstract_fallback_ssrn", extra={"reference_id": reference.id, "doi": doi})
+
+        # PubMed abstract fallback — strongest coverage for psychology, medicine,
+        # neuroscience, and life sciences. CrossRef and OpenAlex often lack abstracts
+        # for journals in these domains; PubMed is authoritative for them.
+        if response.success and not response.abstract:
+            pm = self.pubmed_client.lookup_by_doi(doi)
+            if pm.abstract:
+                response = _merge_abstract_fallback(response, pm)
+                logger.info("abstract_fallback_pubmed", extra={"reference_id": reference.id, "doi": doi})
 
         # Full-text upgrade — priority: arXiv direct URL → OA URL from metadata
         # → Unpaywall → CORE (inline full text or download URL).

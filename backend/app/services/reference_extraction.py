@@ -660,7 +660,19 @@ class ReferenceExtractionService:
             return None
         remainder = after_year[1].strip()
         remainder = re.split(r"\s+(?:https?://(?:dx\.)?doi\.org/|doi\s*[: ]\s*)", remainder, maxsplit=1, flags=re.IGNORECASE)[0]
-        title_candidate = remainder.split(".")[0].strip(" .")
+        # Find the first "." that ends the title, ignoring periods inside parentheses
+        # (e.g. "(2nd ed.)") so edition/volume markers don't truncate the title early.
+        depth = 0
+        end = len(remainder)
+        for i, char in enumerate(remainder):
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth = max(0, depth - 1)
+            elif char == "." and depth == 0:
+                end = i
+                break
+        title_candidate = remainder[:end].strip(" .")
         if not title_candidate or len(title_candidate) < 3:
             return None
         return title_candidate[:1000]
