@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-LLM_MODEL = "meta-llama/llama-4-scout"
+LLM_MODEL = "meta-llama/llama-4-maverick"
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 TEMPLATE_NAME = "verify.j2"
