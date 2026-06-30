@@ -512,17 +512,33 @@ function ResultsPage() {
                         )}
 
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span style={{ fontSize: "12px", color: "#888" }}>Confidence</span>
-                            <div style={{ width: "80px", height: "6px", background: "#e0e0e0", borderRadius: "99px", overflow: "hidden" }}>
-                              <div style={{ width: `${claim.confidence * 100}%`, height: "6px", background: getConfidenceColor(claim.confidence), borderRadius: "99px" }} />
-                            </div>
-                            <span style={{ fontSize: "12px", color: "#888" }}>{claim.confidence}</span>
-                          </div>
-                          <button style={{ fontSize: "12px", color: "#888", background: "none", border: "none", cursor: "pointer" }}>
-                            Show source passage
-                          </button>
-                        </div>
+  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+    <div style={{ position: "relative", width: "36px", height: "36px" }}>
+      <svg viewBox="0 0 36 36" width="36" height="36">
+        <circle cx="18" cy="18" r="14" fill="none" stroke="#e0e0e0" strokeWidth="3"/>
+        <circle
+          cx="18" cy="18" r="14" fill="none"
+          stroke={getConfidenceColor(claim.confidence)}
+          strokeWidth="3"
+          strokeDasharray={`${2 * Math.PI * 14 * claim.confidence} ${2 * Math.PI * 14}`}
+          strokeLinecap="round"
+          transform="rotate(-90 18 18)"
+        />
+      </svg>
+      <div style={{
+        position: "absolute", top: "50%", left: "50%",
+        transform: "translate(-50%, -50%)",
+        fontSize: "8px", fontWeight: "700", color: "#444"
+      }}>
+        {Math.round(claim.confidence * 100)}%
+      </div>
+    </div>
+    <span style={{ fontSize: "12px", color: "#888" }}>Confidence</span>
+  </div>
+  <button style={{ fontSize: "12px", color: "#888", background: "none", border: "none", cursor: "pointer" }}>
+    Show source passage
+  </button>
+</div>
 
                       </div>
                     )
