@@ -51,6 +51,27 @@ function getEvidenceAvailabilityHint(evidenceAvailability, status) {
   return null
 }
 
+function getDoiStatusExplanation(doiStatus, evidenceAvailability) {
+  switch (doiStatus) {
+    case 'VALID':
+      if (evidenceAvailability === 'SOURCE_UNAVAILABLE')
+        return { text: 'DOI resolved, but full text is not publicly accessible (paywalled or not indexed).', color: '#d97706' }
+      if (evidenceAvailability === 'ABSTRACT_AVAILABLE')
+        return { text: 'DOI resolved, but only the abstract could be retrieved — full-text verification was not possible.', color: '#d97706' }
+      if (evidenceAvailability === 'PREPRINT_AVAILABLE')
+        return { text: 'DOI resolved to a preprint — contents may differ from the final published version.', color: '#d97706' }
+      return null
+    case 'INVALID':
+      return { text: 'The DOI does not exist or is malformed — this citation could not be verified and may be fabricated.', color: '#6b21a8' }
+    case 'UNRESOLVABLE':
+      return { text: 'The DOI was found but could not be resolved — the source may be unavailable, retracted, or incorrectly cited.', color: '#dc2626' }
+    case 'MISSING':
+      return { text: 'No DOI found in the reference — lookup relied on title and author metadata only, which is less reliable.', color: '#d97706' }
+    default:
+      return null
+  }
+}
+
 // Heuristic hint for low-similarity "Insufficient Evidence" cases.
 // This does NOT change the actual status - it's just an explanatory
 // note for whoever is reviewing the results, since a low score could
@@ -145,6 +166,7 @@ function ResultsPage() {
               ? 'Human review recommended - this result may need manual verification.'
               : undefined,
             doiResolved: r.doi_status === 'VALID',
+            doiStatus: r.doi_status ?? null,
           }
         })
         setClaims(mappedClaims)
@@ -463,6 +485,7 @@ function ResultsPage() {
                       ? getSimilarityHint(claim.similarityScore)
                       : null
                     const evidenceHint = getEvidenceAvailabilityHint(claim.evidenceAvailability, claim.status)
+                    const doiExplanation = getDoiStatusExplanation(claim.doiStatus, claim.evidenceAvailability)
                     return (
                       <div key={claim.id} style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -482,11 +505,16 @@ function ResultsPage() {
                             {claim.authorLine}
                           </p>
                         )}
-                        <div style={{ display: "flex", gap: "8px", marginBottom: claim.safetyRules.length > 0 ? "8px" : "16px", flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: "8px", marginBottom: doiExplanation ? "6px" : claim.safetyRules.length > 0 ? "8px" : "16px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
                             {claim.doiResolved ? "✓ DOI resolved" : "✗ DOI unresolved"}
                           </span>
                         </div>
+                        {doiExplanation && (
+                          <p style={{ fontSize: "12px", color: doiExplanation.color, marginBottom: claim.safetyRules.length > 0 ? "8px" : "16px", lineHeight: "1.5" }}>
+                            {doiExplanation.text}
+                          </p>
+                        )}
 
                         {claim.safetyRules.length > 0 && (
                           <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
@@ -618,8 +646,28 @@ function ResultsPage() {
                               if (!isOpen && !passageData[claim.id]) {
                                 try {
                                   const detail = await getVerificationResult(claim.id)
-                                  const chunks = (detail.retrieved_evidence ?? [])
+                                  let chunks = (detail.retrieved_evidence ?? [])
                                     .flatMap(r => r.top_chunks ?? [r])
+                                  // Cache hits store evidence under the original result, not the new one.
+                                  // Fall back to the original if this result has no chunks.
+                                  if (chunks.length === 0 && detail.explanation) {
+                                    const match = detail.explanation.match(/Reused cached verification result (result_[a-z0-9]+)/)
+                                    if (match && match[1] !== claim.id) {
+                                      try {
+                                        const original = await getVerificationResult(match[1])
+                                        chunks = (original.retrieved_evidence ?? [])
+                                          .flatMap(r => r.top_chunks ?? [r])
+                                      } catch { /* original not found, leave chunks empty */ }
+                                    }
+                                  }
+                                  // Dense, BM25 and hybrid retrieval can return the same chunk — deduplicate.
+                                  const seen = new Set()
+                                  chunks = chunks.filter(c => {
+                                    const key = c.chunk_id ?? c.chunk_text
+                                    if (seen.has(key)) return false
+                                    seen.add(key)
+                                    return true
+                                  })
                                   setPassageData(prev => ({ ...prev, [claim.id]: chunks }))
                                 } catch {
                                   setPassageData(prev => ({ ...prev, [claim.id]: [] }))
