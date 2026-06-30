@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 import pymupdf
 
-from app.clients.metadata_clients import CoreClient, CrossrefClient, DoiResolverClient, GoogleBooksClient, IEEEXploreClient, MetadataLookupResponse, OpenAlexClient, OpenReviewClient, PubMedClient, SemanticScholarClient, SsrnClient, UnpaywallClient
+from app.clients.metadata_clients import ArXivAPIClient, CoreClient, CrossrefClient, DoiResolverClient, EuropePMCClient, GoogleBooksClient, IEEEXploreClient, MetadataLookupResponse, OpenAlexClient, OpenReviewClient, PubMedClient, SemanticScholarClient, SsrnClient, UnpaywallClient
 from app.core.config import Settings, get_settings
 from app.core.errors import AppException, ErrorCode
 from app.models import Document, Reference, SourceMetadata
@@ -350,6 +350,8 @@ class MetadataLookupService:
         doi_resolver_client: DoiResolverClient | None = None,
         openreview_client: OpenReviewClient | None = None,
         ieee_xplore_client: IEEEXploreClient | None = None,
+        arxiv_api_client: ArXivAPIClient | None = None,
+        europe_pmc_client: EuropePMCClient | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.crossref_client = crossref_client or CrossrefClient(self.settings)
@@ -363,6 +365,8 @@ class MetadataLookupService:
         self.doi_resolver_client = doi_resolver_client or DoiResolverClient(self.settings)
         self.openreview_client = openreview_client or OpenReviewClient(self.settings)
         self.ieee_xplore_client = ieee_xplore_client or IEEEXploreClient(self.settings)
+        self.arxiv_api_client = arxiv_api_client or ArXivAPIClient(self.settings)
+        self.europe_pmc_client = europe_pmc_client or EuropePMCClient(self.settings)
 
     def verify_reference_doi(self, reference_id: str, db: Session, *, request_id: str | None = None, force_refresh: bool = False) -> dict[str, Any]:
         reference = ReferenceRepository(db).get(reference_id)
@@ -871,6 +875,26 @@ class MetadataLookupService:
             if pm.abstract:
                 response = _merge_abstract_fallback(response, pm)
                 logger.info("abstract_fallback_pubmed", extra={"reference_id": reference.id, "doi": doi})
+
+        # arXiv API abstract fallback — arXiv's export API returns structured metadata
+        # including the full abstract without PDF download. Only attempted for arXiv DOIs
+        # (10.48550/arXiv.*) where all prior abstract sources already failed.
+        if response.success and not response.abstract and arxiv_pdf:
+            arxiv_id_m = _ARXIV_DOI_RE.match(doi)
+            if arxiv_id_m:
+                arxiv_meta = self.arxiv_api_client.lookup_by_id(arxiv_id_m.group(1))
+                if arxiv_meta.abstract:
+                    response = _merge_abstract_fallback(response, arxiv_meta)
+                    logger.info("abstract_fallback_arxiv_api", extra={"reference_id": reference.id, "doi": doi})
+
+        # Europe PMC abstract fallback — broader biomedical coverage than PubMed:
+        # includes preprints (bioRxiv, medRxiv) and EU-funded research not indexed
+        # by the US NLM. Also exposes OA full-text URLs for eligible papers.
+        if response.success and not response.abstract:
+            epmc = self.europe_pmc_client.lookup_by_doi(doi)
+            if epmc.abstract:
+                response = _merge_abstract_fallback(response, epmc)
+                logger.info("abstract_fallback_europe_pmc", extra={"reference_id": reference.id, "doi": doi})
 
         # Full-text upgrade — priority: arXiv direct URL → OA URL from metadata
         # → Unpaywall → CORE (inline full text or download URL).
