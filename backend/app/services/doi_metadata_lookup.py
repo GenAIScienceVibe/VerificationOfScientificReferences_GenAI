@@ -818,14 +818,16 @@ class MetadataLookupService:
 
         existing = metadata_repo.get_latest_for_reference(reference.id)
         if existing and existing.lookup_status == MetadataStatus.LOOKUP_SUCCEEDED.value and not force_refresh:
-            reference.doi_status = DoiStatus.VALID.value
-            reference.metadata_status = MetadataStatus.LOOKUP_SUCCEEDED.value
-            reference.metadata_match_score = existing.metadata_match_score
-            db.commit()
-            return existing
+            # Only trust cache if it has actual content — empty successes are false positives
+            if existing.title or existing.abstract:
+                reference.doi_status = DoiStatus.VALID.value
+                reference.metadata_status = MetadataStatus.LOOKUP_SUCCEEDED.value
+                reference.metadata_match_score = existing.metadata_match_score
+                db.commit()
+                return existing
 
         cached = metadata_repo.find_success_by_doi(doi) if not force_refresh else None
-        if cached and cached.reference_id != reference.id:
+        if cached and cached.reference_id != reference.id and (cached.title or cached.abstract):
             metadata = self._copy_cached_metadata(reference, cached, db)
             reference.doi_status = DoiStatus.VALID.value
             reference.metadata_status = MetadataStatus.LOOKUP_SUCCEEDED.value
@@ -1023,6 +1025,21 @@ class MetadataLookupService:
         if response.success:
             metadata_doi = normalize_doi_for_lookup(response.doi) or reference.extracted_doi
             url = response.url or (self.doi_resolver_client.resolver_url(metadata_doi) if metadata_doi else None)
+            # A "success" with no title and no abstract is an empty response (e.g. CrossRef
+            # returning a stub for an unregistered DOI). Treat it as a failed lookup so
+            # hallucinated citations are not incorrectly marked as VALID.
+            has_content = bool(response.title or response.abstract)
+            if not has_content:
+                reference.doi_status = DoiStatus.INVALID.value
+                reference.metadata_status = MetadataStatus.LOOKUP_FAILED.value
+                db.commit()
+                return SourceMetadataRepository(db).upsert_for_reference(
+                    reference_id=reference.id,
+                    doi=metadata_doi,
+                    lookup_source=response.lookup_source,
+                    lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                    commit=True,
+                )
             match = calculate_metadata_match(
                 extracted_title=reference.extracted_title,
                 extracted_authors=reference.extracted_authors,

@@ -139,6 +139,14 @@ class RetrieveEvidenceResponse(BaseModel):
     retrieval_confidence: float = Field(
         default=0.0, description="Average weighted similarity score across all returned chunks"
     )
+    semantic_cache_match: dict = Field(
+        default_factory=lambda: {"matched": False, "cached_result_id": None, "similarity": None},
+        description="Semantic cache lookup result; always false in current implementation",
+    )
+    error_message: str | None = Field(
+        default=None,
+        description="Error details if retrieval failed, otherwise null",
+    )
 
 
 # ── Door 2 models (verify_claim) ─────────────────────────────────────────────
