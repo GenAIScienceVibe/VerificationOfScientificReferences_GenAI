@@ -254,12 +254,12 @@ function ResultsPage() {
             <p style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", letterSpacing: "1px", marginBottom: "16px" }}>CREDIBILITY SCORE</p>
             <div style={{ position: "relative", width: "120px", height: "120px", margin: "0 auto 12px" }}>
               <svg viewBox="0 0 120 120" width="120" height="120">
-                <circle cx="60" cy="60" r="50" fill="none" stroke="#e0e0e0" strokeWidth="12"/>
-                <circle cx="60" cy="60" r="50" fill="none" stroke={credibilityColor} strokeWidth="12"
-                  strokeDasharray={`${2 * Math.PI * 50 * (credibilityScore / 100)} ${2 * Math.PI * 50}`}
-                  strokeDashoffset={2 * Math.PI * 50 * 0.25}
-                  strokeLinecap="round" transform="rotate(-90 60 60)"/>
-              </svg>
+  <circle cx="60" cy="60" r="50" fill="none" stroke="#e0e0e0" strokeWidth="12"/>
+  <circle cx="60" cy="60" r="50" fill="none" stroke={credibilityColor} strokeWidth="12"
+    strokeDasharray={`${2 * Math.PI * 50 * (credibilityScore / 100)} ${2 * Math.PI * 50 * (1 - credibilityScore / 100)}`}
+    strokeLinecap="round"
+    transform="rotate(-90 60 60)"/>
+</svg>
               <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", fontSize: "22px", fontWeight: "700", color: "#111" }}>{credibilityScore}%</div>
             </div>
             <p style={{ color: credibilityColor, fontWeight: "600", fontSize: "14px", marginBottom: "8px" }}>{credibilityLabel}</p>
@@ -511,34 +511,13 @@ function ResultsPage() {
                           </div>
                         )}
 
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-    <div style={{ position: "relative", width: "36px", height: "36px" }}>
-      <svg viewBox="0 0 36 36" width="36" height="36">
-        <circle cx="18" cy="18" r="14" fill="none" stroke="#e0e0e0" strokeWidth="3"/>
-        <circle
-          cx="18" cy="18" r="14" fill="none"
-          stroke={getConfidenceColor(claim.confidence)}
-          strokeWidth="3"
-          strokeDasharray={`${2 * Math.PI * 14 * claim.confidence} ${2 * Math.PI * 14}`}
-          strokeLinecap="round"
-          transform="rotate(-90 18 18)"
-        />
-      </svg>
-      <div style={{
-        position: "absolute", top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        fontSize: "8px", fontWeight: "700", color: "#444"
-      }}>
-        {Math.round(claim.confidence * 100)}%
-      </div>
-    </div>
-    <span style={{ fontSize: "12px", color: "#888" }}>Confidence</span>
-  </div>
-  <button style={{ fontSize: "12px", color: "#888", background: "none", border: "none", cursor: "pointer" }}>
-    Show source passage
-  </button>
-</div>
+                        <svg viewBox="0 0 120 120" width="120" height="120">
+  <circle cx="60" cy="60" r="50" fill="none" stroke="#e0e0e0" strokeWidth="12"/>
+  <circle cx="60" cy="60" r="50" fill="none" stroke={credibilityColor} strokeWidth="12"
+    strokeDasharray={`${2 * Math.PI * 50 * (credibilityScore / 100)} ${2 * Math.PI * 50 * (1 - credibilityScore / 100)}`}
+    strokeLinecap="round"
+    transform="rotate(-90 60 60)"/>
+</svg>
 
                       </div>
                     )
