@@ -237,9 +237,21 @@ def _insufficient_evidence(reason: str) -> VerifyClaimResponse:
 
 
 def _needs_human_review(reason: str) -> VerifyClaimResponse:
-    """Build a NEEDS_HUMAN_REVIEW response when the LLM call itself fails."""
+    """
+    Build the backend response when the LLM call itself fails.
+
+    Internally this is a NEEDS_HUMAN_REVIEW case (logged as such), but per
+    the same mapping rule as verify_claim()'s Step 6, the backend's
+    support_status contract has no NEEDS_HUMAN_REVIEW-from-failure value —
+    it is returned as INSUFFICIENT_EVIDENCE with human_review_required=True.
+    """
+    logger.info(
+        "claim verdict=NEEDS_HUMAN_REVIEW (internal, LLM call failure: %s) — "
+        "mapping support_status to INSUFFICIENT_EVIDENCE for the backend response.",
+        reason,
+    )
     return VerifyClaimResponse(
-        support_status=Verdict.NEEDS_HUMAN_REVIEW,
+        support_status=Verdict.INSUFFICIENT_EVIDENCE,
         confidence=0.0,
         explanation=reason,
         evidence_used=[],
@@ -455,6 +467,11 @@ def verify_claim(request: VerifyClaimRequest) -> VerifyClaimResponse:
         4. validate_output() — parse + validate the raw JSON, injecting
            human_review_required (confidence < 0.5, verdict ==
            PARTIALLY_SUPPORTED, or low similarity, per CLAUDE.md).
+        5. NEEDS_HUMAN_REVIEW mapping — the backend's support_status contract
+           does not expose NEEDS_HUMAN_REVIEW as its own value; it is mapped
+           to INSUFFICIENT_EVIDENCE with human_review_required forced True.
+           The internal verdict label is unchanged and only ever appears as
+           NEEDS_HUMAN_REVIEW in logs.
 
     Returns:
         VerifyClaimResponse with support_status, confidence, explanation,
@@ -466,10 +483,15 @@ def verify_claim(request: VerifyClaimRequest) -> VerifyClaimResponse:
           human_review_required=True (an unverifiable DOI must always be
           reviewed by a human, per backend safety policy).
         - The LLM call itself fails (missing OPENROUTER_API_KEY, network/API
-          error) -> caught and converted to NEEDS_HUMAN_REVIEW.
+          error) -> caught and converted by _needs_human_review(), which
+          applies the same NEEDS_HUMAN_REVIEW -> INSUFFICIENT_EVIDENCE
+          mapping as Step 5 above (logged internally as NEEDS_HUMAN_REVIEW,
+          returned to the backend as INSUFFICIENT_EVIDENCE with
+          human_review_required=True).
         - The LLM's raw response fails Pydantic validation (malformed JSON,
           missing fields, bad verdict label) -> validate_output() already
-          guarantees a NEEDS_HUMAN_REVIEW fallback; no extra handling needed.
+          guarantees a NEEDS_HUMAN_REVIEW fallback; this path *does* reach the
+          mapping step above, so it is returned as INSUFFICIENT_EVIDENCE.
     """
     logger.debug("verify_claim invoked (LLM_TEMPERATURE=%s)", LLM_TEMPERATURE)
 
@@ -521,11 +543,26 @@ def verify_claim(request: VerifyClaimRequest) -> VerifyClaimResponse:
     # Step 5: validate + fallback (never raises).
     output = validate_output(raw_response, low_confidence=low_confidence)
 
+    # Step 6: NEEDS_HUMAN_REVIEW mapping — the backend's support_status
+    # contract treats this case as INSUFFICIENT_EVIDENCE plus a mandatory
+    # human-review flag, rather than as its own outcome. The internal
+    # verdict label (output.verdict) is left unchanged and only surfaces as
+    # NEEDS_HUMAN_REVIEW in logs; it is never the one sent to the backend.
+    support_status = output.verdict
+    human_review_required = output.human_review_required
+    if output.verdict == Verdict.NEEDS_HUMAN_REVIEW:
+        logger.info(
+            "claim verdict=NEEDS_HUMAN_REVIEW (internal) — mapping support_status "
+            "to INSUFFICIENT_EVIDENCE for the backend response."
+        )
+        support_status = Verdict.INSUFFICIENT_EVIDENCE
+        human_review_required = True
+
     return VerifyClaimResponse(
-        support_status=output.verdict,
+        support_status=support_status,
         confidence=output.confidence,
         explanation=output.explanation,
         evidence_used=output.evidence_used,
         limitations=output.limitations,
-        human_review_required=output.human_review_required,
+        human_review_required=human_review_required,
     )

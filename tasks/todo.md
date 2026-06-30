@@ -446,3 +446,200 @@ always equal exactly 1.0, which would silently defeat the
       cache (SCRUM-264)" section)
 
 **Status: COMPLETE ✓ — all 3 sprint tasks done, awaiting Saqer's go-ahead to commit**
+
+---
+
+## PARTIALLY_SUPPORTED Calibration Plan (verify.j2 few-shot improvement)
+
+**Status: AWAITING APPROVAL — do not edit verify.j2 until Saqer confirms**
+
+Benchmark result: PARTIALLY_SUPPORTED accuracy = 0/4 (0%).
+The LLM either over-commits (calls partial evidence SUPPORTED or NOT_SUPPORTED)
+or hedges unnecessarily (calls complete evidence PARTIALLY_SUPPORTED).
+
+---
+
+### 1. Are the current PARTIALLY_SUPPORTED examples clear and distinct?
+
+**Example 1 (elderly patients / younger patients):**
+Clear structurally — one claim component present, one absent. But the absent
+half is explicitly stated in the claim ("had no effect on younger patients"),
+so the LLM can spot the gap by simple reading. This is the easiest possible
+PARTIALLY_SUPPORTED case and teaches nothing hard.
+
+**Example 2 (three datasets / state-of-the-art on two vs all three):**
+Better — this is a quantitative understatement. But both models (two vs three)
+relate to the same dimension (datasets with SOTA), so the claim's structure is
+two parallel numbers. This can read as a wrong-number case, which the
+NOT_SUPPORTED definition already claims for itself ("a wrong number is always
+NOT_SUPPORTED"). A reader following the definitions literally might classify
+this as NOT_SUPPORTED — making Example 2 potentially contradictory with the
+NOT_SUPPORTED rule rather than illustrative of PARTIALLY_SUPPORTED.
+
+**Root gap:** Neither example shows the hardest real-world pattern — where a
+claim bundles a supported core assertion with an unsupported interpretive
+addition on top. That is exactly what cases 001, 004, and 012 represent in the
+benchmark. The LLM has no example to anchor to and resolves ambiguity by
+defaulting to SUPPORTED (when the core assertion is present) or NOT_SUPPORTED
+(when the extra layer is absent).
+
+---
+
+### 2. Would a 'near-miss' contrast example help?
+
+Yes — and this is the single highest-impact change available.
+
+The LLM's current failure mode on SUPPORTED misses (case_001, case_010,
+case_011) is that it sees evidence present in the source and immediately
+commits to SUPPORTED, ignoring whether the claim adds an interpretive layer
+not written in the source. A contrast pair — one claim that adds an
+interpretation (PARTIALLY_SUPPORTED) next to one that only paraphrases
+(SUPPORTED) — using near-identical source text would make the distinction
+explicit by example.
+
+This is more effective than rewriting the verdict definitions, because the
+LLM learns the boundary by seeing it, not by reading abstract rules.
+
+---
+
+### 3. Failure-by-failure analysis
+
+**case_001 — PARTIALLY_SUPPORTED predicted as SUPPORTED (over-commit)**
+Claim adds: "enabling efficient generation of new samples" — a generative
+framing not in the source. The source says VAE arrives from using a neural net
+for the recognition model; it focuses on approximate posterior inference, not
+generation efficiency. The LLM saw that VAE, encoder-decoder, and latent space
+are all in the source and called it SUPPORTED. It treated the claim as a
+paraphrase when the final clause is actually an interpretive addition.
+Pattern: core architecture supported, framing addition is not → should be
+PARTIALLY_SUPPORTED. The LLM lacks an example where this pattern occurs.
+
+**case_002 — NOT_SUPPORTED predicted as PARTIALLY_SUPPORTED (over-hedge)**
+Claim has two parts: (a) generator + discriminator trained adversarially —
+fully in the source. (b) GANs achieved higher log-likelihood than all prior
+models on every benchmark — explicitly not in the source, and in fact
+contradicted by the paper's own caveats about log-likelihood estimation. The
+LLM correctly spotted part (a) and correctly spotted that part (b) is absent,
+then called it PARTIALLY_SUPPORTED. But the NOT_SUPPORTED definition says:
+"do not use PARTIALLY_SUPPORTED as a fallback when the core assertion is
+absent or incorrect." Part (b) is the core assertion of the sentence — it is
+the claim being made about performance. Part (a) is background setup. Since
+the specific factual assertion (log-likelihood superiority on every benchmark)
+is absent, the correct verdict is NOT_SUPPORTED.
+Pattern: setup is in the source, key factual claim is not → NOT_SUPPORTED, not
+PARTIALLY_SUPPORTED. The LLM needs an example where this distinction is drawn.
+
+**case_010 — SUPPORTED predicted as PARTIALLY_SUPPORTED (under-commit/hedge)**
+Claim: "no significant correlation between students' concerns and their
+knowledge about GenAI." Source: Dahmash et al. (2020) data shows that even
+knowledgeable students have career concerns about AI. The LLM found the
+concept in the source but hedged because the source doesn't use the phrase
+"no significant correlation" — it infers the relationship rather than stating
+it explicitly. The LLM applied the SUPPORTED exclusion rule ("do not upgrade
+if it requires inferential leaps") too aggressively, missing that the GT
+rationale treats this as a reasonable summary of the findings.
+Pattern: the source clearly establishes the relationship even without the
+exact statistical language → SUPPORTED. The LLM hedged into PARTIALLY_SUPPORTED
+because the exact wording differs. The existing SUPPORTED examples are purely
+about architecture/methods described verbatim — no example where a finding is
+summarized in different language and still counts as SUPPORTED.
+
+**case_011 — SUPPORTED predicted as PARTIALLY_SUPPORTED (under-commit/hedge)**
+Claim: "most research into student perceptions of AI employs a quantitative
+survey design." Source: is itself a cross-sectional multicenter survey,
+directly exemplifying the claim. The LLM correctly noted the survey is in
+the source, then hedged: "the source doesn't say that most research uses this
+design." That is true — the source is one paper, not a literature review. But
+the GT rationale is that the method is described directly and the claim
+summarizes the field pattern correctly. The LLM applied epistemic caution
+("the source doesn't prove the generalization") and called it
+PARTIALLY_SUPPORTED rather than accepting that the claim's framing ("most
+research") is a reasonable description of a widely known methodological norm
+that the source exemplifies.
+Pattern: this is a legitimate dispute between GT and LLM — the GT verdict
+may itself be arguable. However, the LLM's hedge is triggered by the
+"most research" generalization claim, which is not verified by a single paper.
+This may be a borderline ground-truth issue rather than a pure template flaw.
+
+**case_012 — PARTIALLY_SUPPORTED predicted as INSUFFICIENT_EVIDENCE (schema fallback)**
+Now resolved by the evidence_used fix — the schema error is gone. In the
+re-run (spot benchmark) the LLM returned NOT_SUPPORTED at conf=1.00, still
+a MISMATCH. The source data compares medical/dental student AI perceptions
+across groups but does not frame it as "significantly lower confidence in
+understanding of AI applications vs technical students" — that framing is an
+interpretive addition on top of group-difference data that is in the source.
+Same pattern as case_001: core data is present, interpretive framing layered
+on top is not.
+Pattern: comparative finding in the source, specific interpretive conclusion
+in the claim not stated → PARTIALLY_SUPPORTED. The LLM called NOT_SUPPORTED
+because it couldn't find the exact comparison stated.
+
+---
+
+### Proposed changes to verify.j2 (to implement after approval)
+
+**Change 1 — Replace PARTIALLY_SUPPORTED Example 2.**
+The current "two vs all three datasets" example is ambiguous — it can be read
+as a wrong-number NOT_SUPPORTED case, directly conflicting with the
+NOT_SUPPORTED definition. Replace it with an example that shows the
+"supported core + unsupported interpretive addition" pattern explicitly.
+Proposed replacement:
+  Claim: "The authors found that sleep deprivation impairs working memory
+  performance, and concluded that this effect is primarily driven by
+  disruption to hippocampal consolidation."
+  Source says: "Sleep deprivation significantly impaired working memory
+  across all three measures."
+  Verdict: PARTIALLY_SUPPORTED — the impairment finding is in the source,
+  but the mechanistic explanation (hippocampal consolidation) is not stated
+  or implied in the retrieved evidence.
+
+**Change 2 — Add PARTIALLY_SUPPORTED Example 3 (near-miss contrast).**
+Add a third PARTIALLY_SUPPORTED example immediately followed by a SUPPORTED
+contrast using nearly identical source text, explicitly labeled as a contrast
+pair. This shows the LLM where the boundary is.
+Proposed:
+  PARTIALLY_SUPPORTED — near-miss contrast (Part A):
+    Claim: "Vaswani et al. (2017) introduced the Transformer, which relies
+    entirely on attention mechanisms, making it the first architecture to
+    achieve human-level performance on translation tasks."
+    Source says: "We propose the Transformer, based solely on attention
+    mechanisms, and achieve state-of-the-art results on two translation tasks."
+    Verdict: PARTIALLY_SUPPORTED — the attention-only architecture is in
+    the source; "human-level performance" is not stated and is an addition
+    beyond what the source claims.
+  SUPPORTED — same source, tighter claim (Part B):
+    Claim: "Vaswani et al. (2017) introduced the Transformer, relying
+    entirely on attention mechanisms, and achieved state-of-the-art results
+    on translation tasks."
+    Source says: same as above.
+    Verdict: SUPPORTED — this paraphrase matches the source exactly. No
+    addition beyond what the source states.
+
+**Change 3 — Add a clarifying sentence to the NOT_SUPPORTED definition.**
+The rule "the core assertion is absent or incorrect" needs one sentence
+distinguishing setup from claim: "When a claim combines factual background
+(which may be in the source) with a specific factual assertion (which is not),
+the specific assertion is the core — if it is absent, the verdict is
+NOT_SUPPORTED, not PARTIALLY_SUPPORTED."
+This directly targets the case_002 failure pattern.
+
+**What NOT to change:** verdict definitions, the four-step reasoning structure,
+the SUPPORTED/NOT_SUPPORTED/INSUFFICIENT_EVIDENCE/NEEDS_HUMAN_REVIEW examples,
+the evidence_used instruction, the JSON output format.
+
+---
+
+### Expected impact
+
+| Case | Current | Expected after fix |
+|------|---------|-------------------|
+| case_001 | SUPPORTED (wrong) | PARTIALLY_SUPPORTED |
+| case_002 | PARTIALLY_SUPPORTED (wrong) | NOT_SUPPORTED |
+| case_010 | PARTIALLY_SUPPORTED (wrong) | SUPPORTED or PARTIALLY_SUPPORTED |
+| case_011 | PARTIALLY_SUPPORTED (wrong) | SUPPORTED (borderline) |
+| case_012 | NOT_SUPPORTED (wrong) | PARTIALLY_SUPPORTED |
+
+Changes 1 and 2 primarily target cases 001 and 012.
+Change 3 primarily targets case 002.
+Cases 010 and 011 are partly a ground-truth borderline issue, not purely a
+template flaw — improvement is expected but not guaranteed.

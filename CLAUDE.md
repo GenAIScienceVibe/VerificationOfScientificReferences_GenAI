@@ -65,41 +65,15 @@ NEVER push to `main`. NEVER push to `rag_dev_zac` from this branch.
 
 ---
 
-## ⚠️ CURRENT SPRINT — BACKEND INTEGRATION FIXES (PRIORITY)
-We must fix integration defects reported by the backend team.
+## ⚠️ CURRENT STATUS (latest)
 
-The backend team did a full integration audit of rag/api.py and found bugs.
-All fixes below are in rag/api.py only — no pipeline logic changes.
-All fixes are safe and do not break the API contract or pipeline flow.
-
-### P1 — BLOCKING (fix first, in this order)
-
-**SCRUM-262 — Normalize all scores to 0-1**
-Problem: Section priority weights (e.g. 1.3× for Results) push scores above 1.0.
-Backend validators reject any score above 1.0.
-Fix: Normalize similarity_score, overall_similarity_score, and retrieval_confidence
-to 0-1 range before returning from retrieve_evidence().
-Note: SIMILARITY_THRESHOLD = 0.5 check in Door 2 still works after normalization.
-
-**SCRUM-263 — INSUFFICIENT_EVIDENCE must set human_review_required=True**
-Problem: When DOI is INVALID or UNRESOLVABLE, we return human_review_required=False.
-Backend safety policy requires human_review_required=True whenever a DOI
-cannot be verified — a human must always review unverifiable citations.
-Fix: In _insufficient_evidence() helper in api.py, change human_review_required=False
-to human_review_required=True.
-
-### P2 — IMPORTANT (fix after P1, before live demo)
-
-**SCRUM-264 — Add per-DOI embedding cache**
-Problem: If one paper has 10 claims all citing the same reference, we re-embed
-the same source text 10 times — slow and costly.
-Fix: Add an in-memory cache keyed by DOI inside retrieve_evidence().
-Cache must be: in-memory only, per document run, never persisted.
-Do NOT store anything — backend owns all storage.
-
-### After all fixes are done:
-- Run full test suite — must stay at 350+ passing
-- Commit all fixes as: [RAG] fix: resolve backend integration defects (SCRUM-262/263/264)
+- Backend integration fixes (SCRUM-262/263/264): DONE
+- Prompt rewrite (verify.j2, 10 few-shot examples): DONE
+- Null-content retry logic (verifier.py): DONE
+- Validator fixes — JSON boundary trimming + evidence_used normalization
+  (validator.py): DONE
+- Blocker resolved: OpenRouter ran out of credits — switching LLM provider
+  to Groq directly to continue benchmarking
 
 ### Do NOT start next task until I explicitly say so.
 
@@ -153,7 +127,14 @@ OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 We use OpenRouter as our API provider. OpenRouter gives access to all models
 through one single API key and one base URL.
 
-NEVER call OpenAI or Groq directly. Always use OpenRouter.
+NEVER call OpenAI directly. Always use OpenRouter — EXCEPT for the LLM call, see note below.
+
+NOTE — Provider exception for LLM calls (decided after testing):
+Groq is now also an allowed direct provider, used ONLY for the LLM call
+(meta-llama/llama-4-scout). This was a deliberate decision after a 4-attempt
+manual test showed DeepInfra (via OpenRouter) silently drops content for
+this model on large prompts, while Groq never did. The embedding model
+(text-embedding-3-small) still goes through OpenRouter only.
 
 ### How to initialize the client in code:
 ```python
@@ -201,6 +182,13 @@ NOT_SUPPORTED
 INSUFFICIENT_EVIDENCE
 NEEDS_HUMAN_REVIEW
 ```
+
+### Permanent rule — backend-facing mapping
+`support_status` will NEVER be `"NEEDS_HUMAN_REVIEW"` at the API layer.
+It always maps to `INSUFFICIENT_EVIDENCE` with `human_review_required=true`.
+This applies whenever the internal pipeline lands on `NEEDS_HUMAN_REVIEW`
+(LLM chose it, the LLM call failed, or validation failed). Do not
+reintroduce `NEEDS_HUMAN_REVIEW` as a backend-facing value.
 
 ---
 

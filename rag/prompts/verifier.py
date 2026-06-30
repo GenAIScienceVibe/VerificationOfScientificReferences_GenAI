@@ -30,22 +30,28 @@ Key design choices:
 import json
 import logging
 import os
+import time
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from openai import OpenAI
 
-from rag.prompts.config import LLM_TEMPERATURE
+from rag.prompts.config import GROQ_BASE_URL, LLM_MODEL, LLM_TEMPERATURE
 from rag.verification.models import Verdict, VerificationInput
 
 logger = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-LLM_MODEL = "meta-llama/llama-4-scout"
-
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 TEMPLATE_NAME = "verify.j2"
+
+# Some OpenRouter-backing providers (observed: DeepInfra) intermittently
+# return finish_reason="stop" with completion tokens billed but
+# message.content=None. Retrying tends to land on a different provider
+# (observed: Groq) that returns content normally for the same prompt.
+NULL_CONTENT_MAX_ATTEMPTS = 3
+NULL_CONTENT_RETRY_DELAY_SECONDS = 1
 
 SYSTEM_PROMPT = (
     "You are a precise, evidence-grounded citation verifier. Always respond "
@@ -72,18 +78,22 @@ _jinja_env = Environment(
 
 def _build_client() -> OpenAI:
     """
-    Build and return an OpenAI-compatible client pointed at OpenRouter.
+    Build and return an OpenAI-compatible client pointed at Groq.
 
-    Raises EnvironmentError if OPENROUTER_API_KEY is not set, with a clear
+    The LLM call goes directly to Groq (not OpenRouter) because DeepInfra,
+    one of OpenRouter's backends for llama-4-scout, silently drops
+    message.content on large prompts. Groq never exhibited this behaviour
+    across 4 manual tests. The embedding call still uses OpenRouter.
+
+    Raises EnvironmentError if GROQ_API_KEY is not set, with a clear
     message so developers know exactly what is missing.
     """
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise EnvironmentError(
-            "OPENROUTER_API_KEY is not set. Add it to your .env file."
+            "GROQ_API_KEY is not set. Add it to your .env file."
         )
-    return OpenAI(api_key=api_key, base_url=base_url)
+    return OpenAI(api_key=api_key, base_url=GROQ_BASE_URL)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -110,14 +120,16 @@ def render_prompt(input_data: VerificationInput) -> str:
 
 def generate_verdict(input_data: VerificationInput) -> str:
     """
-    Render the verification prompt and call the LLM once.
+    Render the verification prompt and call the LLM, retrying on null content.
 
     Args:
         input_data: claim text, citation type, evidence chunks, and DOI.
 
     Returns:
         The raw LLM response text (expected to be a JSON string matching
-        VerificationOutput — validated separately by validator.py).
+        VerificationOutput — validated separately by validator.py). May be
+        None if every attempt returned null content; validator.py's
+        None-guard handles that case.
 
     Raises:
         EnvironmentError: if OPENROUTER_API_KEY is not set.
@@ -131,15 +143,33 @@ def generate_verdict(input_data: VerificationInput) -> str:
         input_data.doi, LLM_MODEL, input_data.citation_type, len(input_data.chunks),
     )
 
-    response = client.chat.completions.create(
-        model=LLM_MODEL,
-        temperature=LLM_TEMPERATURE,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-    )
-    return response.choices[0].message.content
+    content = None
+    for attempt in range(1, NULL_CONTENT_MAX_ATTEMPTS + 1):
+        response = client.chat.completions.create(
+            model=LLM_MODEL,
+            temperature=LLM_TEMPERATURE,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        content = response.choices[0].message.content
+        if content is not None:
+            break
+
+        if attempt < NULL_CONTENT_MAX_ATTEMPTS:
+            logger.warning(
+                "DOI %s — LLM call %d/%d returned null content; retrying in %ds.",
+                input_data.doi, attempt, NULL_CONTENT_MAX_ATTEMPTS, NULL_CONTENT_RETRY_DELAY_SECONDS,
+            )
+            time.sleep(NULL_CONTENT_RETRY_DELAY_SECONDS)
+        else:
+            logger.error(
+                "DOI %s — LLM call returned null content on all %d attempts.",
+                input_data.doi, NULL_CONTENT_MAX_ATTEMPTS,
+            )
+
+    return content
 
 
 def compute_human_review_required(

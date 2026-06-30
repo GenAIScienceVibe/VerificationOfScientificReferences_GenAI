@@ -1,0 +1,247 @@
+{
+  "timestamp": "2026-06-30T09:34:19.420814+00:00",
+  "model": "meta-llama/llama-4-maverick",
+  "provider": "OpenRouter",
+  "n_active_cases": 16,
+  "skipped_cases": [
+    "case_005",
+    "case_016"
+  ],
+  "overall_accuracy_pct": 56.2,
+  "n_match": 9,
+  "n_genuine_llm": 14,
+  "n_doi_gate_fallback": 2,
+  "n_null_content": 0,
+  "n_schema_error": 0,
+  "n_api_error": 0,
+  "per_verdict_accuracy": {
+    "INSUFFICIENT_EVIDENCE": {
+      "match": 2,
+      "total": 2
+    },
+    "NEEDS_HUMAN_REVIEW": {
+      "match": 0,
+      "total": 1
+    },
+    "NOT_SUPPORTED": {
+      "match": 5,
+      "total": 6
+    },
+    "PARTIALLY_SUPPORTED": {
+      "match": 1,
+      "total": 4
+    },
+    "SUPPORTED": {
+      "match": 1,
+      "total": 3
+    }
+  },
+  "results": [
+    {
+      "case_id": "case_001",
+      "claim_type": "BACKGROUND",
+      "ground_truth": "PARTIALLY_SUPPORTED",
+      "predicted": "SUPPORTED",
+      "match": false,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The source supports the claim that Variational Autoencoder (VAE) is a type of neural network that learns to encode and decode data by mapping inputs to a continuous latent space, enabling efficient ge"
+    },
+    {
+      "case_id": "case_002",
+      "claim_type": "RESULT_COMPARISON",
+      "ground_truth": "NOT_SUPPORTED",
+      "predicted": "PARTIALLY_SUPPORTED",
+      "match": false,
+      "confidence": 0.8,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The claim is correct that GANs consist of a generator and a discriminator trained through an adversarial process. However, the assertion that GANs achieved higher log-likelihood scores than all prior "
+    },
+    {
+      "case_id": "case_003",
+      "claim_type": "RESULT_COMPARISON",
+      "ground_truth": "INSUFFICIENT_EVIDENCE",
+      "predicted": "INSUFFICIENT_EVIDENCE",
+      "match": true,
+      "confidence": 0.0,
+      "human_review_required": true,
+      "fallback": true,
+      "fallback_reason": "doi_gate",
+      "issue": null
+    },
+    {
+      "case_id": "case_004",
+      "claim_type": "MOTIVATION",
+      "ground_truth": "PARTIALLY_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": false,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The claim asserts that Biswas (2023) used ChatGPT to write a radiology article that was validated by a blind peer review by 50 radiologists. However, the source evidence does not mention this specific"
+    },
+    {
+      "case_id": "case_006",
+      "claim_type": "RESULT_COMPARISON",
+      "ground_truth": "NOT_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": true,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The claim asserts that Zhai (2022) conducted a controlled classroom experiment showing that ChatGPT improved students' critical thinking skills. However, the source evidence does not mention any such "
+    },
+    {
+      "case_id": "case_007",
+      "claim_type": "BACKGROUND",
+      "ground_truth": "NOT_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": true,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The claim describes a controlled comparison between students using ChatGPT and those not using AI, which is not present in the source. The source discusses the author's experience with ChatGPT in writ"
+    },
+    {
+      "case_id": "case_008",
+      "claim_type": "EXTENSION",
+      "ground_truth": "NOT_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": true,
+      "confidence": 1.0,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The claim asserts an extension of Biggs (1999)'s student perception framework using a transformer-based model to detect hallucinated references. However, the source evidence from Biggs (1999) does not"
+    },
+    {
+      "case_id": "case_009",
+      "claim_type": "FUTURE_WORK",
+      "ground_truth": "NOT_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": true,
+      "confidence": 1.0,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The source evidence from Biggs (1999) does not mention or imply the proposal of implementing an AI system to verify citations or detect fabricated references in academic manuscripts. The text focuses "
+    },
+    {
+      "case_id": "case_010",
+      "claim_type": "EXTENSION",
+      "ground_truth": "SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": false,
+      "confidence": 0.0,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The source does not directly address or provide evidence regarding the correlation between students' concerns and their actual knowledge about AI. While it discusses the discrepancy between self-repor"
+    },
+    {
+      "case_id": "case_011",
+      "claim_type": "METHOD",
+      "ground_truth": "SUPPORTED",
+      "predicted": "PARTIALLY_SUPPORTED",
+      "match": false,
+      "confidence": 0.0,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The source evidence confirms that the specific study described used a quantitative survey design, but it does not provide information about the prevalence of this design across most research on studen"
+    },
+    {
+      "case_id": "case_012",
+      "claim_type": "RESULT_COMPARISON",
+      "ground_truth": "PARTIALLY_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": false,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The source evidence does not contain a comparison between the confidence levels of medical/dental students and students in technical fields regarding AI applications."
+    },
+    {
+      "case_id": "case_013",
+      "claim_type": "RESULT_COMPARISON",
+      "ground_truth": "PARTIALLY_SUPPORTED",
+      "predicted": "PARTIALLY_SUPPORTED",
+      "match": true,
+      "confidence": 0.8,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The claim that humanities students express more negative attitudes toward AI development than technical students is supported by the evidence. However, the specific attribution to 'concerns about job "
+    },
+    {
+      "case_id": "case_014",
+      "claim_type": "BACKGROUND",
+      "ground_truth": "NOT_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": true,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The claim states that the research design included 500 participants based on Gherhes & Obrad (2018), but the source evidence shows that the study actually involved 928 students."
+    },
+    {
+      "case_id": "case_015",
+      "claim_type": "BACKGROUND",
+      "ground_truth": "SUPPORTED",
+      "predicted": "SUPPORTED",
+      "match": true,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The source evidence supports the claim that AI-generated output cannot be detected by most plagiarism checkers, making it difficult to determine the originality of a piece of writing."
+    },
+    {
+      "case_id": "case_017",
+      "claim_type": "RESULT_COMPARISON",
+      "ground_truth": "INSUFFICIENT_EVIDENCE",
+      "predicted": "INSUFFICIENT_EVIDENCE",
+      "match": true,
+      "confidence": 0.0,
+      "human_review_required": true,
+      "fallback": true,
+      "fallback_reason": "doi_gate",
+      "issue": null
+    },
+    {
+      "case_id": "case_018",
+      "claim_type": "BACKGROUND",
+      "ground_truth": "NEEDS_HUMAN_REVIEW",
+      "predicted": "SUPPORTED",
+      "match": false,
+      "confidence": 0.95,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "issue": null,
+      "explanation": "The source evidence supports the claim that Biggs (1999) introduced the concept of constructive alignment and that it involves aligning assessment tasks with learning objectives. While the exact phras"
+    }
+  ]
+}

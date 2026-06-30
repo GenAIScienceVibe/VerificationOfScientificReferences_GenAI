@@ -592,27 +592,33 @@ def test_verify_claim_unresolvable_doi_skips_pipeline():
 
 
 def test_verify_claim_llm_failure_falls_back_to_needs_human_review():
-    """An exception from generate_verdict() is caught and converted to NEEDS_HUMAN_REVIEW."""
+    """An exception from generate_verdict() is caught and converted to
+    NEEDS_HUMAN_REVIEW internally (via _needs_human_review()), which is then
+    mapped to INSUFFICIENT_EVIDENCE for the backend response — the
+    support_status contract has no NEEDS_HUMAN_REVIEW-from-failure value."""
     with (
         patch("rag.api.classify_citation_type", return_value=CitationType.BACKGROUND),
         patch("rag.api.generate_verdict", side_effect=Exception("LLM call failed")),
     ):
         response = verify_claim(make_door2_request())
 
-    assert response.support_status == Verdict.NEEDS_HUMAN_REVIEW
+    assert response.support_status == Verdict.INSUFFICIENT_EVIDENCE
     assert response.confidence == 0.0
     assert response.human_review_required is True
 
 
 def test_verify_claim_malformed_llm_response_falls_back_to_needs_human_review():
-    """Malformed JSON from the LLM flows through validate_output()'s own fallback."""
+    """Malformed JSON from the LLM flows through validate_output()'s own
+    fallback (internally NEEDS_HUMAN_REVIEW), which verify_claim() then maps
+    to INSUFFICIENT_EVIDENCE for the backend response (the support_status
+    contract has no NEEDS_HUMAN_REVIEW-from-validation-failure case)."""
     with (
         patch("rag.api.classify_citation_type", return_value=CitationType.BACKGROUND),
         patch("rag.api.generate_verdict", return_value="not valid json"),
     ):
         response = verify_claim(make_door2_request())
 
-    assert response.support_status == Verdict.NEEDS_HUMAN_REVIEW
+    assert response.support_status == Verdict.INSUFFICIENT_EVIDENCE
     assert response.human_review_required is True
 
 

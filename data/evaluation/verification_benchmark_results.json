@@ -1,0 +1,257 @@
+{
+  "timestamp": "2026-06-30T08:20:32.428648+00:00",
+  "dataset_version": "3.0",
+  "n_active_cases": 16,
+  "skipped_cases": [
+    "case_005",
+    "case_016"
+  ],
+  "overall_accuracy_pct": 56.2,
+  "n_match": 9,
+  "n_genuine_llm": 14,
+  "n_doi_gate_fallback": 2,
+  "n_llm_failure_fallback": 0,
+  "n_other_fallback": 0,
+  "per_verdict_accuracy": {
+    "INSUFFICIENT_EVIDENCE": {
+      "match": 2,
+      "total": 2
+    },
+    "NEEDS_HUMAN_REVIEW": {
+      "match": 1,
+      "total": 1
+    },
+    "NOT_SUPPORTED": {
+      "match": 5,
+      "total": 6
+    },
+    "PARTIALLY_SUPPORTED": {
+      "match": 0,
+      "total": 4
+    },
+    "SUPPORTED": {
+      "match": 1,
+      "total": 3
+    }
+  },
+  "per_citation_type_accuracy": {
+    "BACKGROUND": {
+      "match": 4,
+      "total": 5
+    },
+    "EXTENSION": {
+      "match": 1,
+      "total": 2
+    },
+    "FUTURE_WORK": {
+      "match": 1,
+      "total": 1
+    },
+    "METHOD": {
+      "match": 0,
+      "total": 1
+    },
+    "MOTIVATION": {
+      "match": 0,
+      "total": 1
+    },
+    "RESULT_COMPARISON": {
+      "match": 3,
+      "total": 6
+    }
+  },
+  "results": [
+    {
+      "case_id": "case_001",
+      "claim_type": "BACKGROUND",
+      "ground_truth": "PARTIALLY_SUPPORTED",
+      "predicted": "SUPPORTED",
+      "match": false,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "The claim accurately describes Variational Autoencoders (VAEs) and their role in GenAI, which is supported by the source. The source details the VAE's architecture, its functionality in mapping inputs"
+    },
+    {
+      "case_id": "case_002",
+      "claim_type": "RESULT_COMPARISON",
+      "ground_truth": "NOT_SUPPORTED",
+      "predicted": "PARTIALLY_SUPPORTED",
+      "match": false,
+      "confidence": 1.0,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "The claim accurately describes the basic architecture and training process of GANs as introduced by Goodfellow et al. However, the claim of achieving higher log-likelihood scores than all prior genera"
+    },
+    {
+      "case_id": "case_003",
+      "claim_type": "RESULT_COMPARISON",
+      "ground_truth": "INSUFFICIENT_EVIDENCE",
+      "predicted": "INSUFFICIENT_EVIDENCE",
+      "match": true,
+      "confidence": 0.0,
+      "human_review_required": true,
+      "fallback": true,
+      "fallback_reason": "doi_gate",
+      "explanation": "DOI status is INVALID — skipping verification."
+    },
+    {
+      "case_id": "case_004",
+      "claim_type": "MOTIVATION",
+      "ground_truth": "PARTIALLY_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": false,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "The claim mentions a specific validation study by 50 radiologists that is not found in the source evidence. The source discusses potential uses and limitations of ChatGPT in medical writing but does n"
+    },
+    {
+      "case_id": "case_006",
+      "claim_type": "RESULT_COMPARISON",
+      "ground_truth": "NOT_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": true,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "The source does not provide evidence of a controlled classroom experiment showing that ChatGPT significantly improved students' critical thinking skills over a full academic semester."
+    },
+    {
+      "case_id": "case_007",
+      "claim_type": "BACKGROUND",
+      "ground_truth": "NOT_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": true,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "The claim made by Zhai (2022) is not supported by the source evidence. The source mentions the efficiency of ChatGPT in writing an academic paper but does not provide a controlled comparison or specif"
+    },
+    {
+      "case_id": "case_008",
+      "claim_type": "EXTENSION",
+      "ground_truth": "NOT_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": true,
+      "confidence": 1.0,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "The source evidence from Biggs (1999) discusses student approaches to learning and the importance of aligning teaching and learning activities but does not mention hallucinated references or transform"
+    },
+    {
+      "case_id": "case_009",
+      "claim_type": "FUTURE_WORK",
+      "ground_truth": "NOT_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": true,
+      "confidence": 1.0,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "The source does not mention the proposal for an AI system to verify citations and detect fabricated references as a future work by Biggs (1999)."
+    },
+    {
+      "case_id": "case_010",
+      "claim_type": "EXTENSION",
+      "ground_truth": "SUPPORTED",
+      "predicted": "PARTIALLY_SUPPORTED",
+      "match": false,
+      "confidence": 0.8,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "The source discusses related concepts such as low knowledge of AI among medical students and the impact of AI on their career choices, partially supporting the claim. However, it does not explicitly s"
+    },
+    {
+      "case_id": "case_011",
+      "claim_type": "METHOD",
+      "ground_truth": "SUPPORTED",
+      "predicted": "PARTIALLY_SUPPORTED",
+      "match": false,
+      "confidence": 0.5,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "The source provided does use a quantitative survey design, supporting part of the claim. However, it does not provide evidence that most research into student perceptions of AI/GenAI employs this desi"
+    },
+    {
+      "case_id": "case_012",
+      "claim_type": "RESULT_COMPARISON",
+      "ground_truth": "PARTIALLY_SUPPORTED",
+      "predicted": "INSUFFICIENT_EVIDENCE",
+      "match": false,
+      "confidence": 0.0,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "The source does not provide a direct comparison between the confidence levels of medical and dental students and those in technical fields regarding AI applications."
+    },
+    {
+      "case_id": "case_013",
+      "claim_type": "RESULT_COMPARISON",
+      "ground_truth": "PARTIALLY_SUPPORTED",
+      "predicted": "INSUFFICIENT_EVIDENCE",
+      "match": false,
+      "confidence": 0.0,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "Automatic NEEDS_HUMAN_REVIEW fallback — LLM output failed validation: schema validation error (1 validation error for VerificationOutput\nevidence_used.0\n  Input should be a valid string [type=string_t"
+    },
+    {
+      "case_id": "case_014",
+      "claim_type": "BACKGROUND",
+      "ground_truth": "NOT_SUPPORTED",
+      "predicted": "NOT_SUPPORTED",
+      "match": true,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "The claim states that the research design included 500 participants, but the source indicates that the study involved 928 students, making the claim factually incorrect."
+    },
+    {
+      "case_id": "case_015",
+      "claim_type": "BACKGROUND",
+      "ground_truth": "SUPPORTED",
+      "predicted": "SUPPORTED",
+      "match": true,
+      "confidence": 1.0,
+      "human_review_required": false,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "The source provides evidence that conventional plagiarism checkers may not reliably detect AI-generated content, supporting the claim that it is difficult to determine whether a given piece of writing"
+    },
+    {
+      "case_id": "case_017",
+      "claim_type": "RESULT_COMPARISON",
+      "ground_truth": "INSUFFICIENT_EVIDENCE",
+      "predicted": "INSUFFICIENT_EVIDENCE",
+      "match": true,
+      "confidence": 0.0,
+      "human_review_required": true,
+      "fallback": true,
+      "fallback_reason": "doi_gate",
+      "explanation": "DOI status is UNRESOLVABLE — skipping verification."
+    },
+    {
+      "case_id": "case_018",
+      "claim_type": "BACKGROUND",
+      "ground_truth": "NEEDS_HUMAN_REVIEW",
+      "predicted": "INSUFFICIENT_EVIDENCE",
+      "match": true,
+      "confidence": 0.0,
+      "human_review_required": true,
+      "fallback": false,
+      "fallback_reason": null,
+      "explanation": "Automatic NEEDS_HUMAN_REVIEW fallback — LLM output failed validation: schema validation error (2 validation errors for VerificationOutput\nevidence_used.0\n  Input should be a valid string [type=string_"
+    }
+  ]
+}
