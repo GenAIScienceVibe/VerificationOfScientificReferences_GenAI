@@ -41,10 +41,11 @@ DOI_WITH_PREFIX_REGEX = re.compile(
 )
 DOI_LIKE_REGEX = re.compile(r"(?:doi\s*[: ]\s*|doi\.org/|dx\.doi\.org/)?(10\.\S+)", re.IGNORECASE)
 # Matches arXiv IDs in any of these forms:
-#   arXiv:1706.03762  |  arXiv:1706.03762v2  |  arxiv.org/abs/1706.03762
-# Captured group 1 is the bare ID (without version suffix).
+#   arXiv:1706.03762  |  arXiv:1706.03762v2
+#   arxiv.org/abs/1706.03762  |  arxiv.org/pdf/1706.03762.pdf
+# Captured group 1 is the bare ID (without version suffix or .pdf extension).
 ARXIV_ID_REGEX = re.compile(
-    r"(?:arxiv\.org/abs/|arXiv\s*[: ]\s*)(\d{4}\.\d{4,5})(?:v\d+)?",
+    r"(?:arxiv\.org/(?:abs|pdf)/|arXiv\s*[: ]\s*)(\d{4}\.\d{4,5})(?:v\d+)?(?:\.pdf)?",
     re.IGNORECASE,
 )
 YEAR_REGEX = re.compile(r"\b((?:19|20)\d{2})(?:[a-z])?\b")
