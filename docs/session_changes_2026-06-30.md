@@ -69,19 +69,6 @@ Both fields are always set to their default/null values in the current implement
 
 ---
 
-## 6. Investigated but Reverted — genai_verdict Feature
-
-A feature was prototyped to capture the raw LLM verdict before the safety policy overrides `support_status`, and display it in the frontend after a manual reference PDF upload. The feature involved:
-
-- A new `genai_verdict` database column on `verification_results`
-- An idempotent `ALTER TABLE` migration in `init_db.py`
-- Storage of the pre-override LLM verdict in `verification_orchestrator.py`
-- Frontend display of the AI verdict and uploaded filename below the manual upload box
-
-This was reverted in the same session because the pipeline timeout during manual PDF re-verification made testing unreliable. The backend contract and safety policy architecture remain unchanged. The feature can be re-implemented in a future session without structural changes.
-
----
-
 ## Summary of Net Changes (Committed to FinalFixes)
 
 | File | Change |
