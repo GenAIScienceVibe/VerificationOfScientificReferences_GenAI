@@ -1289,6 +1289,74 @@ class PubMedClient:
             status_code=r2.status_code,
         )
 
+    def lookup_by_pmid(self, pmid: str) -> MetadataLookupResponse:
+        """Return DOI and metadata for a paper identified by its PubMed ID (PMID).
+
+        Uses the esummary endpoint which returns a JSON object containing DOI in
+        the articleids array. Faster than the DOI path since it skips the esearch step.
+        """
+        r = self._get("esummary.fcgi", self._params({
+            "db": "pubmed", "id": pmid, "retmode": "json",
+        }))
+        if r is None or r.status_code != 200:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed-PMID",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message="PubMed esummary request failed.",
+            )
+        try:
+            payload = r.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed-PMID",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="PubMed esummary returned malformed JSON.",
+            )
+
+        result_map = payload.get("result") or {}
+        item = result_map.get(pmid) or {}
+        if not item or item.get("error"):
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed-PMID",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message=f"PubMed has no record for PMID {pmid}.",
+            )
+
+        # DOI is in articleids list under idtype == "doi"
+        found_doi: str | None = None
+        for aid in (item.get("articleids") or []):
+            if isinstance(aid, dict) and aid.get("idtype") == "doi":
+                found_doi = str(aid.get("value") or "").strip() or None
+                break
+
+        title = _first_string(item.get("title"))
+        result_authors = [
+            str(a.get("name", "")).strip()
+            for a in (item.get("authors") or [])
+            if isinstance(a, dict) and a.get("name")
+        ]
+        year: int | None = None
+        pub_date = str(item.get("pubdate") or "")
+        ym = re.match(r"\d{4}", pub_date)
+        if ym:
+            year = int(ym.group())
+
+        return MetadataLookupResponse(
+            success=bool(found_doi or title),
+            lookup_source="PubMed-PMID",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value if (found_doi or title) else MetadataStatus.METADATA_UNAVAILABLE.value,
+            doi=found_doi,
+            title=title,
+            authors=result_authors or None,
+            year=year,
+            url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+            raw_metadata_json=item,
+            status_code=r.status_code,
+        )
+
     def search_by_title(
         self,
         title: str,
@@ -1506,6 +1574,121 @@ class DoiResolverClient:
 
     def resolver_url(self, doi: str) -> str:
         return f"{self.base_url}/{doi}"
+
+
+class IEEEXploreClient:
+    """IEEE Xplore API client for resolving ieeexplore.ieee.org/document/N URLs to DOIs.
+
+    IEEE Xplore is the primary publisher for IEEE and ACM conference papers and
+    journals. References that contain a URL like https://ieeexplore.ieee.org/document/8099833
+    can be resolved to a registered DOI via the IEEE Xplore Developer API.
+
+    Requires IEEE_XPLORE_API_KEY (free registration at developer.ieee.org).
+    Calls are skipped automatically when the key is not configured.
+    """
+
+    _BASE = "https://ieeexploreapi.ieee.org/api/v1/search/articles"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def lookup_by_article_number(self, article_number: str) -> MetadataLookupResponse:
+        """Return DOI and metadata for an IEEE Xplore article number.
+
+        The article number is the numeric ID in the URL:
+            https://ieeexplore.ieee.org/document/{article_number}
+
+        Returns success=False when no API key is configured or the article is not found.
+        """
+        if not self.settings.ieee_xplore_api_key:
+            return MetadataLookupResponse(
+                success=False, lookup_source="IEEEXplore",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message="IEEE Xplore API key not configured.",
+            )
+        params = {
+            "article_number": article_number,
+            "apikey": self.settings.ieee_xplore_api_key,
+        }
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                r = self._client.get(self._BASE, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                    r = client.get(self._BASE, headers=headers, params=params)
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(
+                success=False, lookup_source="IEEEXplore",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message=str(exc),
+            )
+
+        if r.status_code != 200:
+            return MetadataLookupResponse(
+                success=False, lookup_source="IEEEXplore",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                status_code=r.status_code,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message=f"IEEE Xplore returned HTTP {r.status_code}.",
+            )
+
+        try:
+            payload = r.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="IEEEXplore",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="IEEE Xplore returned malformed JSON.",
+            )
+
+        articles = payload.get("articles") or []
+        if not articles or not isinstance(articles[0], dict):
+            return MetadataLookupResponse(
+                success=False, lookup_source="IEEEXplore",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message=f"No IEEE Xplore article found for number {article_number}.",
+            )
+
+        item = articles[0]
+        doi = _first_string(item.get("doi")) or None
+        title = _first_string(item.get("title")) or None
+
+        authors_obj = item.get("authors") or {}
+        authors_list = authors_obj.get("authors") if isinstance(authors_obj, dict) else []
+        authors = [
+            str(a.get("full_name", "")).strip()
+            for a in (authors_list or [])
+            if isinstance(a, dict) and a.get("full_name")
+        ]
+
+        year: int | None = None
+        try:
+            year = int(item.get("publication_year") or 0) or None
+        except (TypeError, ValueError):
+            pass
+
+        return MetadataLookupResponse(
+            success=bool(doi or title),
+            lookup_source="IEEEXplore",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value if (doi or title) else MetadataStatus.METADATA_UNAVAILABLE.value,
+            doi=doi,
+            title=title,
+            authors=authors or None,
+            year=year,
+            venue=_first_string(item.get("publication_title")),
+            publisher="IEEE",
+            abstract=_first_string(item.get("abstract")),
+            url=f"https://ieeexplore.ieee.org/document/{article_number}",
+            raw_metadata_json=item,
+            status_code=r.status_code,
+        )
 
 
 class OpenReviewClient:

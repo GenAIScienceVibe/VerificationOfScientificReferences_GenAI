@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 import pymupdf
 
-from app.clients.metadata_clients import CoreClient, CrossrefClient, DoiResolverClient, GoogleBooksClient, MetadataLookupResponse, OpenAlexClient, OpenReviewClient, PubMedClient, SemanticScholarClient, SsrnClient, UnpaywallClient
+from app.clients.metadata_clients import CoreClient, CrossrefClient, DoiResolverClient, GoogleBooksClient, IEEEXploreClient, MetadataLookupResponse, OpenAlexClient, OpenReviewClient, PubMedClient, SemanticScholarClient, SsrnClient, UnpaywallClient
 from app.core.config import Settings, get_settings
 from app.core.errors import AppException, ErrorCode
 from app.models import Document, Reference, SourceMetadata
@@ -39,21 +39,48 @@ _RAW_REF_TITLE_RE = re.compile(
     r"(?:\(\d{4}[a-z]?\)|\b\d{4})\.\s+(.+?)(?=\.\s+[A-Z\d]|\s+doi\s*[: ]|\s+https?://|$)",
     re.IGNORECASE,
 )
+# Strips [N] or N. prefix from numbered references before title extraction.
+_NUMBERED_PREFIX_RE = re.compile(r"^\s*(?:\[\d+\]|\d+[.)]\s)\s*")
+# Matches PubMed IDs (7-8 digits) in reference strings: "PMID: 29461966"
+_PMID_RE = re.compile(r"\bPMID\s*[: ]+(\d{7,8})\b", re.IGNORECASE)
+# Matches IEEE Xplore article numbers from URLs: ieeexplore.ieee.org/document/8099833
+_IEEE_XPLORE_URL_RE = re.compile(
+    r"ieeexplore\.ieee\.org/(?:abstract/)?document/(\d+)",
+    re.IGNORECASE,
+)
 
 
 def _extract_title_from_raw_reference(raw_reference: str) -> str | None:
     """Extract a paper title from a raw reference string when extracted_title is unavailable.
 
-    Covers APA (Author (Year). Title. Venue.) and numbered formats ([1] / 1.).
-    Returns None when no reliable title can be found (too short or no year anchor).
+    Covers APA/Harvard (year before title) and numbered formats ([N] / N. where year
+    is at the end). Returns None when no reliable title can be found.
     """
     if not raw_reference:
         return None
+
+    # Primary: year-anchored extraction (APA, SMJ/Harvard — year before title)
     m = _RAW_REF_TITLE_RE.search(raw_reference)
     if m:
         title = m.group(1).strip().rstrip(".")
         if len(title) >= 10:
             return title
+
+    # Fallback: numbered reference format — [N] or N. prefix, year at the end
+    # e.g. "[1] Brown T, Mann B. Language Models are Few-Shot Learners. NeurIPS, 2020."
+    # Strategy: strip prefix, split on ". Uppercase" sentence boundaries, collect
+    # segments >= 10 chars (filters out initials like "T"), return the second one
+    # (the first is authors; the second is typically the title).
+    prefix_m = _NUMBERED_PREFIX_RE.match(raw_reference)
+    if prefix_m:
+        rest = raw_reference[prefix_m.end():]
+        parts = [p.strip().rstrip(".") for p in re.split(r"\.\s+(?=[A-Z])", rest)]
+        long_parts = [p for p in parts if len(p) >= 10]
+        if len(long_parts) >= 2:
+            return long_parts[1]
+        if len(long_parts) == 1:
+            return long_parts[0]
+
     return None
 
 
@@ -73,6 +100,27 @@ def _extract_openreview_id(raw_reference: str) -> str | None:
     Returns None when no OpenReview URL is found.
     """
     m = _OPENREVIEW_URL_RE.search(raw_reference)
+    return m.group(1) if m else None
+
+
+def _extract_pmid(raw_reference: str) -> str | None:
+    """Extract a PubMed ID from a raw reference string (e.g. 'PMID: 29461966').
+
+    Returns the numeric ID string or None when no PMID is found.
+    """
+    m = _PMID_RE.search(raw_reference)
+    return m.group(1) if m else None
+
+
+def _extract_ieee_article_number(raw_reference: str) -> str | None:
+    """Extract an IEEE Xplore article number from an ieeexplore.ieee.org URL.
+
+    Handles:
+        https://ieeexplore.ieee.org/document/8099833
+        https://ieeexplore.ieee.org/abstract/document/8099833
+    Returns the article number string or None.
+    """
+    m = _IEEE_XPLORE_URL_RE.search(raw_reference)
     return m.group(1) if m else None
 
 
@@ -287,6 +335,7 @@ class MetadataLookupService:
         google_books_client: GoogleBooksClient | None = None,
         doi_resolver_client: DoiResolverClient | None = None,
         openreview_client: OpenReviewClient | None = None,
+        ieee_xplore_client: IEEEXploreClient | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.crossref_client = crossref_client or CrossrefClient(self.settings)
@@ -299,6 +348,7 @@ class MetadataLookupService:
         self.google_books_client = google_books_client or GoogleBooksClient(self.settings)
         self.doi_resolver_client = doi_resolver_client or DoiResolverClient(self.settings)
         self.openreview_client = openreview_client or OpenReviewClient(self.settings)
+        self.ieee_xplore_client = ieee_xplore_client or IEEEXploreClient(self.settings)
 
     def verify_reference_doi(self, reference_id: str, db: Session, *, request_id: str | None = None, force_refresh: bool = False) -> dict[str, Any]:
         reference = ReferenceRepository(db).get(reference_id)
@@ -456,6 +506,39 @@ class MetadataLookupService:
                         extra={"reference_id": reference.id, "openreview_id": openreview_id, "error_code": or_response.error_code},
                     )
 
+            # PMID lookup — biomedical references sometimes list a PubMed ID instead
+            # of a DOI (e.g. "PMID: 29461966"). PubMed's esummary maps it directly
+            # to a registered DOI via the articleids array.
+            if not doi:
+                pmid = _extract_pmid(reference.raw_reference or "")
+                if pmid:
+                    pmid_response = self.pubmed_client.lookup_by_pmid(pmid)
+                    if pmid_response.success and pmid_response.doi:
+                        resolved_doi = normalize_doi_for_lookup(pmid_response.doi)
+                        if resolved_doi:
+                            doi = resolved_doi
+                            reference.extracted_doi = doi
+                            logger.info(
+                                "doi_resolved_via_pmid",
+                                extra={"reference_id": reference.id, "pmid": pmid, "found_doi": doi},
+                            )
+
+            # IEEE Xplore lookup — references with ieeexplore.ieee.org/document/N URLs
+            # can be resolved to a DOI via the IEEE Xplore API (requires API key).
+            if not doi and self.settings.ieee_xplore_api_key:
+                ieee_id = _extract_ieee_article_number(reference.raw_reference or "")
+                if ieee_id:
+                    ieee_response = self.ieee_xplore_client.lookup_by_article_number(ieee_id)
+                    if ieee_response.success and ieee_response.doi:
+                        resolved_doi = normalize_doi_for_lookup(ieee_response.doi)
+                        if resolved_doi:
+                            doi = resolved_doi
+                            reference.extracted_doi = doi
+                            logger.info(
+                                "doi_resolved_via_ieee_xplore",
+                                extra={"reference_id": reference.id, "ieee_id": ieee_id, "found_doi": doi},
+                            )
+
             # Title-based DOI lookup: try CrossRef → OpenAlex → SemanticScholar in
             # Order of rate-limit generosity: CrossRef and OpenAlex (unlimited with
             # polite-pool mailto), PubMed (< 3 req/sec, very generous), then
@@ -581,6 +664,29 @@ class MetadataLookupService:
                         reference.extracted_doi = doi
                         logger.info(
                             "doi_resolved_via_raw_reference",
+                            extra={"reference_id": reference.id, "found_doi": doi},
+                        )
+
+        # SemanticScholar raw-reference fallback — if CrossRef's bibliographic search
+        # also failed, try the same raw string against Semantic Scholar. SS has
+        # superior coverage of CS, ML, and preprint papers. The title-match gate
+        # in search_by_title checks whether the result title is a *substring* of our
+        # query string — which passes here because the raw reference includes the title.
+        if not doi and self.settings.metadata_lookup_enabled:
+            raw_query = (reference.raw_reference or "")[:200].strip()
+            if raw_query and raw_query != search_title:
+                ss_raw_response = self.semantic_scholar_client.search_by_title(
+                    title=raw_query,
+                    authors=None,  # author gate relaxed — raw query already embeds authors
+                    year=reference.extracted_year,
+                )
+                if ss_raw_response.success and ss_raw_response.doi:
+                    resolved_doi = normalize_doi_for_lookup(ss_raw_response.doi)
+                    if resolved_doi:
+                        doi = resolved_doi
+                        reference.extracted_doi = doi
+                        logger.info(
+                            "doi_resolved_via_ss_raw_reference",
                             extra={"reference_id": reference.id, "found_doi": doi},
                         )
 

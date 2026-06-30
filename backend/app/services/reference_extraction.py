@@ -48,6 +48,13 @@ ARXIV_ID_REGEX = re.compile(
     r"(?:arxiv\.org/(?:abs|pdf)/|arXiv\s*[: ]\s*)(\d{4}\.\d{4,5})(?:v\d+)?(?:\.pdf)?",
     re.IGNORECASE,
 )
+# Matches SSRN abstract URLs in all common forms:
+#   ssrn.com/abstract=1234567
+#   papers.ssrn.com/sol3/papers.cfm?abstract_id=1234567
+_SSRN_URL_RE = re.compile(
+    r"ssrn\.com/(?:[^?]*\?)?(?:abstract_id|abstract)=(\d+)",
+    re.IGNORECASE,
+)
 YEAR_REGEX = re.compile(r"\b((?:19|20)\d{2})(?:[a-z])?\b")
 
 REFERENCE_HEADING_REGEX = re.compile(
@@ -508,6 +515,14 @@ class ReferenceExtractionService:
         arxiv_match = ARXIV_ID_REGEX.search(repaired)
         if arxiv_match:
             doi = f"10.48550/arXiv.{arxiv_match.group(1)}"
+            return DoiExtractionResult(extracted_doi=doi, doi_status=DoiStatus.FOUND.value)
+
+        # Convert SSRN abstract URLs to their registered DOI (10.2139/ssrn.XXXXXXX).
+        # SSRN hosts working papers for management, economics, and social science;
+        # abstract IDs map 1:1 to the CrossRef-registered DOI prefix 10.2139/ssrn.
+        ssrn_match = _SSRN_URL_RE.search(repaired)
+        if ssrn_match:
+            doi = f"10.2139/ssrn.{ssrn_match.group(1)}"
             return DoiExtractionResult(extracted_doi=doi, doi_status=DoiStatus.FOUND.value)
 
         return DoiExtractionResult(extracted_doi=None, doi_status=DoiStatus.MISSING.value)
