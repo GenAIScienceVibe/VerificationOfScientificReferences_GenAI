@@ -2025,3 +2025,120 @@ class OpenReviewClient:
             url=f"https://openreview.net/forum?id={note.get('id', '')}",
             raw_metadata_json=note,
         )
+
+
+class DblpClient:
+    """DBLP computer science bibliography client for title-based DOI resolution.
+
+    DBLP has near-complete coverage of CS, ML, AI, and systems conferences
+    (ICML, NeurIPS, ICLR, CVPR, ACL, VLDB, SIGMOD, etc.) and journals,
+    with registered DOIs for virtually all papers since ~2010. No authentication
+    required. Used as a final stop in the title-based DOI resolution chain for
+    papers that CrossRef, OpenAlex, PubMed, and SemanticScholar all missed.
+
+    API: https://dblp.org/search/publ/api?q={title}&format=json&h=3
+    """
+
+    _BASE = "https://dblp.org/search/publ/api"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def search_by_title(
+        self,
+        title: str,
+        authors: str | None = None,
+        year: int | None = None,
+    ) -> MetadataLookupResponse:
+        """Search DBLP for a paper by title and return DOI + metadata on a confident match.
+
+        Applies the same false-match gates as other title searchers:
+        title substring match, year ±1, first-author last name.
+        """
+        params = {"q": title.strip(), "format": "json", "h": "3"}
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                r = self._client.get(self._BASE, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                    r = client.get(self._BASE, headers=headers, params=params)
+            if r.status_code != 200:
+                return MetadataLookupResponse(
+                    success=False, lookup_source="DBLP",
+                    lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                    status_code=r.status_code,
+                    error_code="DOI_LOOKUP_FAILED",
+                    error_message=f"DBLP returned HTTP {r.status_code}.",
+                )
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(
+                success=False, lookup_source="DBLP",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message=str(exc),
+            )
+
+        try:
+            payload = r.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="DBLP",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="DBLP returned malformed JSON.",
+            )
+
+        hits = (payload.get("result") or {}).get("hits") or {}
+        hit_list = hits.get("hit") or []
+        if not hit_list:
+            return MetadataLookupResponse(
+                success=False, lookup_source="DBLP",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message="DBLP title search returned no results.",
+            )
+
+        for hit in hit_list:
+            info = hit.get("info") or {}
+            result_title = _first_string(info.get("title")) or ""
+            if not _title_matches(title, result_title):
+                continue
+            result_year: int | None = None
+            try:
+                result_year = int(info.get("year") or 0) or None
+            except (TypeError, ValueError):
+                pass
+            if year is not None and result_year is not None and abs(year - result_year) > 1:
+                continue
+            # DBLP returns authors as a string when there is only one author, and
+            # as a list of strings when there are multiple — normalize both cases.
+            authors_raw = (info.get("authors") or {}).get("author") or []
+            if isinstance(authors_raw, str):
+                authors_raw = [authors_raw]
+            result_authors = [str(a).strip() for a in authors_raw if a]
+            if authors and result_authors and not _first_author_matches(authors, result_authors):
+                continue
+            found_doi = _first_string(info.get("doi")) or None
+            return MetadataLookupResponse(
+                success=True,
+                lookup_source="DBLP-TitleSearch",
+                lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+                doi=found_doi,
+                title=result_title or None,
+                authors=result_authors or None,
+                year=result_year,
+                venue=_first_string(info.get("venue")) or None,
+                url=_first_string(info.get("url")) or None,
+                raw_metadata_json=info,
+                status_code=r.status_code,
+            )
+
+        return MetadataLookupResponse(
+            success=False, lookup_source="DBLP",
+            lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+            error_code="METADATA_UNAVAILABLE",
+            error_message="DBLP title search found results but none passed false-match gates.",
+        )

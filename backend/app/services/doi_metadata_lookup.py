@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 import pymupdf
 
-from app.clients.metadata_clients import ArXivAPIClient, CoreClient, CrossrefClient, DoiResolverClient, EuropePMCClient, GoogleBooksClient, IEEEXploreClient, MetadataLookupResponse, OpenAlexClient, OpenReviewClient, PubMedClient, SemanticScholarClient, SsrnClient, UnpaywallClient
+from app.clients.metadata_clients import ArXivAPIClient, CoreClient, CrossrefClient, DblpClient, DoiResolverClient, EuropePMCClient, GoogleBooksClient, IEEEXploreClient, MetadataLookupResponse, OpenAlexClient, OpenReviewClient, PubMedClient, SemanticScholarClient, SsrnClient, UnpaywallClient
 from app.core.config import Settings, get_settings
 from app.core.errors import AppException, ErrorCode
 from app.models import Document, Reference, SourceMetadata
@@ -352,6 +352,7 @@ class MetadataLookupService:
         ieee_xplore_client: IEEEXploreClient | None = None,
         arxiv_api_client: ArXivAPIClient | None = None,
         europe_pmc_client: EuropePMCClient | None = None,
+        dblp_client: DblpClient | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.crossref_client = crossref_client or CrossrefClient(self.settings)
@@ -367,6 +368,7 @@ class MetadataLookupService:
         self.ieee_xplore_client = ieee_xplore_client or IEEEXploreClient(self.settings)
         self.arxiv_api_client = arxiv_api_client or ArXivAPIClient(self.settings)
         self.europe_pmc_client = europe_pmc_client or EuropePMCClient(self.settings)
+        self.dblp_client = dblp_client or DblpClient(self.settings)
 
     def verify_reference_doi(self, reference_id: str, db: Session, *, request_id: str | None = None, force_refresh: bool = False) -> dict[str, Any]:
         reference = ReferenceRepository(db).get(reference_id)
@@ -590,6 +592,11 @@ class MetadataLookupService:
                         authors=reference.extracted_authors,
                         year=reference.extracted_year,
                     )),
+                    ("DBLP-TitleSearch", lambda: self.dblp_client.search_by_title(
+                        title=search_title,
+                        authors=reference.extracted_authors,
+                        year=reference.extracted_year,
+                    )),
                 ]
                 # CORE is added only when an API key is configured — the API requires auth.
                 if self.settings.core_api_key:
@@ -623,6 +630,36 @@ class MetadataLookupService:
                                 "error_code": title_response.error_code,
                             },
                         )
+
+        # Short-title retry — if the full title failed all searchers, re-try with
+        # just the first 6 words. Long titles with subtitles (e.g. "Attention Is All
+        # You Need: A Comprehensive Study") sometimes fail because the subtitle or
+        # trailing phrase doesn't match the canonical title stored in CrossRef/DBLP.
+        # Only CrossRef and DBLP are used here to keep latency low.
+        if not doi and search_title and self.settings.metadata_lookup_enabled:
+            title_words = search_title.split()
+            if len(title_words) > 6:
+                short_title = " ".join(title_words[:6])
+                short_title_searchers = [
+                    ("CrossRef-ShortTitle", self.crossref_client, short_title),
+                    ("DBLP-ShortTitle", self.dblp_client, short_title),
+                ]
+                for short_source, short_client, stitle in short_title_searchers:
+                    short_response = short_client.search_by_title(
+                        title=stitle,
+                        authors=reference.extracted_authors,
+                        year=reference.extracted_year,
+                    )
+                    if short_response.success and short_response.doi:
+                        resolved_doi = normalize_doi_for_lookup(short_response.doi)
+                        if resolved_doi:
+                            doi = resolved_doi
+                            reference.extracted_doi = doi
+                            logger.info(
+                                "doi_resolved_via_short_title",
+                                extra={"reference_id": reference.id, "found_doi": doi, "lookup_source": short_source},
+                            )
+                            break
 
         # ISBN fallback — for textbooks that lack DOIs but include an ISBN in
         # the reference string (e.g. "ISBN 978-1-4625-2175-4"). CrossRef indexes
