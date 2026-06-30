@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 import pymupdf
 
-from app.clients.metadata_clients import CoreClient, CrossrefClient, DoiResolverClient, GoogleBooksClient, MetadataLookupResponse, OpenAlexClient, PubMedClient, SemanticScholarClient, SsrnClient, UnpaywallClient
+from app.clients.metadata_clients import CoreClient, CrossrefClient, DoiResolverClient, GoogleBooksClient, MetadataLookupResponse, OpenAlexClient, OpenReviewClient, PubMedClient, SemanticScholarClient, SsrnClient, UnpaywallClient
 from app.core.config import Settings, get_settings
 from app.core.errors import AppException, ErrorCode
 from app.models import Document, Reference, SourceMetadata
@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 
 DOI_CANDIDATE_REGEX = re.compile(r"(?:https?://(?:dx\.)?doi\.org/|doi\s*[: ]\s*)?(10\.\d{4,9}/\S+)", re.IGNORECASE)
 _ARXIV_DOI_RE = re.compile(r"10\.48550/arxiv\.(\d{4}\.\d{4,5}(?:v\d+)?)", re.IGNORECASE)
+# Matches openreview.net forum, pdf, and abstract URL variants; captures the submission ID.
+_OPENREVIEW_URL_RE = re.compile(
+    r"openreview\.net/(?:forum|pdf|abstract)\?id=([\w-]+)",
+    re.IGNORECASE,
+)
 
 # Matches the title after a year anchor in common reference formats:
 #   APA:              Smith, J. (2023). Title. Journal.
@@ -56,6 +61,19 @@ def _extract_title_from_raw_reference(raw_reference: str) -> str | None:
 _ISBN_RE = re.compile(
     r"\b(?:97[89][-\s]?(?:\d[-\s]?){9}\d|(?:\d[-\s]?){9}[\dXx])\b"
 )
+
+
+def _extract_openreview_id(raw_reference: str) -> str | None:
+    """Extract an OpenReview submission ID from a raw reference string.
+
+    Handles all three URL variants used by the OpenReview platform:
+        https://openreview.net/forum?id=XYZ
+        https://openreview.net/pdf?id=XYZ
+        https://openreview.net/abstract?id=XYZ
+    Returns None when no OpenReview URL is found.
+    """
+    m = _OPENREVIEW_URL_RE.search(raw_reference)
+    return m.group(1) if m else None
 
 
 def _extract_isbn(raw_reference: str) -> str | None:
@@ -268,6 +286,7 @@ class MetadataLookupService:
         pubmed_client: PubMedClient | None = None,
         google_books_client: GoogleBooksClient | None = None,
         doi_resolver_client: DoiResolverClient | None = None,
+        openreview_client: OpenReviewClient | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.crossref_client = crossref_client or CrossrefClient(self.settings)
@@ -279,6 +298,7 @@ class MetadataLookupService:
         self.pubmed_client = pubmed_client or PubMedClient(self.settings)
         self.google_books_client = google_books_client or GoogleBooksClient(self.settings)
         self.doi_resolver_client = doi_resolver_client or DoiResolverClient(self.settings)
+        self.openreview_client = openreview_client or OpenReviewClient(self.settings)
 
     def verify_reference_doi(self, reference_id: str, db: Session, *, request_id: str | None = None, force_refresh: bool = False) -> dict[str, Any]:
         reference = ReferenceRepository(db).get(reference_id)
@@ -400,6 +420,42 @@ class MetadataLookupService:
         # The local missing/malformed handling below remains available so mock
         # and offline pipelines persist safe statuses without provider calls.
         if not doi and self.settings.metadata_lookup_enabled:
+            # OpenReview lookup — NeurIPS, ICLR, ICML, and other ML-venue papers are
+            # often cited with only an openreview.net URL and no DOI. Calling the API
+            # yields the paper title (and occasionally a registered DOI), which is then
+            # fed into the title chain below. This runs first so the title chain has
+            # the best possible search string.
+            openreview_id = _extract_openreview_id(reference.raw_reference or "")
+            if openreview_id:
+                or_response = self.openreview_client.lookup_by_id(openreview_id)
+                if or_response.success:
+                    if or_response.doi:
+                        resolved_doi = normalize_doi_for_lookup(or_response.doi)
+                        if resolved_doi:
+                            doi = resolved_doi
+                            reference.extracted_doi = doi
+                            logger.info(
+                                "doi_resolved_via_openreview",
+                                extra={"reference_id": reference.id, "openreview_id": openreview_id, "found_doi": doi},
+                            )
+                    if not doi and or_response.title and not reference.extracted_title:
+                        # No registered DOI from OpenReview; inject title so the
+                        # title chain has a reliable search string.
+                        reference.extracted_title = or_response.title
+                        if not reference.extracted_authors and or_response.authors:
+                            reference.extracted_authors = "; ".join(or_response.authors)
+                        if not reference.extracted_year and or_response.year:
+                            reference.extracted_year = or_response.year
+                        logger.info(
+                            "openreview_title_injected",
+                            extra={"reference_id": reference.id, "openreview_id": openreview_id, "title": or_response.title},
+                        )
+                else:
+                    logger.info(
+                        "openreview_lookup_failed",
+                        extra={"reference_id": reference.id, "openreview_id": openreview_id, "error_code": or_response.error_code},
+                    )
+
             # Title-based DOI lookup: try CrossRef → OpenAlex → SemanticScholar in
             # Order of rate-limit generosity: CrossRef and OpenAlex (unlimited with
             # polite-pool mailto), PubMed (< 3 req/sec, very generous), then
@@ -411,7 +467,7 @@ class MetadataLookupService:
             # Prefer the structured extracted_title; fall back to parsing raw_reference
             # when the reference parser could not isolate the title (non-standard format).
             search_title = (reference.extracted_title or "").strip() or _extract_title_from_raw_reference(reference.raw_reference)
-            if search_title:
+            if search_title and not doi:
                 _title_searchers = [
                     ("CrossRef-TitleSearch", lambda: self.crossref_client.search_by_title(
                         title=search_title,

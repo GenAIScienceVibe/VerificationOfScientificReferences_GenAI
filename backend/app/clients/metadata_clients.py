@@ -1506,3 +1506,120 @@ class DoiResolverClient:
 
     def resolver_url(self, doi: str) -> str:
         return f"{self.base_url}/{doi}"
+
+
+class OpenReviewClient:
+    """OpenReview API client for ML conference papers (NeurIPS, ICLR, ICML, etc.).
+
+    Papers cited via https://openreview.net/forum?id=XYZ can be looked up by their
+    submission ID to retrieve title, authors, and year. Since registered DOIs are
+    rarely stored in OpenReview metadata, the primary value is providing a reliable
+    paper title to feed into the existing title-based DOI resolution chain.
+
+    API v2 (preferred, NeurIPS 2023+, ICLR 2024+): https://api2.openreview.net/notes?id=
+    API v1 (fallback, older submissions):            https://api.openreview.net/notes?id=
+    """
+
+    _V2_BASE = "https://api2.openreview.net"
+    _V1_BASE = "https://api.openreview.net"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def lookup_by_id(self, openreview_id: str) -> MetadataLookupResponse:
+        """Return title/authors/year for an OpenReview submission ID.
+
+        Tries v2 API first, falls back to v1 for older submissions. DOI is rarely
+        present in OpenReview metadata — callers should pipe the returned title into
+        the title-based DOI resolution chain.
+        """
+        for base_url in (self._V2_BASE, self._V1_BASE):
+            note = self._get_note(base_url, openreview_id)
+            if note is not None:
+                return self._parse_note(note, is_v2=("api2" in base_url))
+
+        return MetadataLookupResponse(
+            success=False,
+            lookup_source="OpenReview",
+            lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+            error_code="METADATA_SERVICE_UNAVAILABLE",
+            error_message=f"OpenReview returned no note for id={openreview_id!r}.",
+        )
+
+    def _get_note(self, base_url: str, openreview_id: str) -> dict[str, Any] | None:
+        """Fetch the first note dict from the OpenReview API, or return None on any error."""
+        url = f"{base_url}/notes"
+        params = {"id": openreview_id}
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                r = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                    r = client.get(url, headers=headers, params=params)
+            if r.status_code != 200:
+                return None
+            payload = r.json()
+            notes = payload.get("notes") if isinstance(payload, dict) else None
+            if not notes or not isinstance(notes, list) or not isinstance(notes[0], dict):
+                return None
+            return notes[0]
+        except Exception:
+            return None
+
+    def _parse_note(self, note: dict[str, Any], *, is_v2: bool) -> MetadataLookupResponse:
+        """Extract title/authors/year/doi from a raw OpenReview note dict.
+
+        v2 wraps each content field as {"value": ...}; v1 uses plain string/list values.
+        """
+        content = note.get("content") or {}
+
+        def _field(key: str) -> Any:
+            v = content.get(key)
+            return v.get("value") if (is_v2 and isinstance(v, dict)) else v
+
+        title = _first_string(_field("title"))
+        if not title:
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="OpenReview",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message="OpenReview note contains no title.",
+            )
+
+        authors_raw = _field("authors")
+        authors = [str(a).strip() for a in authors_raw if a] if isinstance(authors_raw, list) else []
+
+        year: int | None = None
+        raw_year = _field("year")
+        if raw_year is not None:
+            try:
+                year = int(raw_year)
+            except (TypeError, ValueError):
+                pass
+        if year is None:
+            # Venue IDs like "NeurIPS.cc/2023/Conference" encode the year
+            venue_id = str(_field("venueid") or "")
+            m = re.search(r"\b(20\d{2})\b", venue_id)
+            if m:
+                year = int(m.group(1))
+
+        doi_raw = _field("doi")
+        doi = str(doi_raw).strip() if doi_raw else None
+
+        return MetadataLookupResponse(
+            success=True,
+            lookup_source="OpenReview",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            doi=doi or None,
+            title=title,
+            authors=authors or None,
+            year=year,
+            venue=_first_string(_field("venue") or _field("venueid")),
+            abstract=_first_string(_field("abstract")),
+            url=f"https://openreview.net/forum?id={note.get('id', '')}",
+            raw_metadata_json=note,
+        )
