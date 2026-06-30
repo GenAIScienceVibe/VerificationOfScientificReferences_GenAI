@@ -41,6 +41,9 @@ _RAW_REF_TITLE_RE = re.compile(
 )
 # Strips [N] or N. prefix from numbered references before title extraction.
 _NUMBERED_PREFIX_RE = re.compile(r"^\s*(?:\[\d+\]|\d+[.)]\s)\s*")
+# Matches quoted titles common in IEEE-style references:
+#   [1] F. Smith, "Deep Learning for X," IEEE Trans., 2019.
+_QUOTED_TITLE_RE = re.compile(r'["“]([^"”]{10,})["”]')
 # Matches PubMed IDs (7-8 digits) in reference strings: "PMID: 29461966"
 _PMID_RE = re.compile(r"\bPMID\s*[: ]+(\d{7,8})\b", re.IGNORECASE)
 # Matches IEEE Xplore article numbers from URLs: ieeexplore.ieee.org/document/8099833
@@ -63,6 +66,17 @@ def _extract_title_from_raw_reference(raw_reference: str) -> str | None:
     m = _RAW_REF_TITLE_RE.search(raw_reference)
     if m:
         title = m.group(1).strip().rstrip(".")
+        if len(title) >= 10:
+            return title
+
+    # Fallback: quoted title — IEEE style places the title in double quotes:
+    #   [1] F. Smith, "Deep Learning for X," IEEE Trans., 2019.
+    # Checked before the numbered heuristic because quotes are more precise —
+    # the numbered split can merge author names with the quoted title otherwise.
+    # Handles both ASCII " and Unicode " " curly quotes from PDFs.
+    qm = _QUOTED_TITLE_RE.search(raw_reference)
+    if qm:
+        title = qm.group(1).strip().rstrip(".,")
         if len(title) >= 10:
             return title
 
