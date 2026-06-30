@@ -62,7 +62,7 @@ function getDoiStatusExplanation(doiStatus, evidenceAvailability) {
         return { text: 'DOI resolved to a preprint — contents may differ from the final published version.', color: '#d97706' }
       return null
     case 'INVALID':
-      return { text: 'The DOI does not exist or is malformed — this citation could not be verified and may be fabricated.', color: '#6b21a8' }
+      return null
     case 'UNRESOLVABLE':
       return { text: 'The DOI was found but could not be resolved — the source may be unavailable, retracted, or incorrectly cited.', color: '#dc2626' }
     case 'MISSING':
@@ -228,6 +228,18 @@ function ResultsPage() {
     if (activeFilter === "Insufficient Evidence") return claim.status === "insufficient"
     return true
   })
+
+  const getHumanReviewReason = (doiStatus, evidenceAvailability) => {
+    if (doiStatus === 'INVALID' || doiStatus === 'UNRESOLVABLE')
+      return 'The DOI does not resolve to an existing publication — this citation may not exist or could be fabricated.'
+    if (doiStatus === 'MISSING')
+      return 'No DOI was found for this reference, so the source could not be automatically located.'
+    if (doiStatus === 'MALFORMED')
+      return 'The DOI in this reference is malformed and could not be looked up.'
+    if (evidenceAvailability === 'METADATA_ONLY')
+      return 'The source was found but only metadata is available — the full text could not be accessed to check the claim.'
+    return 'The source was found but there was not enough evidence to confidently verify this claim automatically.'
+  }
 
   const getConfidenceColor = (c) => {
     if (c > 0.7) return "#16a34a"
@@ -505,30 +517,17 @@ function ResultsPage() {
                             {claim.authorLine}
                           </p>
                         )}
-                        <div style={{ display: "flex", gap: "8px", marginBottom: doiExplanation ? "6px" : claim.safetyRules.length > 0 ? "8px" : "16px", flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: "8px", marginBottom: doiExplanation ? "6px" : "16px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
                             {claim.doiResolved ? "✓ DOI resolved" : "✗ DOI unresolved"}
                           </span>
                         </div>
                         {doiExplanation && (
-                          <p style={{ fontSize: "12px", color: doiExplanation.color, marginBottom: claim.safetyRules.length > 0 ? "8px" : "16px", lineHeight: "1.5" }}>
+                          <p style={{ fontSize: "12px", color: doiExplanation.color, marginBottom: "16px", lineHeight: "1.5" }}>
                             {doiExplanation.text}
                           </p>
                         )}
 
-                        {claim.safetyRules.length > 0 && (
-                          <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
-                            {[...new Set(claim.safetyRules.map(r => SAFETY_RULE_LABELS[r] ?? r))].map(label => (
-                              <span key={label} style={{
-                                fontSize: "11px", fontWeight: "600", color: "#92400e",
-                                background: "#fef3c7", padding: "3px 10px",
-                                borderRadius: "99px", border: "1px solid #fcd34d"
-                              }}>
-                                {label}
-                              </span>
-                            ))}
-                          </div>
-                        )}
 
                         <div style={{ background: "#f8f8f8", borderRadius: "8px", padding: "16px", marginBottom: claim.warning || similarityHint ? "12px" : "16px" }}>
                           <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "8px" }}>AI REASONING</p>
@@ -560,6 +559,9 @@ function ResultsPage() {
                         {claim.warning && (
                           <div style={{ background: "#fffbeb", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
                             <p style={{ fontSize: "13px", color: "#d97706", lineHeight: "1.5" }}>{claim.warning}</p>
+                            <p style={{ fontSize: "13px", color: "#d97706", lineHeight: "1.6", marginTop: "6px" }}>
+                              {getHumanReviewReason(claim.doiStatus, claim.evidenceAvailability)}
+                            </p>
                           </div>
                         )}
 
