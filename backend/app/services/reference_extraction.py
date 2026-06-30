@@ -40,6 +40,13 @@ DOI_WITH_PREFIX_REGEX = re.compile(
     re.IGNORECASE,
 )
 DOI_LIKE_REGEX = re.compile(r"(?:doi\s*[: ]\s*|doi\.org/|dx\.doi\.org/)?(10\.\S+)", re.IGNORECASE)
+# Matches arXiv IDs in any of these forms:
+#   arXiv:1706.03762  |  arXiv:1706.03762v2  |  arxiv.org/abs/1706.03762
+# Captured group 1 is the bare ID (without version suffix).
+ARXIV_ID_REGEX = re.compile(
+    r"(?:arxiv\.org/abs/|arXiv\s*[: ]\s*)(\d{4}\.\d{4,5})(?:v\d+)?",
+    re.IGNORECASE,
+)
 YEAR_REGEX = re.compile(r"\b((?:19|20)\d{2})(?:[a-z])?\b")
 
 REFERENCE_HEADING_REGEX = re.compile(
@@ -495,6 +502,12 @@ class ReferenceExtractionService:
             re.IGNORECASE,
         ):
             return DoiExtractionResult(extracted_doi=None, doi_status=DoiStatus.MALFORMED.value)
+
+        # Convert arXiv IDs to their registered DOI (10.48550/arXiv.XXXX.XXXXX).
+        arxiv_match = ARXIV_ID_REGEX.search(repaired)
+        if arxiv_match:
+            doi = f"10.48550/arXiv.{arxiv_match.group(1)}"
+            return DoiExtractionResult(extracted_doi=doi, doi_status=DoiStatus.FOUND.value)
 
         return DoiExtractionResult(extracted_doi=None, doi_status=DoiStatus.MISSING.value)
 
