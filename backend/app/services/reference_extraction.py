@@ -40,6 +40,21 @@ DOI_WITH_PREFIX_REGEX = re.compile(
     re.IGNORECASE,
 )
 DOI_LIKE_REGEX = re.compile(r"(?:doi\s*[: ]\s*|doi\.org/|dx\.doi\.org/)?(10\.\S+)", re.IGNORECASE)
+# Matches arXiv IDs in any of these forms:
+#   arXiv:1706.03762  |  arXiv:1706.03762v2
+#   arxiv.org/abs/1706.03762  |  arxiv.org/pdf/1706.03762.pdf
+# Captured group 1 is the bare ID (without version suffix or .pdf extension).
+ARXIV_ID_REGEX = re.compile(
+    r"(?:arxiv\.org/(?:abs|pdf)/|arXiv\s*[: ]\s*)(\d{4}\.\d{4,5})(?:v\d+)?(?:\.pdf)?",
+    re.IGNORECASE,
+)
+# Matches SSRN abstract URLs in all common forms:
+#   ssrn.com/abstract=1234567
+#   papers.ssrn.com/sol3/papers.cfm?abstract_id=1234567
+_SSRN_URL_RE = re.compile(
+    r"ssrn\.com/(?:[^?]*\?)?(?:abstract_id|abstract)=(\d+)",
+    re.IGNORECASE,
+)
 YEAR_REGEX = re.compile(r"\b((?:19|20)\d{2})(?:[a-z])?\b")
 
 REFERENCE_HEADING_REGEX = re.compile(
@@ -496,6 +511,20 @@ class ReferenceExtractionService:
         ):
             return DoiExtractionResult(extracted_doi=None, doi_status=DoiStatus.MALFORMED.value)
 
+        # Convert arXiv IDs to their registered DOI (10.48550/arXiv.XXXX.XXXXX).
+        arxiv_match = ARXIV_ID_REGEX.search(repaired)
+        if arxiv_match:
+            doi = f"10.48550/arXiv.{arxiv_match.group(1)}"
+            return DoiExtractionResult(extracted_doi=doi, doi_status=DoiStatus.FOUND.value)
+
+        # Convert SSRN abstract URLs to their registered DOI (10.2139/ssrn.XXXXXXX).
+        # SSRN hosts working papers for management, economics, and social science;
+        # abstract IDs map 1:1 to the CrossRef-registered DOI prefix 10.2139/ssrn.
+        ssrn_match = _SSRN_URL_RE.search(repaired)
+        if ssrn_match:
+            doi = f"10.2139/ssrn.{ssrn_match.group(1)}"
+            return DoiExtractionResult(extracted_doi=doi, doi_status=DoiStatus.FOUND.value)
+
         return DoiExtractionResult(extracted_doi=None, doi_status=DoiStatus.MISSING.value)
 
     def extract_doi_inventory(self, text: str) -> list[str]:
@@ -660,7 +689,19 @@ class ReferenceExtractionService:
             return None
         remainder = after_year[1].strip()
         remainder = re.split(r"\s+(?:https?://(?:dx\.)?doi\.org/|doi\s*[: ]\s*)", remainder, maxsplit=1, flags=re.IGNORECASE)[0]
-        title_candidate = remainder.split(".")[0].strip(" .")
+        # Find the first "." that ends the title, ignoring periods inside parentheses
+        # (e.g. "(2nd ed.)") so edition/volume markers don't truncate the title early.
+        depth = 0
+        end = len(remainder)
+        for i, char in enumerate(remainder):
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth = max(0, depth - 1)
+            elif char == "." and depth == 0:
+                end = i
+                break
+        title_candidate = remainder[:end].strip(" .")
         if not title_candidate or len(title_candidate) < 3:
             return None
         return title_candidate[:1000]

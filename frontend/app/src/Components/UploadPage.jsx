@@ -1,12 +1,34 @@
 import { useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Mascot from './Mascot'
+import { getRecentDocuments } from '../api'
 
 function UploadPage() {
   const navigate = useNavigate()
   const [mainFile, setMainFile] = useState(null)
   const [showReferenceUpload, setShowReferenceUpload] = useState(false)
   const [referenceFiles, setReferenceFiles] = useState([])
+  const [recentDocs, setRecentDocs] = useState([])
+  const [showRecentDocs, setShowRecentDocs] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+
+  useEffect(() => {
+    getRecentDocuments(25).then(setRecentDocs).catch(() => {})
+  }, [])
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = () => setIsDragging(false)
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (file && file.type === 'application/pdf') setMainFile(file)
+  }
 
   const handleMainFileSelected = (e) => {
     const file = e.target.files[0]
@@ -45,20 +67,21 @@ function UploadPage() {
   backgroundPosition: "center 80%",
   backgroundRepeat: "no-repeat"
 }}>
-    <div style={{
-  position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-  background: "rgba(245,245,245,0.9)"
-}} />
+  
+  <div style={{
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    background: "rgba(245,245,245,0.9)"
+  }} />
 
-      <div style={{ maxWidth: "900px", width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
+  <div style={{ maxWidth: "900px", width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
 
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
-          <Mascot mood="idle" size={80} />
-        </div>
+    <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
+  <Mascot mood="idle" size={80} />
+</div>
 
-        <span style={{ background: "#dbeafe", color: "#1a3a6b", borderRadius: "20px", padding: "6px 16px", fontSize: "13px", fontWeight: "600" }}>
-          AI - Powered Verification
-        </span>
+    <span style={{ background: "#dbeafe", color: "#1a3a6b", borderRadius: "20px", padding: "6px 16px", fontSize: "13px", fontWeight: "600" }}>
+      AI - Powered Verification
+    </span>
 
         <h1 style={{ fontWeight: "800", fontSize: "42px", color: "#111", margin: "24px 0 16px" }}>
           Are your citations actually legit?
@@ -85,7 +108,7 @@ function UploadPage() {
         }}>
           {step.id}
         </div>
-        <span style={{ fontSize: "13px", color: "#555", lineHeight: "1.5", textAlign: "center", marginTop: "14px", width: "110px" }}>
+        <span style={{ fontSize: "12px", color: "#555", lineHeight: "1.5", textAlign: "center", marginTop: "10px", width: "80px" }}>
           {step.label}
         </span>
       </div>
@@ -94,10 +117,16 @@ function UploadPage() {
   ))}
 </div>
 
-        <div style={{
-          background: "white", borderRadius: "16px", padding: "60px 48px",
-          maxWidth: "600px", margin: "0 auto", boxShadow: "0 2px 16px rgba(0,0,0,0.07)"
-        }}>
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          style={{
+            background: "white", borderRadius: "16px", padding: "60px 48px",
+            maxWidth: "600px", margin: "0 auto", boxShadow: "0 2px 16px rgba(0,0,0,0.07)",
+            border: isDragging ? "2px dashed #1a3a6b" : "2px dashed transparent",
+            transition: "border 0.2s"
+          }}>
           {!mainFile ? (
             <>
               <div style={{ marginBottom: "16px" }}>
@@ -176,8 +205,11 @@ function UploadPage() {
                 style={{
                   width: "100%", background: "#1a3a6b", color: "white", border: "none",
                   borderRadius: "10px", padding: "14px", cursor: "pointer", fontSize: "15px",
-                  fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px"
-                }}>
+                  fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                  transition: "background 0.15s"
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#0f2a5a'}
+                onMouseLeave={e => e.currentTarget.style.background = '#1a3a6b'}>
                 Start verification
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M5 12h14M13 6l6 6-6 6"/>
@@ -273,6 +305,69 @@ function UploadPage() {
             </div>
           )}
         </div>
+
+        {recentDocs.length > 0 && (
+          <div style={{
+            background: "white", borderRadius: "16px", padding: "24px 32px",
+            maxWidth: "600px", margin: "20px auto 0", boxShadow: "0 2px 16px rgba(0,0,0,0.07)",
+            textAlign: "left"
+          }}>
+            <button
+              onClick={() => setShowRecentDocs(prev => !prev)}
+              style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "18px", width: "20px", flexShrink: 0, textAlign: "center" }}>🕓</span>
+                <div style={{ textAlign: "left", marginLeft: "8px" }}>
+                  <p style={{ fontWeight: "600", fontSize: "15px", color: "#111", margin: 0 }}>Recently Verified</p>
+                  <p style={{ color: "#888", fontSize: "13px", margin: "2px 0 0" }}>{recentDocs.length} document{recentDocs.length !== 1 ? "s" : ""} — click to view results</p>
+                </div>
+              </div>
+              <span style={{ fontSize: "20px", color: "#1a3a6b", transform: showRecentDocs ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>⌄</span>
+            </button>
+
+            {showRecentDocs && (
+              <div style={{ marginTop: "20px", borderTop: "1px solid #eee", paddingTop: "20px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                {recentDocs.map(doc => {
+                  const score = doc.credibility_score
+                  const scoreColor = score === null ? "#aaa" : score >= 80 ? "#16a34a" : score >= 50 ? "#d97706" : "#dc2626"
+                  const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString() : ""
+                  return (
+                    <div
+                      key={doc.document_id}
+                      onClick={() => navigate('/results', { state: { fileName: doc.filename, documentId: doc.document_id } })}
+                      style={{
+                        borderRadius: "10px", padding: "12px 16px", cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        border: "1px solid #eee", transition: "background 0.15s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px", overflow: "hidden" }}>
+                        <span style={{ fontSize: "18px", flexShrink: 0 }}>📄</span>
+                        <div style={{ overflow: "hidden" }}>
+                          <p style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "#111", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {doc.title || doc.filename}
+                          </p>
+                          <p style={{ margin: 0, fontSize: "12px", color: "#aaa", marginTop: "2px" }}>
+                            {date} · {doc.claims_count} claims
+                          </p>
+                        </div>
+                      </div>
+                      {score !== null && (
+                        <div style={{ flexShrink: 0, marginLeft: "16px", textAlign: "right" }}>
+                          <span style={{ fontSize: "16px", fontWeight: "700", color: scoreColor }}>{score}%</span>
+                          <p style={{ margin: 0, fontSize: "11px", color: "#aaa" }}>credibility</p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
     </div>

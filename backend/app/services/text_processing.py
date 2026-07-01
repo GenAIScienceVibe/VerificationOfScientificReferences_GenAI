@@ -112,7 +112,7 @@ def is_post_reference_stop_heading_line(line: str) -> bool:
     key = _heading_key(line) or ""
     if key in POST_REFERENCE_STOP_HEADINGS:
         return True
-    if re.fullmatch(r"appendix\s+[a-z]", key) or re.match(r"appendix\s+[a-z]\b", key):
+    if re.fullmatch(r"appendix\s+[a-z]", key):
         return True
     # Survey export pages are not always formatted as clean headings.
     stripped = line.strip().lower()
@@ -262,6 +262,21 @@ def clean_text(raw_text: str) -> str:
     """Clean extracted/submitted text without destroying citations, DOI strings, or reference lines."""
     text = raw_text.replace("\r\n", "\n").replace("\r", "\n")
     text = text.replace("\u00a0", " ")
+    # Strip soft hyphens (U+00AD) \u2014 PDFs insert these invisibly inside words and
+    # DOI strings, breaking regex matching without any visible indication.
+    text = text.replace("\u00ad", "")
+    # Normalize Unicode typography ligatures produced by LaTeX/PDF rendering.
+    # These look identical to their ASCII equivalents but are different code points,
+    # causing title-match and DOI-match failures in almost all LaTeX-generated papers.
+    text = (
+        text.replace("\ufb00", "ff")
+            .replace("\ufb01", "fi")
+            .replace("\ufb02", "fl")
+            .replace("\ufb03", "ffi")
+            .replace("\ufb04", "ffl")
+            .replace("\ufb05", "st")
+            .replace("\ufb06", "st")
+    )
     text = repair_doi_line_continuations(text)
     text = remove_repeated_page_artifacts(text)
     # Collapse horizontal whitespace but keep line breaks for headings/paragraphs.
@@ -321,7 +336,6 @@ def _find_heading_matches(text: str) -> list[tuple[str, int, int]]:
             or key in REFERENCE_HEADINGS
             or key in POST_REFERENCE_STOP_HEADINGS
             or re.fullmatch(r"appendix\s+[a-z]", key)
-            or re.match(r"appendix\s+[a-z]\b", key)
         ):
             # Prefer actual body headings over ToC-like headings in the first 20%.
             if key in REFERENCE_HEADINGS and line_start < total_len * 0.20:
@@ -387,7 +401,7 @@ def detect_basic_sections(cleaned_text: str) -> list[DetectedSection]:
             # References continue until a post-reference stop heading or EOF.
             content_end = len(text)
             for stop_key, stop_start, _ in matches[index + 1 :]:
-                if stop_key in POST_REFERENCE_STOP_HEADINGS or re.fullmatch(r"appendix\s+[a-z]", stop_key) or re.match(r"appendix\s+[a-z]\b", stop_key):
+                if stop_key in POST_REFERENCE_STOP_HEADINGS or re.fullmatch(r"appendix\s+[a-z]", stop_key):
                     content_end = stop_start
                     break
             _add_section(sections, "References", text[content_start:content_end])

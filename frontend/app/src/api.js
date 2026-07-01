@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://verificationofscientificreferencesgenai-production.up.railway.app'
 
 async function handleResponse(response) {
   let json = null
@@ -14,6 +14,11 @@ async function handleResponse(response) {
   }
 
   return json?.data
+}
+
+export async function getRecentDocuments(limit = 10) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/documents/?limit=${limit}`)
+  return handleResponse(response)
 }
 
 export async function uploadDocument(file) {

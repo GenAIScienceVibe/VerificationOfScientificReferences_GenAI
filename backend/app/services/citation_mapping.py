@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -8,6 +9,32 @@ from app.models import Reference
 from app.models.enums import MappingStatus
 
 YEAR_RE = re.compile(r"\b((?:19|20)\d{2})(?:[a-z])?\b")
+
+
+def _ascii_fold(s: str) -> str:
+    """Decompose accented/umlauted characters to their ASCII base letters.
+
+    Examples: 'Müller' → 'muller', 'García' → 'garcia', 'Høj' → 'hj'.
+    Applied before surname matching so that references stored with umlauts
+    (PDF encoding) match citations that dropped the diacritics, or vice versa.
+    """
+    return unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode("ascii").lower()
+
+
+def _reference_key_matches(reference_key: str | None, number: int) -> bool:
+    """Return True when reference_key unambiguously identifies *number*.
+
+    Matches:  [12]  12.  12)
+    Rejects:  [12, 13]  "see [12]"  (partial / compound strings)
+    """
+    if not reference_key:
+        return False
+    key = reference_key.strip()
+    n = str(number)
+    return bool(
+        re.fullmatch(r"\[" + n + r"\]", key)
+        or re.fullmatch(n + r"[.)]", key)
+    )
 
 
 @dataclass(frozen=True)
@@ -36,9 +63,18 @@ class CitationReferenceMapper:
             return [MappingCandidate(None, MappingStatus.UNCERTAIN.value, 0.0, "Could not parse numeric citation.")]
         mapped: list[MappingCandidate] = []
         for number in numbers:
+            # Preferred: match by reference_key ([N], N., N)) — independent of list order.
+            key_match = next(
+                (ref for ref in references if _reference_key_matches(ref.reference_key, number)),
+                None,
+            )
+            if key_match is not None:
+                mapped.append(MappingCandidate(key_match.id, MappingStatus.MAPPED.value, 0.97, f"Numeric citation [{number}] matched by reference_key."))
+                continue
+            # Fallback: position-based (assumes extractor preserved reference order).
             index = number - 1
             if 0 <= index < len(references):
-                mapped.append(MappingCandidate(references[index].id, MappingStatus.MAPPED.value, 0.95, f"Numeric citation [{number}] mapped by reference order."))
+                mapped.append(MappingCandidate(references[index].id, MappingStatus.MAPPED.value, 0.90, f"Numeric citation [{number}] mapped by reference list position (key not found)."))
             else:
                 mapped.append(MappingCandidate(None, MappingStatus.NO_MATCH.value, 0.0, f"Numeric citation [{number}] is outside the reference list range."))
         return mapped
@@ -113,20 +149,22 @@ class CitationReferenceMapper:
         return parsed
 
     def _find_reference_candidates(self, surname: str, year: int, references: Iterable[Reference]) -> list[Reference]:
-        surname_l = surname.lower()
+        # Fold both the citation surname and the reference text to ASCII so that
+        # "Müller (2019)" matches a reference stored as "Muller" (or vice versa).
+        surname_l = _ascii_fold(surname)
         matches: list[Reference] = []
         for reference in references:
             if reference.extracted_year and int(reference.extracted_year) != int(year):
                 continue
-            haystack = " ".join(
+            haystack = _ascii_fold(" ".join(
                 str(part or "")
                 for part in (reference.reference_key, reference.extracted_authors, reference.raw_reference, reference.extracted_title)
-            ).lower()
-            metadata_text = " ".join(
+            ))
+            metadata_text = _ascii_fold(" ".join(
                 str(part or "")
                 for metadata in getattr(reference, "metadata_records", [])
                 for part in (metadata.authors, metadata.title, metadata.year)
-            ).lower()
+            ))
             if surname_l in haystack or surname_l in metadata_text:
                 matches.append(reference)
         return matches

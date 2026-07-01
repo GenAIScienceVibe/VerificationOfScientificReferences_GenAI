@@ -4,6 +4,7 @@ import difflib
 import html
 import re
 import time
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any
 
@@ -326,6 +327,67 @@ class CrossrefClient:
             )
 
         return MetadataLookupResponse(success=False, lookup_source="CrossRef", lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, error_code="TITLE_MATCH_INSUFFICIENT", error_message=f"No CrossRef result passed title/author/year gates for query '{title[:80]}'.")
+
+    def lookup_by_isbn(self, isbn: str) -> MetadataLookupResponse:
+        """Look up a book by ISBN via CrossRef's filter endpoint.
+
+        CrossRef indexes many books with ISBNs even when no DOI is assigned to
+        journal articles — this is the most reliable way to find DOIs for textbooks
+        like 'Hayes (2018)' that are cited without a DOI in APA bibliographies.
+
+        Args:
+            isbn: ISBN-10 or ISBN-13 (hyphens and spaces are stripped automatically).
+
+        Returns:
+            MetadataLookupResponse with DOI and metadata when found, success=False otherwise.
+        """
+        isbn_clean = re.sub(r"[-\s]", "", isbn)
+        params: dict[str, str] = {"filter": f"isbn:{isbn_clean}", "rows": "3"}
+        if self.settings.crossref_mailto:
+            params["mailto"] = self.settings.crossref_mailto
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        url = f"{self.base_url}/works"
+        try:
+            if self._client is not None:
+                response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.get(url, headers=headers, params=params)
+        except httpx.TimeoutException as exc:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef-ISBN", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="METADATA_LOOKUP_TIMEOUT", error_message=str(exc))
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef-ISBN", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="METADATA_SERVICE_UNAVAILABLE", error_message=str(exc))
+
+        if response.status_code != 200:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef-ISBN", lookup_status=MetadataStatus.LOOKUP_FAILED.value, status_code=response.status_code, error_code="DOI_LOOKUP_FAILED", error_message=f"CrossRef ISBN search returned HTTP {response.status_code}.")
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef-ISBN", lookup_status=MetadataStatus.LOOKUP_FAILED.value, error_code="DOI_LOOKUP_FAILED", error_message=f"Malformed JSON: {exc}")
+
+        items = (payload.get("message") or {}).get("items") or []
+        if not items:
+            return MetadataLookupResponse(success=False, lookup_source="CrossRef-ISBN", lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, error_code="METADATA_UNAVAILABLE", error_message=f"CrossRef found no record for ISBN {isbn_clean}.")
+
+        item = items[0]
+        found_doi = str(item.get("DOI") or "").lower().strip() or None
+        url_field = _first_string(item.get("URL")) or (f"https://doi.org/{found_doi}" if found_doi else None)
+        return MetadataLookupResponse(
+            success=True,
+            lookup_source="CrossRef-ISBN",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            doi=found_doi,
+            title=_first_string(item.get("title")),
+            authors=_extract_authors(item),
+            year=_extract_year(item),
+            venue=_first_string(item.get("container-title") or item.get("short-container-title")),
+            publisher=_first_string(item.get("publisher")),
+            abstract=_clean_abstract(item.get("abstract")),
+            url=url_field,
+            raw_metadata_json=item,
+            status_code=response.status_code,
+        )
 
 
 class OpenAlexClient:
@@ -1087,6 +1149,420 @@ def _reconstruct_openalex_abstract(inverted_index: Any) -> str | None:
     return " ".join(position_word[i] for i in sorted(position_word)).strip() or None
 
 
+class PubMedClient:
+    """NCBI PubMed E-utilities client for abstract retrieval.
+
+    PubMed has strong coverage of psychology, medicine, neuroscience, and life
+    sciences — domains where CrossRef and OpenAlex often lack abstracts. Uses
+    the free E-utilities API (no key required, polite-pool email recommended).
+
+    Two calls per lookup: esearch (DOI → PMID) then efetch (PMID → abstract XML).
+    Called only when all other abstract providers returned nothing.
+    """
+
+    _BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def _params(self, extra: dict[str, str]) -> dict[str, str]:
+        """Build E-utilities params, adding the polite-pool email when available."""
+        p: dict[str, str] = {"tool": "verifai", **extra}
+        if self.settings.crossref_mailto:
+            p["email"] = self.settings.crossref_mailto
+        return p
+
+    def _get(self, endpoint: str, params: dict[str, str]) -> httpx.Response | None:
+        url = f"{self._BASE}/{endpoint}"
+        try:
+            if self._client is not None:
+                return self._client.get(url, params=params, timeout=self.timeout)
+            with httpx.Client(timeout=self.timeout) as client:
+                return client.get(url, params=params)
+        except httpx.HTTPError:
+            return None
+
+    def lookup_by_doi(self, doi: str) -> MetadataLookupResponse:
+        """Return abstract and metadata for a paper identified by DOI.
+
+        Step 1: esearch — translate DOI to PubMed ID (PMID).
+        Step 2: efetch — retrieve the PubMed XML record and parse abstract,
+                title, authors, and year.
+
+        Returns success=False when PubMed has no record for the DOI, or when
+        the record exists but has no abstract (common for older articles).
+        """
+        r = self._get("esearch.fcgi", self._params({
+            "db": "pubmed", "term": f"{doi}[doi]", "retmode": "json", "retmax": "1",
+        }))
+        if r is None or r.status_code != 200:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message="PubMed esearch request failed.",
+            )
+
+        try:
+            search_payload = r.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi,
+                error_code="DOI_LOOKUP_FAILED", error_message="PubMed esearch returned malformed JSON.",
+            )
+
+        pmid_list = (search_payload.get("esearchresult") or {}).get("idlist") or []
+        if not pmid_list:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, doi=doi,
+                error_code="METADATA_UNAVAILABLE",
+                error_message="PubMed found no record for this DOI.",
+            )
+
+        pmid = str(pmid_list[0])
+
+        r2 = self._get("efetch.fcgi", self._params({
+            "db": "pubmed", "id": pmid, "rettype": "abstract", "retmode": "xml",
+        }))
+        if r2 is None or r2.status_code != 200:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi,
+                error_code="DOI_LOOKUP_FAILED", error_message="PubMed efetch request failed.",
+            )
+
+        try:
+            root = ET.fromstring(r2.text)
+        except ET.ParseError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value, doi=doi,
+                error_code="DOI_LOOKUP_FAILED", error_message="PubMed returned malformed XML.",
+            )
+
+        # AbstractText may be split into structured sections (Background, Methods, …)
+        abstract_parts = [el.text for el in root.iter("AbstractText") if el.text]
+        abstract = " ".join(abstract_parts).strip() or None
+
+        if not abstract:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value, doi=doi,
+                error_code="METADATA_UNAVAILABLE",
+                error_message="PubMed record exists but has no abstract.",
+            )
+
+        title_el = root.find(".//ArticleTitle")
+        title = (title_el.text or "").strip() or None
+
+        authors: list[str] = []
+        for author_el in root.iter("Author"):
+            last = author_el.findtext("LastName") or ""
+            fore = author_el.findtext("ForeName") or author_el.findtext("Initials") or ""
+            name = f"{fore} {last}".strip() if fore else last.strip()
+            if name:
+                authors.append(name)
+
+        year: int | None = None
+        pub_date = root.find(".//PubDate")
+        if pub_date is not None:
+            try:
+                year = int(pub_date.findtext("Year") or "")
+            except ValueError:
+                pass
+
+        return MetadataLookupResponse(
+            success=True,
+            lookup_source="PubMed",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            doi=doi,
+            title=title,
+            authors=authors or None,
+            year=year,
+            abstract=abstract,
+            url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+            raw_metadata_json={"pmid": pmid},
+            status_code=r2.status_code,
+        )
+
+    def lookup_by_pmid(self, pmid: str) -> MetadataLookupResponse:
+        """Return DOI and metadata for a paper identified by its PubMed ID (PMID).
+
+        Uses the esummary endpoint which returns a JSON object containing DOI in
+        the articleids array. Faster than the DOI path since it skips the esearch step.
+        """
+        r = self._get("esummary.fcgi", self._params({
+            "db": "pubmed", "id": pmid, "retmode": "json",
+        }))
+        if r is None or r.status_code != 200:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed-PMID",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message="PubMed esummary request failed.",
+            )
+        try:
+            payload = r.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed-PMID",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="PubMed esummary returned malformed JSON.",
+            )
+
+        result_map = payload.get("result") or {}
+        item = result_map.get(pmid) or {}
+        if not item or item.get("error"):
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed-PMID",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message=f"PubMed has no record for PMID {pmid}.",
+            )
+
+        # DOI is in articleids list under idtype == "doi"
+        found_doi: str | None = None
+        for aid in (item.get("articleids") or []):
+            if isinstance(aid, dict) and aid.get("idtype") == "doi":
+                found_doi = str(aid.get("value") or "").strip() or None
+                break
+
+        title = _first_string(item.get("title"))
+        result_authors = [
+            str(a.get("name", "")).strip()
+            for a in (item.get("authors") or [])
+            if isinstance(a, dict) and a.get("name")
+        ]
+        year: int | None = None
+        pub_date = str(item.get("pubdate") or "")
+        ym = re.match(r"\d{4}", pub_date)
+        if ym:
+            year = int(ym.group())
+
+        return MetadataLookupResponse(
+            success=bool(found_doi or title),
+            lookup_source="PubMed-PMID",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value if (found_doi or title) else MetadataStatus.METADATA_UNAVAILABLE.value,
+            doi=found_doi,
+            title=title,
+            authors=result_authors or None,
+            year=year,
+            url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+            raw_metadata_json=item,
+            status_code=r.status_code,
+        )
+
+    def search_by_title(
+        self,
+        title: str,
+        authors: str | None = None,
+        year: int | None = None,
+    ) -> MetadataLookupResponse:
+        """Search PubMed by title and return the best confident match with its DOI.
+
+        Uses the same three false-match gates as the other title-search clients:
+        title exact/substring match, year ±1, first-author last name.
+
+        Step 1: esearch with [Title] field tag → up to 5 PMIDs.
+        Step 2: esummary (batch) → structured JSON with DOI, authors, pubdate.
+
+        PubMed rate limit: < 3 req/sec with tool+email params (polite pool) —
+        no practical constraint for our volume.
+        """
+        query = f"{title.strip()}[Title]"
+        r = self._get("esearch.fcgi", self._params({
+            "db": "pubmed", "term": query, "retmode": "json", "retmax": "5",
+        }))
+        if r is None or r.status_code != 200:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message="PubMed esearch request failed.",
+            )
+
+        try:
+            search_payload = r.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="PubMed esearch returned malformed JSON.",
+            )
+
+        pmids = (search_payload.get("esearchresult") or {}).get("idlist") or []
+        if not pmids:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message=f"PubMed title search returned no results for '{title[:80]}'.",
+            )
+
+        r2 = self._get("esummary.fcgi", self._params({
+            "db": "pubmed", "id": ",".join(pmids[:5]), "retmode": "json",
+        }))
+        if r2 is None or r2.status_code != 200:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="PubMed esummary request failed.",
+            )
+
+        try:
+            summary = r2.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="PubMed",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="PubMed esummary returned malformed JSON.",
+            )
+
+        result_map = summary.get("result") or {}
+        for pmid in (result_map.get("uids") or pmids):
+            item = result_map.get(str(pmid)) or {}
+
+            result_title = str(item.get("title") or "")
+            if not _title_matches(title, result_title):
+                continue
+
+            pubdate = str(item.get("pubdate") or "")
+            year_match = re.match(r"\d{4}", pubdate)
+            result_year: int | None = int(year_match.group()) if year_match else None
+            if year is not None and result_year is not None and abs(year - result_year) > 1:
+                continue
+
+            result_authors = [
+                str(a.get("name", "")).strip()
+                for a in (item.get("authors") or [])
+                if isinstance(a, dict) and a.get("name")
+            ]
+            if authors and result_authors and not _first_author_matches(authors, result_authors):
+                continue
+
+            found_doi: str | None = None
+            for aid in (item.get("articleids") or []):
+                if isinstance(aid, dict) and aid.get("idtype") == "doi":
+                    found_doi = str(aid.get("value") or "").strip() or None
+                    break
+
+            return MetadataLookupResponse(
+                success=True,
+                lookup_source="PubMed-TitleSearch",
+                lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+                doi=found_doi,
+                title=result_title or None,
+                authors=result_authors or None,
+                year=result_year,
+                url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+                raw_metadata_json=item,
+                status_code=r2.status_code,
+            )
+
+        return MetadataLookupResponse(
+            success=False, lookup_source="PubMed",
+            lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+            error_code="TITLE_MATCH_INSUFFICIENT",
+            error_message=f"No PubMed result passed title/author/year gates for query '{title[:80]}'.",
+        )
+
+
+class GoogleBooksClient:
+    """Google Books API client for ISBN resolution of textbooks.
+
+    Textbooks are frequently cited in academic papers without a DOI — they
+    have ISBNs instead. Google Books has near-complete coverage of published
+    books and returns ISBN-13, which can then be fed to CrossRef's ISBN filter
+    to obtain the registered DOI (if one exists).
+
+    The API is free up to 1,000 req/day without a key, and 10,000 req/day with
+    a free GOOGLE_BOOKS_API_KEY. The key is optional — the client works without it.
+    """
+
+    _BASE = "https://www.googleapis.com/books/v1"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def find_isbn_by_title(
+        self,
+        title: str,
+        authors: str | None = None,
+        year: int | None = None,
+    ) -> str | None:
+        """Search Google Books by title and return the ISBN-13 (or ISBN-10) of the best match.
+
+        Applies the same false-match gates as all other title-search clients:
+        title exact/substring match, year ±1, first-author last name.
+
+        Returns the ISBN string (digits only, no hyphens) or None on any failure.
+        The caller is expected to pipe the ISBN to CrossrefClient.lookup_by_isbn()
+        to resolve it into a DOI.
+        """
+        params: dict[str, str] = {
+            "q": f"intitle:{title.strip()}",
+            "maxResults": "5",
+            "printType": "books",
+        }
+        if self.settings.google_books_api_key:
+            params["key"] = self.settings.google_books_api_key
+
+        url = f"{self._BASE}/volumes"
+        try:
+            if self._client is not None:
+                response = self._client.get(url, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.get(url, params=params)
+        except httpx.HTTPError:
+            return None
+
+        if response.status_code != 200:
+            return None
+
+        try:
+            payload = response.json()
+        except ValueError:
+            return None
+
+        for item in (payload.get("items") or []):
+            volume = item.get("volumeInfo") or {}
+            result_title = str(volume.get("title") or "")
+            if not _title_matches(title, result_title):
+                continue
+
+            pub_date = str(volume.get("publishedDate") or "")
+            year_match = re.match(r"\d{4}", pub_date)
+            result_year: int | None = int(year_match.group()) if year_match else None
+            if year is not None and result_year is not None and abs(year - result_year) > 1:
+                continue
+
+            result_authors = [str(a) for a in (volume.get("authors") or []) if a]
+            if authors and result_authors and not _first_author_matches(authors, result_authors):
+                continue
+
+            # Prefer ISBN-13, fall back to ISBN-10
+            for preferred_type in ("ISBN_13", "ISBN_10"):
+                for identifier in (volume.get("industryIdentifiers") or []):
+                    if isinstance(identifier, dict) and identifier.get("type") == preferred_type:
+                        raw = str(identifier.get("identifier") or "")
+                        isbn = re.sub(r"[-\s]", "", raw)
+                        if isbn:
+                            return isbn
+
+        return None
+
+
 class DoiResolverClient:
     """Minimal DOI resolver URL helper.
 
@@ -1098,3 +1574,571 @@ class DoiResolverClient:
 
     def resolver_url(self, doi: str) -> str:
         return f"{self.base_url}/{doi}"
+
+
+class ArXivAPIClient:
+    """arXiv export API client for structured preprint metadata.
+
+    Retrieves title, authors, abstract, and year for arXiv preprints without
+    downloading the PDF. Used as an abstract fallback when CrossRef, OpenAlex,
+    and SemanticScholar all return no abstract for an arXiv DOI.
+
+    API: https://export.arxiv.org/api/query?id_list={id}&max_results=1
+    No authentication required. Rate limit: 3 req/sec (free, polite use).
+    """
+
+    _BASE = "https://export.arxiv.org/api/query"
+    _NS = "http://www.w3.org/2005/Atom"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def lookup_by_id(self, arxiv_id: str) -> MetadataLookupResponse:
+        """Return structured metadata for an arXiv paper by bare ID (e.g. '1706.03762').
+
+        The abstract (summary field) is the primary value — title and authors are
+        usually already available from SemanticScholar, but the abstract is often missing.
+        """
+        params = {"id_list": arxiv_id, "max_results": "1"}
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                r = self._client.get(self._BASE, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                    r = client.get(self._BASE, headers=headers, params=params)
+            if r.status_code != 200:
+                return MetadataLookupResponse(
+                    success=False, lookup_source="arXiv-API",
+                    lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                    error_code="METADATA_SERVICE_UNAVAILABLE",
+                    error_message=f"arXiv API returned HTTP {r.status_code}.",
+                )
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(
+                success=False, lookup_source="arXiv-API",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message=str(exc),
+            )
+
+        try:
+            root = ET.fromstring(r.text)
+        except ET.ParseError as exc:
+            return MetadataLookupResponse(
+                success=False, lookup_source="arXiv-API",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message=f"arXiv API returned malformed XML: {exc}",
+            )
+
+        ns = {"a": self._NS}
+        entry = root.find("a:entry", ns)
+        if entry is None:
+            return MetadataLookupResponse(
+                success=False, lookup_source="arXiv-API",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message=f"No arXiv entry found for id={arxiv_id!r}.",
+            )
+
+        def _text(tag: str) -> str | None:
+            el = entry.find(f"a:{tag}", ns)
+            return el.text.strip() if el is not None and el.text else None
+
+        title = _text("title")
+        abstract = _text("summary")
+        if abstract:
+            abstract = re.sub(r"\s+", " ", abstract).strip()
+
+        authors = [
+            el.findtext(f"{{{self._NS}}}name", "").strip()
+            for el in entry.findall("a:author", ns)
+            if el.findtext(f"{{{self._NS}}}name", "").strip()
+        ]
+
+        year: int | None = None
+        published = _text("published")
+        if published:
+            ym = re.match(r"(\d{4})", published)
+            if ym:
+                year = int(ym.group(1))
+
+        return MetadataLookupResponse(
+            success=bool(title or abstract),
+            lookup_source="arXiv-API",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value if (title or abstract) else MetadataStatus.METADATA_UNAVAILABLE.value,
+            doi=f"10.48550/arXiv.{arxiv_id}",
+            title=title,
+            authors=authors or None,
+            year=year,
+            abstract=abstract,
+            url=f"https://arxiv.org/abs/{arxiv_id}",
+            raw_metadata_json={"arxiv_id": arxiv_id},
+            status_code=r.status_code,
+        )
+
+
+class EuropePMCClient:
+    """Europe PMC REST API client for abstract and full-text retrieval.
+
+    Europe PMC has broader biomedical coverage than PubMed: includes preprints
+    (bioRxiv, medRxiv), EU-funded research output, and additional journal titles
+    not indexed by the US National Library of Medicine. Also exposes open-access
+    full-text PDF URLs for many papers.
+
+    Used as an abstract fallback after PubMed when no abstract has been found
+    from any other provider.
+
+    API: https://www.ebi.ac.uk/europepmc/webservices/rest/search
+    No authentication required. Rate limit: generous for polite use.
+    """
+
+    _BASE = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def lookup_by_doi(self, doi: str) -> MetadataLookupResponse:
+        """Return abstract and metadata for a paper identified by DOI.
+
+        Uses the 'core' result type which includes abstract, author list, and
+        full-text URL links for open-access papers.
+        """
+        params = {
+            "query": f'DOI:"{doi}"',
+            "format": "json",
+            "resultType": "core",
+            "pageSize": "1",
+        }
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                r = self._client.get(self._BASE, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                    r = client.get(self._BASE, headers=headers, params=params)
+            if r.status_code != 200:
+                return MetadataLookupResponse(
+                    success=False, lookup_source="EuropePMC",
+                    lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                    error_code="METADATA_SERVICE_UNAVAILABLE",
+                    error_message=f"Europe PMC returned HTTP {r.status_code}.",
+                )
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(
+                success=False, lookup_source="EuropePMC",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message=str(exc),
+            )
+
+        try:
+            payload = r.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="EuropePMC",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="Europe PMC returned malformed JSON.",
+            )
+
+        results = (payload.get("resultList") or {}).get("result") or []
+        if not results or not isinstance(results[0], dict):
+            return MetadataLookupResponse(
+                success=False, lookup_source="EuropePMC",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message=f"Europe PMC has no record for DOI {doi!r}.",
+            )
+
+        item = results[0]
+        abstract = _first_string(item.get("abstractText")) or None
+        title = _first_string(item.get("title")) or None
+
+        authors_raw = (item.get("authorList") or {}).get("author") or []
+        authors = [
+            str(a.get("fullName") or a.get("lastName") or "").strip()
+            for a in (authors_raw if isinstance(authors_raw, list) else [])
+            if isinstance(a, dict) and (a.get("fullName") or a.get("lastName"))
+        ]
+
+        year: int | None = None
+        try:
+            year = int(item.get("pubYear") or 0) or None
+        except (TypeError, ValueError):
+            pass
+
+        # Prefer PDF full-text URLs for open-access papers
+        oa_url: str | None = None
+        for ftu in (item.get("fullTextUrlList") or {}).get("fullTextUrl") or []:
+            if isinstance(ftu, dict) and "pdf" in str(ftu.get("documentStyle") or "").lower():
+                oa_url = ftu.get("url") or None
+                break
+
+        return MetadataLookupResponse(
+            success=bool(abstract or title),
+            lookup_source="EuropePMC",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value if (abstract or title) else MetadataStatus.METADATA_UNAVAILABLE.value,
+            doi=doi,
+            title=title,
+            authors=authors or None,
+            year=year,
+            abstract=abstract,
+            url=oa_url,
+            raw_metadata_json=item,
+            status_code=r.status_code,
+        )
+
+
+class IEEEXploreClient:
+    """IEEE Xplore API client for resolving ieeexplore.ieee.org/document/N URLs to DOIs.
+
+    IEEE Xplore is the primary publisher for IEEE and ACM conference papers and
+    journals. References that contain a URL like https://ieeexplore.ieee.org/document/8099833
+    can be resolved to a registered DOI via the IEEE Xplore Developer API.
+
+    Requires IEEE_XPLORE_API_KEY (free registration at developer.ieee.org).
+    Calls are skipped automatically when the key is not configured.
+    """
+
+    _BASE = "https://ieeexploreapi.ieee.org/api/v1/search/articles"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def lookup_by_article_number(self, article_number: str) -> MetadataLookupResponse:
+        """Return DOI and metadata for an IEEE Xplore article number.
+
+        The article number is the numeric ID in the URL:
+            https://ieeexplore.ieee.org/document/{article_number}
+
+        Returns success=False when no API key is configured or the article is not found.
+        """
+        if not self.settings.ieee_xplore_api_key:
+            return MetadataLookupResponse(
+                success=False, lookup_source="IEEEXplore",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message="IEEE Xplore API key not configured.",
+            )
+        params = {
+            "article_number": article_number,
+            "apikey": self.settings.ieee_xplore_api_key,
+        }
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                r = self._client.get(self._BASE, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                    r = client.get(self._BASE, headers=headers, params=params)
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(
+                success=False, lookup_source="IEEEXplore",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message=str(exc),
+            )
+
+        if r.status_code != 200:
+            return MetadataLookupResponse(
+                success=False, lookup_source="IEEEXplore",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                status_code=r.status_code,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message=f"IEEE Xplore returned HTTP {r.status_code}.",
+            )
+
+        try:
+            payload = r.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="IEEEXplore",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="IEEE Xplore returned malformed JSON.",
+            )
+
+        articles = payload.get("articles") or []
+        if not articles or not isinstance(articles[0], dict):
+            return MetadataLookupResponse(
+                success=False, lookup_source="IEEEXplore",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message=f"No IEEE Xplore article found for number {article_number}.",
+            )
+
+        item = articles[0]
+        doi = _first_string(item.get("doi")) or None
+        title = _first_string(item.get("title")) or None
+
+        authors_obj = item.get("authors") or {}
+        authors_list = authors_obj.get("authors") if isinstance(authors_obj, dict) else []
+        authors = [
+            str(a.get("full_name", "")).strip()
+            for a in (authors_list or [])
+            if isinstance(a, dict) and a.get("full_name")
+        ]
+
+        year: int | None = None
+        try:
+            year = int(item.get("publication_year") or 0) or None
+        except (TypeError, ValueError):
+            pass
+
+        return MetadataLookupResponse(
+            success=bool(doi or title),
+            lookup_source="IEEEXplore",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value if (doi or title) else MetadataStatus.METADATA_UNAVAILABLE.value,
+            doi=doi,
+            title=title,
+            authors=authors or None,
+            year=year,
+            venue=_first_string(item.get("publication_title")),
+            publisher="IEEE",
+            abstract=_first_string(item.get("abstract")),
+            url=f"https://ieeexplore.ieee.org/document/{article_number}",
+            raw_metadata_json=item,
+            status_code=r.status_code,
+        )
+
+
+class OpenReviewClient:
+    """OpenReview API client for ML conference papers (NeurIPS, ICLR, ICML, etc.).
+
+    Papers cited via https://openreview.net/forum?id=XYZ can be looked up by their
+    submission ID to retrieve title, authors, and year. Since registered DOIs are
+    rarely stored in OpenReview metadata, the primary value is providing a reliable
+    paper title to feed into the existing title-based DOI resolution chain.
+
+    API v2 (preferred, NeurIPS 2023+, ICLR 2024+): https://api2.openreview.net/notes?id=
+    API v1 (fallback, older submissions):            https://api.openreview.net/notes?id=
+    """
+
+    _V2_BASE = "https://api2.openreview.net"
+    _V1_BASE = "https://api.openreview.net"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def lookup_by_id(self, openreview_id: str) -> MetadataLookupResponse:
+        """Return title/authors/year for an OpenReview submission ID.
+
+        Tries v2 API first, falls back to v1 for older submissions. DOI is rarely
+        present in OpenReview metadata — callers should pipe the returned title into
+        the title-based DOI resolution chain.
+        """
+        for base_url in (self._V2_BASE, self._V1_BASE):
+            note = self._get_note(base_url, openreview_id)
+            if note is not None:
+                return self._parse_note(note, is_v2=("api2" in base_url))
+
+        return MetadataLookupResponse(
+            success=False,
+            lookup_source="OpenReview",
+            lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+            error_code="METADATA_SERVICE_UNAVAILABLE",
+            error_message=f"OpenReview returned no note for id={openreview_id!r}.",
+        )
+
+    def _get_note(self, base_url: str, openreview_id: str) -> dict[str, Any] | None:
+        """Fetch the first note dict from the OpenReview API, or return None on any error."""
+        url = f"{base_url}/notes"
+        params = {"id": openreview_id}
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                r = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                    r = client.get(url, headers=headers, params=params)
+            if r.status_code != 200:
+                return None
+            payload = r.json()
+            notes = payload.get("notes") if isinstance(payload, dict) else None
+            if not notes or not isinstance(notes, list) or not isinstance(notes[0], dict):
+                return None
+            return notes[0]
+        except Exception:
+            return None
+
+    def _parse_note(self, note: dict[str, Any], *, is_v2: bool) -> MetadataLookupResponse:
+        """Extract title/authors/year/doi from a raw OpenReview note dict.
+
+        v2 wraps each content field as {"value": ...}; v1 uses plain string/list values.
+        """
+        content = note.get("content") or {}
+
+        def _field(key: str) -> Any:
+            v = content.get(key)
+            return v.get("value") if (is_v2 and isinstance(v, dict)) else v
+
+        title = _first_string(_field("title"))
+        if not title:
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="OpenReview",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message="OpenReview note contains no title.",
+            )
+
+        authors_raw = _field("authors")
+        authors = [str(a).strip() for a in authors_raw if a] if isinstance(authors_raw, list) else []
+
+        year: int | None = None
+        raw_year = _field("year")
+        if raw_year is not None:
+            try:
+                year = int(raw_year)
+            except (TypeError, ValueError):
+                pass
+        if year is None:
+            # Venue IDs like "NeurIPS.cc/2023/Conference" encode the year
+            venue_id = str(_field("venueid") or "")
+            m = re.search(r"\b(20\d{2})\b", venue_id)
+            if m:
+                year = int(m.group(1))
+
+        doi_raw = _field("doi")
+        doi = str(doi_raw).strip() if doi_raw else None
+
+        return MetadataLookupResponse(
+            success=True,
+            lookup_source="OpenReview",
+            lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+            doi=doi or None,
+            title=title,
+            authors=authors or None,
+            year=year,
+            venue=_first_string(_field("venue") or _field("venueid")),
+            abstract=_first_string(_field("abstract")),
+            url=f"https://openreview.net/forum?id={note.get('id', '')}",
+            raw_metadata_json=note,
+        )
+
+
+class DblpClient:
+    """DBLP computer science bibliography client for title-based DOI resolution.
+
+    DBLP has near-complete coverage of CS, ML, AI, and systems conferences
+    (ICML, NeurIPS, ICLR, CVPR, ACL, VLDB, SIGMOD, etc.) and journals,
+    with registered DOIs for virtually all papers since ~2010. No authentication
+    required. Used as a final stop in the title-based DOI resolution chain for
+    papers that CrossRef, OpenAlex, PubMed, and SemanticScholar all missed.
+
+    API: https://dblp.org/search/publ/api?q={title}&format=json&h=3
+    """
+
+    _BASE = "https://dblp.org/search/publ/api"
+
+    def __init__(self, settings: Settings, *, http_client: httpx.Client | None = None) -> None:
+        self.settings = settings
+        self.timeout = settings.metadata_service_timeout_seconds
+        self._client = http_client
+
+    def search_by_title(
+        self,
+        title: str,
+        authors: str | None = None,
+        year: int | None = None,
+    ) -> MetadataLookupResponse:
+        """Search DBLP for a paper by title and return DOI + metadata on a confident match.
+
+        Applies the same false-match gates as other title searchers:
+        title substring match, year ±1, first-author last name.
+        """
+        params = {"q": title.strip(), "format": "json", "h": "3"}
+        headers = {"User-Agent": self.settings.metadata_user_agent}
+        try:
+            if self._client is not None:
+                r = self._client.get(self._BASE, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                    r = client.get(self._BASE, headers=headers, params=params)
+            if r.status_code != 200:
+                return MetadataLookupResponse(
+                    success=False, lookup_source="DBLP",
+                    lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                    status_code=r.status_code,
+                    error_code="DOI_LOOKUP_FAILED",
+                    error_message=f"DBLP returned HTTP {r.status_code}.",
+                )
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(
+                success=False, lookup_source="DBLP",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message=str(exc),
+            )
+
+        try:
+            payload = r.json()
+        except ValueError:
+            return MetadataLookupResponse(
+                success=False, lookup_source="DBLP",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="DBLP returned malformed JSON.",
+            )
+
+        hits = (payload.get("result") or {}).get("hits") or {}
+        hit_list = hits.get("hit") or []
+        if not hit_list:
+            return MetadataLookupResponse(
+                success=False, lookup_source="DBLP",
+                lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+                error_code="METADATA_UNAVAILABLE",
+                error_message="DBLP title search returned no results.",
+            )
+
+        for hit in hit_list:
+            info = hit.get("info") or {}
+            result_title = _first_string(info.get("title")) or ""
+            if not _title_matches(title, result_title):
+                continue
+            result_year: int | None = None
+            try:
+                result_year = int(info.get("year") or 0) or None
+            except (TypeError, ValueError):
+                pass
+            if year is not None and result_year is not None and abs(year - result_year) > 1:
+                continue
+            # DBLP returns authors as a string when there is only one author, and
+            # as a list of strings when there are multiple — normalize both cases.
+            authors_raw = (info.get("authors") or {}).get("author") or []
+            if isinstance(authors_raw, str):
+                authors_raw = [authors_raw]
+            result_authors = [str(a).strip() for a in authors_raw if a]
+            if authors and result_authors and not _first_author_matches(authors, result_authors):
+                continue
+            found_doi = _first_string(info.get("doi")) or None
+            return MetadataLookupResponse(
+                success=True,
+                lookup_source="DBLP-TitleSearch",
+                lookup_status=MetadataStatus.LOOKUP_SUCCEEDED.value,
+                doi=found_doi,
+                title=result_title or None,
+                authors=result_authors or None,
+                year=result_year,
+                venue=_first_string(info.get("venue")) or None,
+                url=_first_string(info.get("url")) or None,
+                raw_metadata_json=info,
+                status_code=r.status_code,
+            )
+
+        return MetadataLookupResponse(
+            success=False, lookup_source="DBLP",
+            lookup_status=MetadataStatus.METADATA_UNAVAILABLE.value,
+            error_code="METADATA_UNAVAILABLE",
+            error_message="DBLP title search found results but none passed false-match gates.",
+        )

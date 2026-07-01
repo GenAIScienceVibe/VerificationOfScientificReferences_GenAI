@@ -1,5 +1,10 @@
 You are verifying whether a scientific claim is supported by its cited source.
 
+{% if preceding_context %}
+CONTEXT (sentences before the claim in the same paragraph — for resolving references like "this effect" or "these findings"):
+{{ preceding_context }}
+
+{% endif %}
 CLAIM:
 {{ claim_text }}
 
@@ -16,21 +21,187 @@ SOURCE EVIDENCE:
 {% else %}
 No evidence chunks were retrieved for this source.
 {% endif %}
-Think through this step by step before answering. Your "explanation" field
-must contain your reasoning structured in exactly these four steps, in
-order:
-1. What the claim says: restate the claim in your own words.
-2. What the source evidence says: summarise the relevant evidence.
-3. Comparison: explicitly compare the claim against the evidence — where
-   do they agree, where do they diverge?
-4. Verdict reasoning: explain why this comparison leads to your verdict.
+{% if is_abstract_only %}
+IMPORTANT — ABSTRACT-ONLY EVIDENCE: Full-text access to this paper was not available.
+The evidence chunks above come from the abstract only. If the abstract directly confirms
+or contradicts the claim, SUPPORTED, PARTIALLY_SUPPORTED, and NOT_SUPPORTED are all valid
+verdicts — do not use INSUFFICIENT_EVIDENCE solely because the evidence is limited to an
+abstract. Always add to your limitations field: "Verified against abstract only — full
+text was not available."
+{% endif %}
+Think through this step by step before answering. Your reasoning must follow
+these four steps, in order:
+1. Read the claim: restate what the claim asserts in your own words.
+2. Find the evidence: identify the specific evidence in the source relevant
+   to the claim.
+3. Compare: explicitly compare the claim against the evidence — where do
+   they agree, where do they diverge?
+4. Select the verdict: choose the verdict label that matches your
+   comparison, using the definitions below.
 
-Respond with ONLY a single valid JSON object, no other text, no markdown
-fences, in exactly this shape:
+VERDICT DEFINITIONS — use these exact definitions:
+
+SUPPORTED: the claim accurately represents what the source says. Numbers, methods,
+and conclusions match the source. Paraphrasing is acceptable — judge factual accuracy,
+not wording. EXCLUSION: Do NOT upgrade a claim to SUPPORTED if it requires inferential
+leaps or assumptions not explicitly written in the chunk text.
+
+PARTIALLY_SUPPORTED: one part of the claim is backed by the source, but another part
+is either absent from the source or factually incorrect. For example: the method is
+correct but the reported number is wrong, or the main conclusion is supported but an
+additional claim layered on top is not in the source.
+
+NOT_SUPPORTED: the specific assertions in the claim — numbers, methods, outcomes, or
+conclusions — are either directly contradicted by the source or do not appear in it at
+all. A wrong number is always NOT_SUPPORTED, never PARTIALLY_SUPPORTED — a factual
+error is not a partial truth. Do not use PARTIALLY_SUPPORTED as a fallback when the
+core assertion is absent or incorrect. When a claim combines factual background (which
+may be in the source) with a specific factual assertion (which is not), the specific
+assertion is the core — if it is absent, the verdict is NOT_SUPPORTED, not
+PARTIALLY_SUPPORTED. EXCLUSION: Do NOT downgrade a claim to NEEDS_HUMAN_REVIEW simply
+because the language style differs — focus entirely on semantic facts.
+
+INSUFFICIENT_EVIDENCE: the retrieved chunks do not contain enough information to make
+a judgment. Use only when retrieval clearly failed or returned off-topic content — not
+as a fallback for difficult cases.
+
+NEEDS_HUMAN_REVIEW: the evidence is genuinely ambiguous or contradictory and a human
+expert is needed to make the final call.
+
+EXAMPLES:
+
+SUPPORTED — Example 1:
+  Claim: "Goodfellow et al. (2014) proposed training two competing
+  neural networks to generate realistic data samples."
+  Source says: "We simultaneously train two models: a generative
+  model G and a discriminative model D."
+  Verdict: SUPPORTED — the claim accurately paraphrases the source.
+  The core assertion (two competing networks for generation) matches.
+
+SUPPORTED — Example 2:
+  Claim: "Vaswani et al. (2017) introduced the Transformer
+  architecture, which relies entirely on attention mechanisms."
+  Source says: "We propose a new network architecture, the
+  Transformer, based solely on attention mechanisms."
+  Verdict: SUPPORTED — paraphrasing of the same factual content.
+  No numbers, methods, or conclusions differ from the source.
+
+PARTIALLY_SUPPORTED — Example 1:
+  Claim: "The authors found that the intervention improved patient
+  outcomes in elderly populations, but had no effect on younger
+  patients."
+  Source says: "The intervention improved patient outcomes in elderly
+  populations."
+  Verdict: PARTIALLY_SUPPORTED — the first part of the claim matches
+  the source, but the second part ("no effect on younger patients")
+  does not appear in the source at all.
+
+PARTIALLY_SUPPORTED — Example 2:
+  Claim: "The authors found that sleep deprivation impairs working
+  memory performance, and concluded that this effect is primarily
+  driven by disruption to hippocampal consolidation."
+  Source says: "Sleep deprivation significantly impaired working
+  memory across all three measures."
+  Verdict: PARTIALLY_SUPPORTED — the impairment finding is in the
+  source, but the mechanistic explanation (hippocampal consolidation)
+  is not stated or implied in the retrieved evidence. One part of the
+  claim matches; the added interpretive layer does not.
+
+PARTIALLY_SUPPORTED — Example 3 (near-miss contrast with SUPPORTED):
+  The two sub-examples below use the same source sentence. Notice
+  how a small addition to the claim changes the verdict.
+
+  Sub-example A — PARTIALLY_SUPPORTED:
+    Claim: "Vaswani et al. (2017) introduced the Transformer, which
+    relies entirely on attention mechanisms, making it the first
+    architecture to achieve human-level performance on translation."
+    Source says: "We propose the Transformer, based solely on
+    attention mechanisms, and achieve state-of-the-art results on
+    two machine translation tasks."
+    Verdict: PARTIALLY_SUPPORTED — the attention-only architecture
+    is confirmed by the source; "human-level performance" is not
+    stated anywhere in the source and is an addition beyond what the
+    paper claims.
+
+  Sub-example B — SUPPORTED (same source, tighter claim):
+    Claim: "Vaswani et al. (2017) introduced the Transformer, relying
+    entirely on attention mechanisms, and achieved state-of-the-art
+    results on machine translation tasks."
+    Source says: same sentence as above.
+    Verdict: SUPPORTED — this paraphrase matches the source exactly.
+    No assertion is added beyond what the source states.
+
+NOT_SUPPORTED — Example 1:
+  Claim: "The model achieved 94% accuracy on the benchmark dataset."
+  Source says: "Our model reached 89% accuracy on the test set."
+  Verdict: NOT_SUPPORTED — the specific number in the claim (94%)
+  differs from the source (89%). A wrong number is a factual error,
+  not a paraphrase. Do not use PARTIALLY_SUPPORTED for wrong numbers.
+
+NOT_SUPPORTED — Example 2:
+  Claim: "Zhai (2022) found that students using ChatGPT completed
+  tasks 40% faster than students who did not use AI."
+  Source says: "The writing process took 2-3 hours and involved very
+  limited professional knowledge from the author."
+  Verdict: NOT_SUPPORTED — the claim describes a controlled student
+  comparison that does not exist in the source. The core assertion
+  is entirely absent from the retrieved evidence.
+
+INSUFFICIENT_EVIDENCE — Example 1:
+  Claim: "The proposed algorithm reduces training time by half
+  compared to the baseline."
+  Retrieved chunk: "Table 3 shows the results of our experiments."
+  Verdict: INSUFFICIENT_EVIDENCE — the retrieved chunk references
+  a table but contains no actual data. The content needed to verify
+  the claim was not retrieved.
+
+INSUFFICIENT_EVIDENCE — Example 2:
+  Claim: "Berg (2023) argues that AI tools improve research
+  efficiency."
+  Retrieved chunk: "References: [1] Smith et al. [2] Jones et al."
+  Verdict: INSUFFICIENT_EVIDENCE — the retriever returned a
+  references section with no substantive content. Retrieval
+  clearly failed for this case.
+
+NEEDS_HUMAN_REVIEW — Example 1:
+  Claim: "Johnson & Lee (2019) demonstrated that neural networks
+  outperform humans on all medical imaging tasks."
+  Source: No paper by Johnson & Lee (2019) on this topic can be
+  found. The DOI does not resolve and no matching title or authors
+  appear in the literature.
+  Verdict: NEEDS_HUMAN_REVIEW — the citation cannot be verified
+  and requires expert judgment.
+
+NEEDS_HUMAN_REVIEW — Example 2:
+  Claim: "Martinez et al. (2021) proposed a new loss function that
+  eliminates overfitting entirely in deep neural networks."
+  Source: The DOI resolves to a paper on a completely unrelated
+  topic (climate modelling) by different authors.
+  Verdict: NEEDS_HUMAN_REVIEW — the source and claim are
+  mismatched in a way that requires human review to resolve.
+
+Respond in exactly this format — a free-form thought process block, followed
+by a strict JSON block. Do not put any text outside these two blocks.
+
+IMPORTANT — evidence_used field:
+List the chunk IDs (the bracketed labels shown before each chunk above, e.g.
+"chunk_3", "chunk_7") that you relied on to reach your verdict. This field
+MUST be a plain JSON array of strings — chunk ID strings only. Never include
+objects, dicts, or keys such as "id", "text", or "score" inside this array.
+Correct:   "evidence_used": ["chunk_3", "chunk_7"]
+Incorrect: "evidence_used": [{"id": "chunk_3", "text": "..."}]
+
+[THOUGHT PROCESS]
+(Write your free-form reasoning here — compare the claim against the evidence,
+identify matches and mismatches, and explain which verdict applies and why.)
+[/THOUGHT PROCESS]
+
+[FINAL VERDICT JSON]
 {
-  "verdict": "SUPPORTED" | "PARTIALLY_SUPPORTED" | "NOT_SUPPORTED" | "INSUFFICIENT_EVIDENCE" | "NEEDS_HUMAN_REVIEW",
-  "confidence": <float between 0.0 and 1.0>,
-  "explanation": "<your four-step reasoning: claim, evidence, comparison, verdict reasoning>",
-  "evidence_used": ["<chunk_id>", "..."],
-  "limitations": "<caveats about the evidence, or null if none>"
+  "verdict": "...",
+  "confidence": 0.0,
+  "explanation": "...",
+  "evidence_used": ["chunk_id_1", "chunk_id_2"],
+  "limitations": null
 }
+[/FINAL VERDICT JSON]

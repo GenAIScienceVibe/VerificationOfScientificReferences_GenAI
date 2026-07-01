@@ -134,22 +134,29 @@ def test_render_prompt_instructs_step_by_step_reasoning():
 
 def test_render_prompt_requires_four_part_reasoning_structure():
     prompt = render_prompt(make_input())
-    assert "What the claim says" in prompt
-    assert "What the source evidence says" in prompt
-    assert "Comparison" in prompt
-    assert "Verdict reasoning" in prompt
+    assert "Read the claim" in prompt
+    assert "Find the evidence" in prompt
+    assert "Compare" in prompt
+    assert "Select the verdict" in prompt
 
 
-def test_render_prompt_requires_reasoning_inside_explanation_field():
+def test_render_prompt_requires_thought_process_and_final_verdict_blocks():
+    """verify.j2 isolates free-form reasoning from the strict JSON output
+    using [THOUGHT PROCESS]/[FINAL VERDICT JSON] tags, so validator.py can
+    extract only the JSON block before parsing (see
+    rag.verification.validator._extract_final_verdict_json)."""
     prompt = render_prompt(make_input())
     assert '"explanation"' in prompt
-    assert "four-step reasoning" in prompt
+    assert "[THOUGHT PROCESS]" in prompt
+    assert "[/THOUGHT PROCESS]" in prompt
+    assert "[FINAL VERDICT JSON]" in prompt
+    assert "[/FINAL VERDICT JSON]" in prompt
 
 
 # ── generate_verdict — success path ─────────────────────────────────────────
 
 
-@patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"})
+@patch.dict(os.environ, {"GROQ_API_KEY": "test-key"})
 @patch("rag.prompts.verifier.OpenAI")
 def test_generate_verdict_returns_raw_llm_content(mock_openai_cls):
     mock_client = MagicMock()
@@ -161,7 +168,7 @@ def test_generate_verdict_returns_raw_llm_content(mock_openai_cls):
     assert result == FAKE_JSON_VERDICT
 
 
-@patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"})
+@patch.dict(os.environ, {"GROQ_API_KEY": "test-key"})
 @patch("rag.prompts.verifier.OpenAI")
 def test_generate_verdict_preserves_four_step_reasoning_in_explanation(mock_openai_cls):
     """generate_verdict must not strip or alter the LLM's chain-of-thought reasoning."""
@@ -185,7 +192,7 @@ def test_generate_verdict_preserves_four_step_reasoning_in_explanation(mock_open
     assert "Verdict reasoning" in result
 
 
-@patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"})
+@patch.dict(os.environ, {"GROQ_API_KEY": "test-key"})
 @patch("rag.prompts.verifier.OpenAI")
 def test_generate_verdict_calls_correct_model_and_temperature(mock_openai_cls):
     mock_client = MagicMock()
@@ -200,7 +207,7 @@ def test_generate_verdict_calls_correct_model_and_temperature(mock_openai_cls):
     assert kwargs["temperature"] == 0
 
 
-@patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"})
+@patch.dict(os.environ, {"GROQ_API_KEY": "test-key"})
 @patch("rag.prompts.verifier.OpenAI")
 def test_generate_verdict_sends_system_and_user_messages(mock_openai_cls):
     mock_client = MagicMock()
@@ -221,13 +228,13 @@ def test_generate_verdict_sends_system_and_user_messages(mock_openai_cls):
 
 
 def test_generate_verdict_raises_when_api_key_missing(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
 
     with pytest.raises(EnvironmentError):
         generate_verdict(make_input())
 
 
-@patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"})
+@patch.dict(os.environ, {"GROQ_API_KEY": "test-key"})
 @patch("rag.prompts.verifier.OpenAI")
 def test_generate_verdict_propagates_api_errors(mock_openai_cls):
     mock_client = MagicMock()
