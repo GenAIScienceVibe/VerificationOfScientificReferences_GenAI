@@ -14,11 +14,9 @@ function Footer() {
         }}>
           {/* Brand column */}
           <div style={{ flex: "0 0 auto" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
-              <img src={logo} alt="verifAi logo" style={{ height: "32px", width: "32px", objectFit: "contain" }} />
-              <span style={{ fontWeight: "700", fontSize: "16px", color: "#111" }}>verifAi</span>
-            </div>
-            <p style={{ fontSize: "13px", color: "#888", lineHeight: "1.6", maxWidth: "200px" }}>
+            <img src={logo} alt="verifAi logo" style={{ height: "72px", width: "72px", objectFit: "contain", marginBottom: "10px", display: "block" }} />
+            <span style={{ fontWeight: "700", fontSize: "16px", color: "#111", display: "block", marginBottom: "8px" }}>verifAi</span>
+            <p style={{ fontSize: "13px", color: "#888", lineHeight: "1.6", maxWidth: "200px", margin: 0 }}>
               AI-powered citation verification for research papers.
             </p>
           </div>
@@ -53,7 +51,6 @@ function Footer() {
         {/* Bottom bar */}
         <div style={{ borderTop: "1px solid #e0e4ea", maxWidth: "1200px", margin: "0 auto", padding: "16px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <p style={{ color: "#aaa", fontSize: "12px", margin: 0 }}>© 2026 verifAi · Powered by TUM Campus Heilbronn</p>
-          <p style={{ color: "#aaa", fontSize: "12px", margin: 0 }}>Built with Llama 4 · RAG</p>
         </div>
       </footer>
 
