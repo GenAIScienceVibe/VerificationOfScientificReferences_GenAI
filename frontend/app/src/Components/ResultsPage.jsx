@@ -95,6 +95,7 @@ function ResultsPage() {
   const documentId = location.state?.documentId
 
   const [activeFilter, setActiveFilter] = useState('All')
+  const [sortBy, setSortBy] = useState('default')
   const [activeView, setActiveView] = useState('overview')
   const [citationFilter, setCitationFilter] = useState('all')
   const [claims, setClaims] = useState([])
@@ -204,7 +205,16 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
     { label: "Insufficient Evidence", key: "insufficient", color: "#6b7280", border: "#d1d5db" },
   ]
 
-  const filteredClaims = claims.filter(claim => {
+  const sortOrder = { supported: 0, partial: 1, unsupported: 2, hallucinated: 3, insufficient: 4 }
+  const sortedClaims = [...claims].sort((a, b) => {
+    if (sortBy === 'confidence') return b.confidence - a.confidence
+    if (sortBy === 'status') return (sortOrder[a.status] ?? 5) - (sortOrder[b.status] ?? 5)
+    if (sortBy === 'source') return (a.source || '').localeCompare(b.source || '')
+    if (sortBy === 'author') return (a.authorLine || '').localeCompare(b.authorLine || '')
+    return (a.displayId ?? 0) - (b.displayId ?? 0)
+  })
+
+  const filteredClaims = sortedClaims.filter(claim => {
     if (activeFilter === "All") return true
     if (activeFilter === "Supported") return claim.status === "supported"
     if (activeFilter === "Partial") return claim.status === "partial"
@@ -318,8 +328,18 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
 
           {/* Credibility Score */}
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0", textAlign: "center" }}>
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", marginBottom: "16px" }}>
+            <div className="verifai-tooltip" style={{ display: "inline-flex", justifyContent: "center", alignItems: "center", gap: "6px", marginBottom: "16px", cursor: "default" }}>
               <p style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", letterSpacing: "1px", margin: 0 }}>CREDIBILITY SCORE</p>
+              <span style={{ width: "15px", height: "15px", borderRadius: "50%", background: "#e8edf5", color: "#1a3a6b", fontSize: "9px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>?</span>
+              <span className="verifai-tooltip-text" style={{ width: "240px", left: "50%", textAlign: "left" }}>
+                <strong style={{ display: "block", marginBottom: "6px" }}>How is this calculated?</strong>
+                Each verified claim is weighted by verdict:<br />
+                Supported × 1.0 + Partially Supported × 0.5<br />
+                divided by total claims × 100.<br /><br />
+                <strong>≥ 80%</strong> — Reliable<br />
+                <strong>50–79%</strong> — Partially Reliable<br />
+                <strong>&lt; 50%</strong> — Low Reliability
+              </span>
             </div>
             <div style={{ position: "relative", width: "120px", height: "120px", margin: "0 auto 12px" }}>
               <svg viewBox="0 0 120 120" width="120" height="120">
@@ -331,7 +351,13 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
               <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", fontSize: "20px", fontWeight: "700", color: "#111" }}>{credibilityScore.toFixed(1)}%</div>
             </div>
             <p style={{ color: credibilityColor, fontWeight: "600", fontSize: "14px", marginBottom: "8px" }}>{credibilityLabel}</p>
-            <p style={{ color: "#888", fontSize: "12px", lineHeight: "1.5" }}>Some claims are inaccurate or unsupported by their cited sources.</p>
+            <p style={{ color: "#888", fontSize: "12px", lineHeight: "1.5" }}>
+              {credibilityScore >= 80
+                ? "The majority of claims are well-supported by their cited sources."
+                : credibilityScore >= 50
+                ? "Some claims are inaccurate or unsupported by their cited sources."
+                : "A significant portion of claims could not be verified or are unsupported."}
+            </p>
           </div>
 
           {/* Claims Summary */}
@@ -410,29 +436,31 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                 ))}
               </div>
               {/* Sort bar */}
-<div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-  <span style={{ fontSize: '12px', color: '#888', fontWeight: '600' }}>Sort by:</span>
-  <select
-    onChange={e => {
-      const val = e.target.value
-      if (val === 'default') return setClaims(prev => [...prev].sort((a, b) => (a.displayId ?? 0) - (b.displayId ?? 0)))
-      if (val === 'source') return setClaims(prev => [...prev].sort((a, b) => (a.source || '').localeCompare(b.source || '')))
-      if (val === 'author') return setClaims(prev => [...prev].sort((a, b) => (a.authorLine || '').localeCompare(b.authorLine || '')))
-      if (val === 'confidence') return setClaims(prev => [...prev].sort((a, b) => b.confidence - a.confidence))
-      if (val === 'status') return setClaims(prev => [...prev].sort((a, b) => {
-        const order = { supported: 0, partial: 1, unsupported: 2, hallucinated: 3, insufficient: 4 }
-        return (order[a.status] ?? 5) - (order[b.status] ?? 5)
-      }))
-    }}
-    style={{ background: '#f5f5f5', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '6px 12px', fontSize: '13px', color: '#444', cursor: 'pointer' }}
-  >
-    <option value="default">Default order</option>
-    <option value="source">Paper / Source</option>
-    <option value="author">Author</option>
-    <option value="confidence">Confidence (high to low)</option>
-    <option value="status">Status</option>
-  </select>
-</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '12px', color: '#888', fontWeight: '600', marginRight: '2px' }}>Sort:</span>
+                {[
+                  { key: 'default', label: 'Default' },
+                  { key: 'status', label: 'Status' },
+                  { key: 'confidence', label: 'Confidence' },
+                  { key: 'source', label: 'Source' },
+                  { key: 'author', label: 'Author' },
+                ].map(opt => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setSortBy(opt.key)}
+                    style={{
+                      padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '600',
+                      cursor: 'pointer', border: '1px solid',
+                      background: sortBy === opt.key ? '#1a3a6b' : 'white',
+                      color: sortBy === opt.key ? 'white' : '#555',
+                      borderColor: sortBy === opt.key ? '#1a3a6b' : '#ddd',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
 
               {filteredClaims.length === 0 ? (
                 <p style={{ color: "#888", fontSize: "14px", textAlign: "center", padding: "40px 0" }}>No claims match this filter.</p>
@@ -548,7 +576,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                               <div style={{ width: `${claim.confidence * 100}%`, height: "6px", background: getConfidenceColor(claim.confidence), borderRadius: "99px" }} />
                             </div>
                             <span style={{ fontSize: "12px", color: "#888" }}>{(claim.confidence * 100).toFixed(1)}%</span>
-                            <span style={{ fontSize: "11px", color: "#bbb", cursor: "default" }}>i</span>
+                            <span style={{ width: "14px", height: "14px", borderRadius: "50%", background: "#e8edf5", color: "#1a3a6b", fontSize: "9px", fontWeight: "700", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "default", flexShrink: 0 }}>?</span>
                             <span className="verifai-tooltip-text">{CONFIDENCE_TOOLTIP}</span>
                           </div>
                           <button
