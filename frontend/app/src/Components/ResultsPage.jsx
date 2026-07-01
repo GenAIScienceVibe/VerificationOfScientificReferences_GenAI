@@ -439,7 +439,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
     <option value="confidence">Confidence (high to low)</option>
     <option value="status">Status</option>
   </select>
-</div>s
+</div>
 
               {filteredClaims.length === 0 ? (
                 <p style={{ color: "#888", fontSize: "14px", textAlign: "center", padding: "40px 0" }}>No claims match this filter.</p>

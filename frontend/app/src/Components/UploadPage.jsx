@@ -1,12 +1,19 @@
 import { useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Mascot from './Mascot'
+import { getRecentDocuments } from '../api'
 
 function UploadPage() {
   const navigate = useNavigate()
   const [mainFile, setMainFile] = useState(null)
   const [showReferenceUpload, setShowReferenceUpload] = useState(false)
   const [referenceFiles, setReferenceFiles] = useState([])
+  const [recentDocs, setRecentDocs] = useState([])
+  const [showRecentDocs, setShowRecentDocs] = useState(false)
+
+  useEffect(() => {
+    getRecentDocuments(25).then(setRecentDocs).catch(() => {})
+  }, [])
 
   const handleMainFileSelected = (e) => {
     const file = e.target.files[0]
@@ -273,6 +280,69 @@ function UploadPage() {
             </div>
           )}
         </div>
+
+        {recentDocs.length > 0 && (
+          <div style={{
+            background: "white", borderRadius: "16px", padding: "24px 32px",
+            maxWidth: "600px", margin: "20px auto 0", boxShadow: "0 2px 16px rgba(0,0,0,0.07)",
+            textAlign: "left"
+          }}>
+            <button
+              onClick={() => setShowRecentDocs(prev => !prev)}
+              style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "18px", width: "20px", flexShrink: 0, textAlign: "center" }}>🕓</span>
+                <div style={{ textAlign: "left", marginLeft: "8px" }}>
+                  <p style={{ fontWeight: "600", fontSize: "15px", color: "#111", margin: 0 }}>Recently Verified</p>
+                  <p style={{ color: "#888", fontSize: "13px", margin: "2px 0 0" }}>{recentDocs.length} document{recentDocs.length !== 1 ? "s" : ""} — click to view results</p>
+                </div>
+              </div>
+              <span style={{ fontSize: "20px", color: "#1a3a6b", transform: showRecentDocs ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>⌄</span>
+            </button>
+
+            {showRecentDocs && (
+              <div style={{ marginTop: "20px", borderTop: "1px solid #eee", paddingTop: "20px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                {recentDocs.map(doc => {
+                  const score = doc.credibility_score
+                  const scoreColor = score === null ? "#aaa" : score >= 80 ? "#16a34a" : score >= 50 ? "#d97706" : "#dc2626"
+                  const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString() : ""
+                  return (
+                    <div
+                      key={doc.document_id}
+                      onClick={() => navigate('/results', { state: { fileName: doc.filename, documentId: doc.document_id } })}
+                      style={{
+                        borderRadius: "10px", padding: "12px 16px", cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        border: "1px solid #eee", transition: "background 0.15s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px", overflow: "hidden" }}>
+                        <span style={{ fontSize: "18px", flexShrink: 0 }}>📄</span>
+                        <div style={{ overflow: "hidden" }}>
+                          <p style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "#111", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {doc.title || doc.filename}
+                          </p>
+                          <p style={{ margin: 0, fontSize: "12px", color: "#aaa", marginTop: "2px" }}>
+                            {date} · {doc.claims_count} claims
+                          </p>
+                        </div>
+                      </div>
+                      {score !== null && (
+                        <div style={{ flexShrink: 0, marginLeft: "16px", textAlign: "right" }}>
+                          <span style={{ fontSize: "16px", fontWeight: "700", color: scoreColor }}>{score}%</span>
+                          <p style={{ margin: 0, fontSize: "11px", color: "#aaa" }}>credibility</p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
     </div>

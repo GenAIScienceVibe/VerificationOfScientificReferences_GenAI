@@ -16,6 +16,11 @@ async function handleResponse(response) {
   return json?.data
 }
 
+export async function getRecentDocuments(limit = 10) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/documents/?limit=${limit}`)
+  return handleResponse(response)
+}
+
 export async function uploadDocument(file) {
   const formData = new FormData()
   formData.append('file', file)
