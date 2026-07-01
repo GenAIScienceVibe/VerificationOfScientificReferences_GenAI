@@ -9,7 +9,7 @@ function Footer() {
     <>
       <footer style={{ background: "#f5f7fa", borderTop: "1px solid #e0e4ea", padding: "40px 80px 0" }}>
         <div style={{
-          display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
           maxWidth: "1200px", margin: "0 auto", gap: "48px", paddingBottom: "32px"
         }}>
           {/* Brand column */}
