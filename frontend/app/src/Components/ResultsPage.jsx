@@ -599,7 +599,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
 
                         {evidenceHint && (
                           <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
-                            <p style={{ fontSize: "13px", fontWeight: "600", color: "#1d4ed8", marginBottom: "4px" }}>i {evidenceHint.label}</p>
+                            <p style={{ fontSize: "13px", fontWeight: "600", color: "#1d4ed8", marginBottom: "4px" }}>{evidenceHint.label}</p>
                             <p style={{ fontSize: "12px", color: "#3b82f6", lineHeight: "1.5" }}>{evidenceHint.detail}</p>
                           </div>
                         )}
