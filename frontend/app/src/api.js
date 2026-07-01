@@ -50,6 +50,16 @@ export async function extractClaims(documentId) {
   return handleResponse(response)
 }
 
+export async function getVerificationResult(resultId) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/verification-results/${resultId}`)
+  return handleResponse(response)
+}
+
+export async function getDocumentReferences(documentId) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/documents/${documentId}/references`)
+  return handleResponse(response)
+}
+
 export async function startPipelineRun(documentId, options = {}) {
   const response = await fetch(`${API_BASE_URL}/api/v1/documents/${documentId}/pipeline-runs`, {
     method: 'POST',
