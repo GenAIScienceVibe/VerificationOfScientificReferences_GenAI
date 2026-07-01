@@ -34,6 +34,15 @@ class VerificationInput(BaseModel):
         ..., description="Top retrieved chunks with section labels, used as evidence"
     )
     doi: str = Field(..., description="DOI of the source paper being checked")
+    is_abstract_only: bool = Field(
+        default=False,
+        description="True when only the abstract was available as source evidence (no full-text access).",
+    )
+    preceding_context: str = Field(
+        default="",
+        description="Sentences in the same paragraph before this claim. Shown to the LLM so it can "
+                    "resolve anaphoric references (e.g. 'this effect') without guessing.",
+    )
 
 
 class VerificationOutput(BaseModel):

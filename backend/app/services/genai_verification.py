@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.core.config import Settings, get_settings
-from app.models.enums import SupportStatus
+from app.models.enums import EvidenceAvailability, SupportStatus
+
+_ABSTRACT_ONLY_AVAILABILITIES = {
+    EvidenceAvailability.ABSTRACT_AVAILABLE.value,
+    EvidenceAvailability.PREPRINT_AVAILABLE.value,
+}
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +174,8 @@ class RealGenAiVerificationClient:
                 for i, c in enumerate(retrieved)
             ],
             overall_similarity_score=float(request_payload.get("overall_similarity_score") or 0.0),
+            is_abstract_only=bool(request_payload.get("is_abstract_only", False)),
+            preceding_context=str(request_payload.get("preceding_context") or ""),
         )
         response = verify_claim(req)
         payload: dict[str, Any] = {
@@ -209,7 +216,10 @@ class GenAiVerificationService:
         metadata: dict[str, Any] | None,
         retrieved_evidence: list[dict[str, Any]],
         overall_similarity_score: float | None,
+        evidence_availability: str | None = None,
+        preceding_context: str | None = None,
     ) -> dict[str, Any]:
+        is_abstract_only = evidence_availability in _ABSTRACT_ONLY_AVAILABILITIES
         return {
             "claim_id": claim_id,
             "claim_text": claim_text,
@@ -218,6 +228,8 @@ class GenAiVerificationService:
             "metadata": metadata or {},
             "retrieved_evidence": retrieved_evidence,
             "overall_similarity_score": overall_similarity_score,
+            "is_abstract_only": is_abstract_only,
+            "preceding_context": preceding_context or "",
             "instructions": {
                 "allowed_support_statuses": sorted(ALLOWED_SUPPORT_STATUSES),
                 "source_of_truth": "Use only the provided claim, metadata, and retrieved evidence. Do not use outside knowledge or invent evidence.",

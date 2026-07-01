@@ -46,7 +46,7 @@ APA_NARRATIVE_RE = re.compile(
     re.UNICODE,
 )
 BRACKET_NUMERIC_RE = re.compile(r"\[(?:\d{1,3})(?:\s*(?:,|-|–)\s*\d{1,3})*\]")
-PAREN_NUMERIC_RE = re.compile(r"(?<![A-Za-z0-9])\((?:\d{1,3})(?:\s*(?:,|-|–)\s*\d{1,3})*\)(?![A-Za-z0-9])")
+PAREN_NUMERIC_RE = re.compile(r"(?<![A-Za-z0-9])\((?:\d{1,3})(?:\s*(?:,|-|–)\s*\d{1,3})*\)(?!\s*[A-ZÀ-Þ][A-Za-zÀ-ÿ])(?![A-Za-z0-9])")
 SUPERSCRIPT_LIKE_RE = re.compile(r"(?<!\w)\^(\d{1,3})(?!\w)")
 
 
@@ -67,6 +67,7 @@ class PreparedSentence:
     sentence_text: str
     source_paragraph: str
     detected_citations: list[DetectedCitation] = field(default_factory=list)
+    preceding_context: str = ""
 
 
 class CitationDetectionService:
@@ -91,6 +92,15 @@ class CitationDetectionService:
                     inner = citation_text.strip("()")
                     if len(inner) == 4 and inner.startswith(("19", "20")):
                         continue
+                # Split compound APA parentheticals: "(A, 2020; B, 2021)" → two citations.
+                # Each sub-citation gets its own DetectedCitation so the reference linker
+                # can map each to its own DOI independently.
+                if style == "APA" and ";" in citation_text and citation_text.startswith("(") and citation_text.endswith(")"):
+                    for part in citation_text[1:-1].split(";"):
+                        part = part.strip()
+                        if re.search(r"(?:19|20)\d{2}", part):
+                            matches.append(DetectedCitation(citation_text=f"({part})", citation_style=style, start=match.start(), end=match.end()))
+                    continue
                 matches.append(DetectedCitation(citation_text=citation_text, citation_style=style, start=match.start(), end=match.end()))
         matches.sort(key=lambda item: (item.start, item.end))
         deduped: list[DetectedCitation] = []
@@ -117,11 +127,14 @@ class ClaimPreparationService:
             for paragraph in self._split_paragraphs(section_text):
                 if len(paragraph) < 35:
                     continue
-                sentence_index = 0
                 paragraph_key = f"p_{paragraph_index:04d}"
-                for sentence in self._split_sentences(paragraph):
+                sentences = self._split_sentences(paragraph)
+                last_cited_index = -1
+                for sentence_index, sentence in enumerate(sentences):
                     citations = self.citation_detector.detect(sentence)
                     if citations:
+                        # Collect only sentences since the last cited sentence
+                        preceding = " ".join(sentences[last_cited_index + 1:sentence_index]).strip()
                         prepared.append(
                             PreparedSentence(
                                 paragraph_key=paragraph_key,
@@ -131,9 +144,10 @@ class ClaimPreparationService:
                                 sentence_text=sentence,
                                 source_paragraph=paragraph,
                                 detected_citations=citations,
+                                preceding_context=preceding,
                             )
                         )
-                    sentence_index += 1
+                        last_cited_index = sentence_index
                 paragraph_index += 1
         return prepared
 

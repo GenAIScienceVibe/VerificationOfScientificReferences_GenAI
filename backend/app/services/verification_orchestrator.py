@@ -383,7 +383,11 @@ class VerificationOrchestrator:
         if no_chunks and package.evidence_availability != EvidenceAvailability.METADATA_ONLY.value:
             return self._fallback_result(package, run, db, issue="RAG retrieval did not return relevant evidence.", rule="NO_RELEVANT_EVIDENCE", status=SupportStatus.INSUFFICIENT_EVIDENCE.value, retrieval=retrieval)
 
-        if not no_chunks and (retrieval.overall_similarity_score or 0.0) < self.settings.rag_min_similarity_threshold:
+        is_abstract_only = package.evidence_availability in {
+            EvidenceAvailability.ABSTRACT_AVAILABLE.value,
+            EvidenceAvailability.PREPRINT_AVAILABLE.value,
+        }
+        if not no_chunks and not is_abstract_only and (retrieval.overall_similarity_score or 0.0) < self.settings.rag_min_similarity_threshold:
             return self._fallback_result(package, run, db, issue="Overall RAG similarity is below the configured threshold.", rule="LOW_RAG_SIMILARITY", retrieval=retrieval)
 
         self._mark_step(steps["GENAI_VERIFICATION"], PipelineStepStatus.RUNNING.value, db, progress=80)
@@ -397,6 +401,8 @@ class VerificationOrchestrator:
             metadata=package.metadata_json,
             retrieved_evidence=retrieved_chunks,
             overall_similarity_score=overall_sim,
+            evidence_availability=package.evidence_availability,
+            preceding_context=claim.preceding_context or "",
         )
         try:
             validated, genai_result = self.genai_service.verify(genai_request)
