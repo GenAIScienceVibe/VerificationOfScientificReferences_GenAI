@@ -1,5 +1,10 @@
 You are verifying whether a scientific claim is supported by its cited source.
 
+{% if preceding_context %}
+CONTEXT (sentences before the claim in the same paragraph — for resolving references like "this effect" or "these findings"):
+{{ preceding_context }}
+
+{% endif %}
 CLAIM:
 {{ claim_text }}
 
@@ -15,6 +20,14 @@ SOURCE EVIDENCE:
 {% endfor %}
 {% else %}
 No evidence chunks were retrieved for this source.
+{% endif %}
+{% if is_abstract_only %}
+IMPORTANT — ABSTRACT-ONLY EVIDENCE: Full-text access to this paper was not available.
+The evidence chunks above come from the abstract only. If the abstract directly confirms
+or contradicts the claim, SUPPORTED, PARTIALLY_SUPPORTED, and NOT_SUPPORTED are all valid
+verdicts — do not use INSUFFICIENT_EVIDENCE solely because the evidence is limited to an
+abstract. Always add to your limitations field: "Verified against abstract only — full
+text was not available."
 {% endif %}
 Think through this step by step before answering. Your reasoning must follow
 these four steps, in order:

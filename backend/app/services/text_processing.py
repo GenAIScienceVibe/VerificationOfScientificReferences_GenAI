@@ -112,7 +112,7 @@ def is_post_reference_stop_heading_line(line: str) -> bool:
     key = _heading_key(line) or ""
     if key in POST_REFERENCE_STOP_HEADINGS:
         return True
-    if re.fullmatch(r"appendix\s+[a-z]", key) or re.match(r"appendix\s+[a-z]\b", key):
+    if re.fullmatch(r"appendix\s+[a-z]", key):
         return True
     # Survey export pages are not always formatted as clean headings.
     stripped = line.strip().lower()
@@ -336,7 +336,6 @@ def _find_heading_matches(text: str) -> list[tuple[str, int, int]]:
             or key in REFERENCE_HEADINGS
             or key in POST_REFERENCE_STOP_HEADINGS
             or re.fullmatch(r"appendix\s+[a-z]", key)
-            or re.match(r"appendix\s+[a-z]\b", key)
         ):
             # Prefer actual body headings over ToC-like headings in the first 20%.
             if key in REFERENCE_HEADINGS and line_start < total_len * 0.20:
@@ -402,7 +401,7 @@ def detect_basic_sections(cleaned_text: str) -> list[DetectedSection]:
             # References continue until a post-reference stop heading or EOF.
             content_end = len(text)
             for stop_key, stop_start, _ in matches[index + 1 :]:
-                if stop_key in POST_REFERENCE_STOP_HEADINGS or re.fullmatch(r"appendix\s+[a-z]", stop_key) or re.match(r"appendix\s+[a-z]\b", stop_key):
+                if stop_key in POST_REFERENCE_STOP_HEADINGS or re.fullmatch(r"appendix\s+[a-z]", stop_key):
                     content_end = stop_start
                     break
             _add_section(sections, "References", text[content_start:content_end])

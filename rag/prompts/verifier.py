@@ -115,6 +115,8 @@ def render_prompt(input_data: VerificationInput) -> str:
         citation_type=input_data.citation_type,
         doi=input_data.doi,
         chunks=input_data.chunks,
+        is_abstract_only=input_data.is_abstract_only,
+        preceding_context=input_data.preceding_context,
     )
 
 

@@ -100,6 +100,11 @@ class RetrieveEvidenceRequest(BaseModel):
     claim_id: str = Field(..., description="Backend's unique ID for this claim")
     reference_id: str = Field(..., description="Backend's unique ID for this reference")
     claim_text: str = Field(..., description="The scientific claim text as written in the document")
+    preceding_context: str = Field(
+        default="",
+        description="Sentences in the same paragraph before this claim, up to the previous citation. "
+                    "Prepended to claim_text to improve retrieval by giving the embedding model more context.",
+    )
     citation_text: str = Field(..., description="The raw in-text citation, e.g. '(Johnson et al., 2019)'")
     doi: str = Field(..., description="DOI of the cited source paper")
     doi_status: DoiStatus = Field(..., description="Whether the DOI resolves")
@@ -179,6 +184,16 @@ class VerifyClaimRequest(BaseModel):
     )
     overall_similarity_score: float = Field(
         ..., description="Overall similarity score carried over from Door 1's output"
+    )
+    is_abstract_only: bool = Field(
+        default=False,
+        description="True when only the abstract was available as source evidence (no full-text access). "
+                    "Instructs the LLM to judge on abstract evidence and not default to INSUFFICIENT_EVIDENCE.",
+    )
+    preceding_context: str = Field(
+        default="",
+        description="Sentences in the same paragraph before this claim. Shown to the LLM so it can "
+                    "resolve anaphoric references (e.g. 'this effect') without guessing.",
     )
 
 
@@ -368,7 +383,16 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
             _embedding_cache[request.doi] = embedder_output
 
         # Step 4: embed the claim with the same embedding model.
-        claim_embedding = _embed_single_text(request.claim_text, request.doi)
+        # Prepend preceding_context when available so the embedding captures
+        # the full semantic context leading up to the citation, not just the
+        # single citing sentence. This narrows the vocabulary gap between the
+        # claim query and the source chunks.
+        retrieval_query = (
+            f"{request.preceding_context} {request.claim_text}".strip()
+            if request.preceding_context
+            else request.claim_text
+        )
+        claim_embedding = _embed_single_text(retrieval_query, request.doi)
 
         # Step 5: hybrid retrieval — dense FAISS search and BM25 keyword
         # search each oversample candidates, then merge() combines them via
@@ -534,6 +558,8 @@ def verify_claim(request: VerifyClaimRequest) -> VerifyClaimResponse:
         citation_type=citation_type.value,
         chunks=chunks,
         doi="",  # not part of the Door 2 contract; only used for prompt context
+        is_abstract_only=request.is_abstract_only,
+        preceding_context=request.preceding_context,
     )
 
     # Step 3: render the prompt and call the LLM.
