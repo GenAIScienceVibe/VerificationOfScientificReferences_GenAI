@@ -14,11 +14,7 @@ function Footer() {
         }}>
           {/* Brand column */}
           <div style={{ flex: "0 0 auto" }}>
-            <img src={logo} alt="verifAi logo" style={{ height: "72px", width: "72px", objectFit: "contain", marginBottom: "10px", display: "block" }} />
-            <span style={{ fontWeight: "700", fontSize: "16px", color: "#111", display: "block", marginBottom: "8px" }}>verifAi</span>
-            <p style={{ fontSize: "13px", color: "#888", lineHeight: "1.6", maxWidth: "200px", margin: 0 }}>
-              AI-powered citation verification for research papers.
-            </p>
+            <img src={logo} alt="verifAi logo" style={{ height: "72px", width: "72px", objectFit: "contain", display: "block" }} />
           </div>
 
           {/* VerifAi links */}
