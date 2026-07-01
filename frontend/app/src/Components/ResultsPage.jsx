@@ -674,16 +674,26 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
             <p style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "16px" }}>UNDERSTANDING THESE RESULTS</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "16px" }}>
               {Object.entries(statusConfig).map(([key, item]) => (
-                <div key={item.label} className="verifai-tooltip" style={{ display: "flex", alignItems: "center", gap: "8px", background: item.bg, border: `1px solid ${item.border}`, borderRadius: "8px", padding: "8px 14px" }}>
+                <div
+                  key={item.label}
+                  className="verifai-tooltip"
+                  onClick={() => navigate(`/how-it-works?tab=categories#category-${STATUS_ANCHOR[key]}`)}
+                  style={{ display: "flex", alignItems: "center", gap: "8px", background: item.bg, border: `1px solid ${item.border}`, borderRadius: "8px", padding: "8px 14px", cursor: "pointer" }}
+                >
                   <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: item.color, flexShrink: 0 }} />
                   <span style={{ fontSize: "13px", color: "#333" }}>{item.label}</span>
-                  <span className="verifai-tooltip-text">{STATUS_TOOLTIPS[key]}</span>
+                  <span className="verifai-tooltip-text">{STATUS_TOOLTIPS[key]}<br /><span style={{ opacity: 0.7, fontSize: "11px" }}>Click to learn more →</span></span>
                 </div>
               ))}
             </div>
             <p style={{ fontSize: "13px", color: "#888", lineHeight: "1.6" }}>
               Not sure how a verdict is determined, or why some sources can't be checked automatically?{' '}
-              <a href="/how-it-works" onClick={e => { e.preventDefault(); navigate('/how-it-works') }} style={{ color: "#1a3a6b", fontWeight: "600", textDecoration: "underline", cursor: "pointer" }}>See how VerifAi works</a>
+              <span
+                onClick={() => navigate('/how-it-works')}
+                style={{ color: "#1a3a6b", fontWeight: "600", textDecoration: "underline", cursor: "pointer" }}
+              >
+                See how VerifAi works
+              </span>
             </p>
           </div>
 
