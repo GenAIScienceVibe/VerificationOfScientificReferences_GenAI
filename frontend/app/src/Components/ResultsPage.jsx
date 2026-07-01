@@ -423,7 +423,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
             <div className="verifai-tooltip" style={{ display: "inline-flex", justifyContent: "center", alignItems: "center", gap: "6px", marginBottom: "16px", cursor: "default" }}>
               <p style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", letterSpacing: "1px", margin: 0 }}>CREDIBILITY SCORE</p>
               <span style={{ width: "15px", height: "15px", borderRadius: "50%", background: "#e8edf5", color: "#1a3a6b", fontSize: "9px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>?</span>
-              <span className="verifai-tooltip-text" style={{ width: "240px", left: "50%", textAlign: "left" }}>
+              <span className="verifai-tooltip-text" style={{ width: "240px", left: "0", transform: "none", textAlign: "left" }}>
                 <strong style={{ display: "block", marginBottom: "6px" }}>How is this calculated?</strong>
                 Each verified claim is weighted by verdict:<br />
                 Supported × 1.0 + Partially Supported × 0.5<br />
