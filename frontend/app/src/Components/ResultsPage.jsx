@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import CitationGraph from './CitationGraph'
 import logo from '../assets/Logo_VerifAi.png'
 import { generateVerificationPdf } from './pdfReport'
@@ -88,6 +88,83 @@ function getSimilarityHint(score) {
   return null
 }
 
+const SORT_OPTIONS = [
+  { value: 'default',    label: 'Default order' },
+  { value: 'status',     label: 'Status' },
+  { value: 'confidence', label: 'Confidence (high → low)' },
+  { value: 'source',     label: 'Paper / Source' },
+  { value: 'author',     label: 'Author' },
+]
+
+function SortDropdown({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const selected = SORT_OPTIONS.find(o => o.value === value)
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', position: 'relative' }}>
+      <span style={{ fontSize: '13px', color: '#888', fontWeight: '600', whiteSpace: 'nowrap' }}>Sort by</span>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: '8px',
+          background: 'white', border: '1px solid #d0d5dd', borderRadius: '8px',
+          padding: '7px 12px', fontSize: '13px', color: '#1a3a6b', fontWeight: '600',
+          cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'border-color 0.15s',
+          borderColor: open ? '#1a3a6b' : '#d0d5dd',
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a3a6b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 6h18M7 12h10M11 18h2"/>
+        </svg>
+        {selected?.label}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1a3a6b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: '60px', zIndex: 50,
+          background: 'white', border: '1px solid #e0e4ea', borderRadius: '10px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.10)', minWidth: '200px', overflow: 'hidden',
+        }}>
+          {SORT_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => { onChange(opt.value); setOpen(false) }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%', padding: '10px 14px', border: 'none', textAlign: 'left',
+                background: opt.value === value ? '#eff6ff' : 'white',
+                color: opt.value === value ? '#1a3a6b' : '#333',
+                fontSize: '13px', fontWeight: opt.value === value ? '600' : '400',
+                cursor: 'pointer', transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => { if (opt.value !== value) e.currentTarget.style.background = '#f5f8ff' }}
+              onMouseLeave={e => { if (opt.value !== value) e.currentTarget.style.background = 'white' }}
+            >
+              {opt.label}
+              {opt.value === value && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a3a6b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ResultsPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -95,6 +172,7 @@ function ResultsPage() {
   const documentId = location.state?.documentId
 
   const [activeFilter, setActiveFilter] = useState('All')
+  const [sortBy, setSortBy] = useState('default')
   const [activeView, setActiveView] = useState('overview')
   const [citationFilter, setCitationFilter] = useState('all')
   const [claims, setClaims] = useState([])
@@ -204,7 +282,16 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
     { label: "Insufficient Evidence", key: "insufficient", color: "#6b7280", border: "#d1d5db" },
   ]
 
-  const filteredClaims = claims.filter(claim => {
+  const sortOrder = { supported: 0, partial: 1, unsupported: 2, hallucinated: 3, insufficient: 4 }
+  const sortedClaims = [...claims].sort((a, b) => {
+    if (sortBy === 'confidence') return b.confidence - a.confidence
+    if (sortBy === 'status') return (sortOrder[a.status] ?? 5) - (sortOrder[b.status] ?? 5)
+    if (sortBy === 'source') return (a.source || '').localeCompare(b.source || '')
+    if (sortBy === 'author') return (a.authorLine || '').localeCompare(b.authorLine || '')
+    return (a.displayId ?? 0) - (b.displayId ?? 0)
+  })
+
+  const filteredClaims = sortedClaims.filter(claim => {
     if (activeFilter === "All") return true
     if (activeFilter === "Supported") return claim.status === "supported"
     if (activeFilter === "Partial") return claim.status === "partial"
@@ -227,7 +314,14 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
   }
 
   const getConfidenceColor = (c) => c > 0.7 ? "#16a34a" : c > 0.4 ? "#d97706" : "#dc2626"
-  const handleDownload = () => generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo })
+  const handleDownload = async () => {
+    try {
+      await generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo, credibilityScore, credibilityLabel, credibilityColor })
+    } catch (err) {
+      console.error('PDF generation failed:', err)
+      alert('PDF generation failed: ' + err.message)
+    }
+  }
 
   const jumpToUnresolvedSources = () => {
     setActiveView('overview')
@@ -291,17 +385,32 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
         }
         .verifai-tooltip { position: relative; display: inline-flex; align-items: center; }
         .verifai-tooltip .verifai-tooltip-text {
-  visibility: hidden; opacity: 0; width: 260px; background: #1a3a6b; color: white;
-  font-size: 12px; line-height: 1.5; border-radius: 8px; padding: 10px 12px;
-  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-  transition: opacity 0.15s; pointer-events: auto; z-index: 100;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-.verifai-tooltip .verifai-tooltip-text::after {
-  content: ''; position: absolute; top: 100%; left: 0; right: 0; height: 12px;
-}
-.verifai-tooltip:hover .verifai-tooltip-text { visibility: visible; opacity: 1; }
-.verifai-tooltip .verifai-tooltip-text a { color: #93c5fd; text-decoration: underline; cursor: pointer; }
+          visibility: hidden; opacity: 0; width: 260px; background: #1a3a6b; color: white;
+          font-size: 12px; line-height: 1.5; border-radius: 8px; padding: 10px 12px;
+          position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+          transition: opacity 0.15s; pointer-events: auto; z-index: 100;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .verifai-tooltip .verifai-tooltip-text::after {
+          content: ''; position: absolute; top: 100%; left: 0; right: 0; height: 12px;
+        }
+        .verifai-tooltip:hover .verifai-tooltip-text { visibility: visible; opacity: 1; }
+        .verifai-tooltip .verifai-tooltip-text a { color: #93c5fd; text-decoration: underline; cursor: pointer; }
+        .verifai-btn-primary { transition: background 0.15s, box-shadow 0.15s; }
+        .verifai-btn-primary:hover { background: #0f2a5a !important; box-shadow: 0 4px 12px rgba(26,58,107,0.25); }
+        .verifai-btn-outline:hover { background: #f0f4ff !important; }
+        .verifai-filter-btn { transition: background 0.15s, color 0.15s, box-shadow 0.15s, transform 0.1s; }
+        .verifai-filter-btn:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); transform: translateY(-1px); }
+        .verifai-legend-chip { transition: opacity 0.15s, transform 0.1s; }
+        .verifai-legend-chip:hover { opacity: 0.8; transform: translateY(-1px); }
+        .verifai-claim-card { transition: box-shadow 0.15s, border-color 0.15s; }
+        .verifai-claim-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+        .verifai-text-btn { transition: color 0.15s, opacity 0.15s; }
+        .verifai-text-btn:hover { opacity: 0.7; text-decoration: underline; }
+        .verifai-view-btn { transition: background 0.15s, color 0.15s, opacity 0.15s; }
+        .verifai-view-btn:not([data-active="true"]):hover { background: #f0f4ff !important; }
+        .verifai-sidebar-card { transition: box-shadow 0.15s; }
+        .verifai-sidebar-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.07); }
       `}</style>
 
       <div style={{ display: "flex", gap: "24px", maxWidth: "1200px", margin: "0 auto" }}>
@@ -310,23 +419,19 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
         <div style={{ width: "280px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "16px" }}>
 
           {/* Credibility Score */}
-          <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0", textAlign: "center" }}>
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", marginBottom: "16px" }}>
+          <div className="verifai-sidebar-card" style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0", textAlign: "center" }}>
+            <div className="verifai-tooltip" style={{ display: "inline-flex", justifyContent: "center", alignItems: "center", gap: "6px", marginBottom: "16px", cursor: "default" }}>
               <p style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", letterSpacing: "1px", margin: 0 }}>CREDIBILITY SCORE</p>
-              <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
-                onMouseEnter={e => e.currentTarget.querySelector('.cred-tooltip').style.visibility = 'visible'}
-                onMouseLeave={e => e.currentTarget.querySelector('.cred-tooltip').style.visibility = 'hidden'}
-              >
-                <span style={{ fontSize: "13px", color: "#aaa", cursor: "default", lineHeight: 1 }}>i</span>
-                <div className="cred-tooltip" style={{
-                  visibility: "hidden", width: "240px", background: "#1a3a6b", color: "white",
-                  fontSize: "12px", lineHeight: "1.5", borderRadius: "8px", padding: "10px 12px",
-                  position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)",
-                  zIndex: 100, boxShadow: "0 4px 12px rgba(0,0,0,0.15)", pointerEvents: "none"
-                }}>
-                  {CREDIBILITY_TOOLTIP}
-                </div>
-              </div>
+              <span style={{ width: "15px", height: "15px", borderRadius: "50%", background: "#e8edf5", color: "#1a3a6b", fontSize: "9px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>?</span>
+              <span className="verifai-tooltip-text" style={{ width: "240px", left: "50%", textAlign: "left" }}>
+                <strong style={{ display: "block", marginBottom: "6px" }}>How is this calculated?</strong>
+                Each verified claim is weighted by verdict:<br />
+                Supported × 1.0 + Partially Supported × 0.5<br />
+                divided by total claims × 100.<br /><br />
+                <strong>≥ 80%</strong> — Reliable<br />
+                <strong>50–79%</strong> — Partially Reliable<br />
+                <strong>&lt; 50%</strong> — Low Reliability
+              </span>
             </div>
             <div style={{ position: "relative", width: "120px", height: "120px", margin: "0 auto 12px" }}>
               <svg viewBox="0 0 120 120" width="120" height="120">
@@ -338,12 +443,18 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
               <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", fontSize: "20px", fontWeight: "700", color: "#111" }}>{credibilityScore.toFixed(1)}%</div>
             </div>
             <p style={{ color: credibilityColor, fontWeight: "600", fontSize: "14px", marginBottom: "8px" }}>{credibilityLabel}</p>
-            <p style={{ color: "#888", fontSize: "12px", lineHeight: "1.5" }}>Some claims are inaccurate or unsupported by their cited sources.</p>
+            <p style={{ color: "#888", fontSize: "12px", lineHeight: "1.5" }}>
+              {credibilityScore >= 80
+                ? "The majority of claims are well-supported by their cited sources."
+                : credibilityScore >= 50
+                ? "Some claims are inaccurate or unsupported by their cited sources."
+                : "A significant portion of claims could not be verified or are unsupported."}
+            </p>
           </div>
 
           {/* Claims Summary */}
-          <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
-            <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "16px" }}>CLAIMS SUMMARY</p>
+          <div className="verifai-sidebar-card" style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
+            <p style={{ fontSize: "13px", fontWeight: "700", color: "#111", marginBottom: "16px" }}>Claims Summary</p>
             {summaryItems.map(item => (
               <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <span style={{ fontSize: "13px", color: "#444", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -371,25 +482,25 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
 
           {/* View */}
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
-            <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "12px" }}>VIEW</p>
+            <p style={{ fontSize: "13px", fontWeight: "700", color: "#111", marginBottom: "12px" }}>View</p>
             <div style={{ display: "flex", border: "1px solid #1a3a6b", borderRadius: "8px", overflow: "hidden" }}>
-              <button onClick={() => setActiveView('overview')} style={{ flex: 1, padding: "10px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: "700", background: activeView === 'overview' ? "#1a3a6b" : "white", color: activeView === 'overview' ? "white" : "#1a3a6b" }}>Overview</button>
-              <button onClick={() => setActiveView('citation')} style={{ flex: 1, padding: "10px", border: "none", borderLeft: "1px solid #1a3a6b", cursor: "pointer", fontSize: "14px", fontWeight: "700", background: activeView === 'citation' ? "#1a3a6b" : "white", color: activeView === 'citation' ? "white" : "#1a3a6b" }}>Network Graph</button>
+              <button onClick={() => setActiveView('overview')} className="verifai-view-btn" data-active={activeView === 'overview'} style={{ flex: 1, padding: "10px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: "700", background: activeView === 'overview' ? "#1a3a6b" : "white", color: activeView === 'overview' ? "white" : "#1a3a6b" }}>Overview</button>
+              <button onClick={() => setActiveView('citation')} className="verifai-view-btn" data-active={activeView === 'citation'} style={{ flex: 1, padding: "10px", border: "none", borderLeft: "1px solid #1a3a6b", cursor: "pointer", fontSize: "14px", fontWeight: "700", background: activeView === 'citation' ? "#1a3a6b" : "white", color: activeView === 'citation' ? "white" : "#1a3a6b" }}>Network Graph</button>
             </div>
           </div>
 
           {/* Export */}
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
-            <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "12px" }}>EXPORT</p>
-            <button onClick={handleDownload} style={{ width: "100%", background: "#1a3a6b", color: "white", border: "none", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>Download PDF report</button>
+            <p style={{ fontSize: "13px", fontWeight: "700", color: "#111", marginBottom: "12px" }}>Export</p>
+            <button onClick={handleDownload} className="verifai-btn-primary" style={{ width: "100%", background: "#1a3a6b", color: "white", border: "none", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>Download PDF report</button>
           </div>
 
           {/* Unresolved */}
           {summaryItems[4].count > 0 && (
             <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
-              <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "8px" }}>UNRESOLVED SOURCES</p>
+              <p style={{ fontSize: "13px", fontWeight: "700", color: "#111", marginBottom: "8px" }}>Unresolved Sources</p>
               <p style={{ fontSize: "12px", color: "#888", marginBottom: "14px", lineHeight: "1.5" }}>{summaryItems[4].count} claim(s) couldn't be checked automatically.</p>
-              <button onClick={jumpToUnresolvedSources} style={{ width: "100%", background: "white", color: "#1a3a6b", border: "1px solid #1a3a6b", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>
+              <button onClick={jumpToUnresolvedSources} className="verifai-btn-outline" style={{ width: "100%", background: "white", color: "#1a3a6b", border: "1px solid #1a3a6b", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>
                 Add reference documents to check claims
               </button>
             </div>
@@ -401,7 +512,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
             <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#111", margin: 0 }}>Verification Results</h2>
-            <button onClick={() => navigate('/')} style={{ border: "1px solid #ccc", background: "white", borderRadius: "8px", padding: "8px 20px", cursor: "pointer", fontSize: "14px" }}>← New document</button>
+            <button onClick={() => navigate('/')} className="verifai-btn-outline" style={{ border: "1px solid #ccc", background: "white", borderRadius: "8px", padding: "8px 20px", cursor: "pointer", fontSize: "14px" }}>← New document</button>
           </div>
           <p style={{ color: "#888", fontSize: "14px", marginBottom: "20px" }}>
             {totalClaims} claims checked · {claims.filter(c => c.doiResolved).length} DOIs resolved · {claims.filter(c => !c.doiResolved).length} unresolvable
@@ -411,35 +522,13 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
             <>
               <div ref={claimsListRef} style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>
                 {filters.map((filter) => (
-                  <button key={filter.label} onClick={() => setActiveFilter(filter.label)} style={{ padding: "8px 16px", borderRadius: "99px", fontSize: "13px", fontWeight: "600", cursor: "pointer", background: activeFilter === filter.label ? filter.color : "white", color: activeFilter === filter.label ? "white" : filter.color, border: `1px solid ${filter.border}` }}>
+                  <button key={filter.label} onClick={() => setActiveFilter(filter.label)} className="verifai-filter-btn" style={{ padding: "8px 16px", borderRadius: "99px", fontSize: "13px", fontWeight: "600", cursor: "pointer", background: activeFilter === filter.label ? filter.color : "white", color: activeFilter === filter.label ? "white" : filter.color, border: `1px solid ${filter.border}` }}>
                     {filter.label}
                   </button>
                 ))}
               </div>
               {/* Sort bar */}
-<div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-  <span style={{ fontSize: '12px', color: '#888', fontWeight: '600' }}>Sort by:</span>
-  <select
-    onChange={e => {
-      const val = e.target.value
-      if (val === 'default') return setClaims(prev => [...prev].sort((a, b) => (a.displayId ?? 0) - (b.displayId ?? 0)))
-      if (val === 'source') return setClaims(prev => [...prev].sort((a, b) => (a.source || '').localeCompare(b.source || '')))
-      if (val === 'author') return setClaims(prev => [...prev].sort((a, b) => (a.authorLine || '').localeCompare(b.authorLine || '')))
-      if (val === 'confidence') return setClaims(prev => [...prev].sort((a, b) => b.confidence - a.confidence))
-      if (val === 'status') return setClaims(prev => [...prev].sort((a, b) => {
-        const order = { supported: 0, partial: 1, unsupported: 2, hallucinated: 3, insufficient: 4 }
-        return (order[a.status] ?? 5) - (order[b.status] ?? 5)
-      }))
-    }}
-    style={{ background: '#f5f5f5', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '6px 12px', fontSize: '13px', color: '#444', cursor: 'pointer' }}
-  >
-    <option value="default">Default order</option>
-    <option value="source">Paper / Source</option>
-    <option value="author">Author</option>
-    <option value="confidence">Confidence (high to low)</option>
-    <option value="status">Status</option>
-  </select>
-</div>
+              <SortDropdown value={sortBy} onChange={setSortBy} />
 
               {filteredClaims.length === 0 ? (
                 <p style={{ color: "#888", fontSize: "14px", textAlign: "center", padding: "40px 0" }}>No claims match this filter.</p>
@@ -457,14 +546,14 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                     const reasoningIsLong = claim.reasoning.length > 120
 
                     return (
-                      <div key={claim.id} style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
+                      <div key={claim.id} className="verifai-claim-card" style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
 
                         {/* Header */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                           <span style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px" }}>CLAIM {claim.displayId}</span>
                           <div className="verifai-tooltip">
                             <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}`, cursor: "default" }}>
-                              {config.label} <span style={{ opacity: 0.6, fontSize: "10px" }}>i</span>
+                              {config.label}
                             </span>
                             <span className="verifai-tooltip-text" style={{ textAlign: "left" }}>
                               {STATUS_TOOLTIPS[claim.status]}
@@ -493,7 +582,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                             <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", margin: 0 }}>AI REASONING</p>
                             {reasoningIsLong && (
-                              <button onClick={() => setExpandedReasoning(prev => ({ ...prev, [claim.id]: !prev[claim.id] }))} style={{ fontSize: "11px", color: "#1a3a6b", background: "none", border: "none", cursor: "pointer", fontWeight: "600", padding: 0, flexShrink: 0 }}>
+                              <button onClick={() => setExpandedReasoning(prev => ({ ...prev, [claim.id]: !prev[claim.id] }))} className="verifai-text-btn" style={{ fontSize: "11px", color: "#1a3a6b", background: "none", border: "none", cursor: "pointer", fontWeight: "600", padding: 0, flexShrink: 0 }}>
                                 {isReasoningExpanded ? "Show less" : "Show more"}
                               </button>
                             )}
@@ -555,10 +644,11 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                               <div style={{ width: `${claim.confidence * 100}%`, height: "6px", background: getConfidenceColor(claim.confidence), borderRadius: "99px" }} />
                             </div>
                             <span style={{ fontSize: "12px", color: "#888" }}>{(claim.confidence * 100).toFixed(1)}%</span>
-                            <span style={{ fontSize: "11px", color: "#bbb", cursor: "default" }}>i</span>
+                            <span style={{ width: "14px", height: "14px", borderRadius: "50%", background: "#e8edf5", color: "#1a3a6b", fontSize: "9px", fontWeight: "700", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "default", flexShrink: 0 }}>?</span>
                             <span className="verifai-tooltip-text">{CONFIDENCE_TOOLTIP}</span>
                           </div>
                           <button
+                            className="verifai-text-btn"
                             style={{ fontSize: "12px", color: "#1a3a6b", background: "none", border: "none", cursor: "pointer", fontWeight: "600" }}
                             onClick={async () => {
                               const isOpen = expandedPassages[claim.id]
@@ -649,16 +739,26 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
             <p style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "16px" }}>UNDERSTANDING THESE RESULTS</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "16px" }}>
               {Object.entries(statusConfig).map(([key, item]) => (
-                <div key={item.label} className="verifai-tooltip" style={{ display: "flex", alignItems: "center", gap: "8px", background: item.bg, border: `1px solid ${item.border}`, borderRadius: "8px", padding: "8px 14px" }}>
+                <div
+                  key={item.label}
+                  className="verifai-tooltip"
+                  onClick={() => navigate(`/how-it-works?tab=categories#category-${STATUS_ANCHOR[key]}`)}
+                  style={{ display: "flex", alignItems: "center", gap: "8px", background: item.bg, border: `1px solid ${item.border}`, borderRadius: "8px", padding: "8px 14px", cursor: "pointer" }}
+                >
                   <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: item.color, flexShrink: 0 }} />
                   <span style={{ fontSize: "13px", color: "#333" }}>{item.label}</span>
-                  <span className="verifai-tooltip-text">{STATUS_TOOLTIPS[key]}</span>
+                  <span className="verifai-tooltip-text">{STATUS_TOOLTIPS[key]}<br /><span style={{ opacity: 0.7, fontSize: "11px" }}>Click to learn more →</span></span>
                 </div>
               ))}
             </div>
             <p style={{ fontSize: "13px", color: "#888", lineHeight: "1.6" }}>
               Not sure how a verdict is determined, or why some sources can't be checked automatically?{' '}
-              <a href="/how-it-works" style={{ color: "#1a3a6b", fontWeight: "600", textDecoration: "underline" }}>See how VerifAi works</a>
+              <span
+                onClick={() => navigate('/how-it-works')}
+                style={{ color: "#1a3a6b", fontWeight: "600", textDecoration: "underline", cursor: "pointer" }}
+              >
+                See how VerifAi works
+              </span>
             </p>
           </div>
 

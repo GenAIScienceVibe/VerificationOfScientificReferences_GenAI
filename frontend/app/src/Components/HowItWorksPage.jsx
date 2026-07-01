@@ -273,7 +273,7 @@ function HowItWorksPage() {
                   </ul>
                   {cat.note && (
                     <div style={{ background: cat.bg, border: `1px solid ${cat.border}`, borderRadius: "8px", padding: "10px 14px", marginTop: "12px" }}>
-                      <p style={{ fontSize: "13px", color: cat.color, margin: 0, fontWeight: "600" }}>i {cat.note}</p>
+                      <p style={{ fontSize: "13px", color: cat.color, margin: 0, fontWeight: "600" }}>{cat.note}</p>
                     </div>
                   )}
                 </div>

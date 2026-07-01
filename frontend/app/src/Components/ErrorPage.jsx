@@ -41,8 +41,8 @@ function ErrorPage() {
           Something went wrong
         </h2>
 
-        <p style={{ color: "#888", margin: "0 0 28px", fontSize: "15px" }}>
-          We couldn't verify this document...
+        <p style={{ color: "#888", margin: "0 0 28px", fontSize: "15px", lineHeight: "1.6" }}>
+          We ran into a problem while verifying your document. This can happen if the file is too large, the backend timed out, or the document couldn't be parsed. You can try again or upload a different file.
         </p>
 
         <hr style={{ border: "none", borderTop: "1px solid #e0e0e0", marginBottom: "28px" }} />
@@ -54,8 +54,10 @@ function ErrorPage() {
               style={{
                 background: "#1a3a6b", color: "white", border: "none",
                 borderRadius: "10px", padding: "12px 24px", cursor: "pointer",
-                fontSize: "14px", fontWeight: "600"
-              }}>
+                fontSize: "14px", fontWeight: "600", transition: "background 0.15s"
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#0f2a5a'}
+              onMouseLeave={e => e.currentTarget.style.background = '#1a3a6b'}>
               Try again
             </button>
           )}
