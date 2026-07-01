@@ -1,448 +1,404 @@
 import jsPDF from 'jspdf'
 
-const NAVY = [26, 58, 107]
-const LIGHT_GREY = [245, 246, 248]
-const MID_GREY = [140, 140, 148]
-const DARK = [30, 30, 35]
-
-const hexToRgb = (hex) => {
-  const clean = (hex || '#888888').replace('#', '')
-  const bigint = parseInt(clean, 16)
-  return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255]
+// ─── Palette ─────────────────────────────────────────────────────────────────
+const C = {
+  navy:   [15,  40,  80],
+  ink:    [28,  30,  34],
+  body:   [60,  63,  70],
+  subtle: [120, 124, 132],
+  rule:   [220, 222, 228],
+  bg:     [248, 249, 251],
+  white:  [255, 255, 255],
 }
 
-const loadImageAsBase64 = (url) =>
-  new Promise((resolve) => {
+const STATUS_COLORS = {
+  supported:    '#16a34a',
+  partial:      '#ca8a04',
+  unsupported:  '#dc2626',
+  hallucinated: '#7c3aed',
+  insufficient: '#6b7280',
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+function hex2rgb(hex) {
+  const h = (hex || '#888').replace('#', '')
+  const n = parseInt(h, 16)
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+function loadImg(url) {
+  return new Promise((res) => {
     const img = new window.Image()
     img.crossOrigin = 'Anonymous'
     img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = img.width
-      canvas.height = img.height
-      canvas.getContext('2d').drawImage(img, 0, 0)
-      resolve(canvas.toDataURL('image/png'))
+      const c = document.createElement('canvas')
+      c.width = img.width; c.height = img.height
+      c.getContext('2d').drawImage(img, 0, 0)
+      res(c.toDataURL('image/png'))
     }
-    img.onerror = () => resolve(null)
+    img.onerror = () => res(null)
     img.src = url
   })
-
-const getConfidenceColor = (c) => {
-  if (c > 0.7) return '#16a34a'
-  if (c > 0.4) return '#d97706'
-  return '#dc2626'
 }
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function setFont(doc, size, style = 'normal', color = DARK) {
-  doc.setFont(undefined, style)
+// Typography helper: font / size / color in one call
+function t(doc, size, weight, color) {
+  doc.setFont('helvetica', weight || 'normal')
   doc.setFontSize(size)
-  doc.setTextColor(...color)
+  doc.setTextColor(...(color || C.ink))
 }
 
-function drawRoundRect(doc, x, y, w, h, r, fillColor, strokeColor) {
-  if (fillColor) doc.setFillColor(...fillColor)
-  if (strokeColor) doc.setDrawColor(...strokeColor)
-  else doc.setDrawColor(220, 222, 228)
-  doc.setLineWidth(0.3)
-  doc.roundedRect(x, y, w, h, r, r, fillColor ? (strokeColor !== false ? 'FD' : 'F') : 'D')
+// Horizontal rule
+function rule(doc, x1, y, x2, color, w) {
+  doc.setDrawColor(...(color || C.rule))
+  doc.setLineWidth(w || 0.3)
+  doc.line(x1, y, x2, y)
 }
 
-// ─── page chrome ─────────────────────────────────────────────────────────────
+// ─── Running header (all pages except cover) ──────────────────────────────────
 
-function drawHeader(doc, { pageWidth, margin, logoBase64, fileName }) {
-  doc.setFillColor(255, 255, 255)
-  doc.rect(0, 0, pageWidth, 28, 'F')
-
-  if (logoBase64) doc.addImage(logoBase64, 'PNG', margin, 5, 16, 16)
-
-  const tx = logoBase64 ? margin + 20 : margin
-  setFont(doc, 13, 'bold', NAVY)
-  doc.text('verifAi', tx, 14)
-  setFont(doc, 7.5, 'normal', MID_GREY)
-  doc.text(`Verification Report  ·  ${fileName}  ·  ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`, tx, 21)
-
-  doc.setDrawColor(220, 222, 228)
-  doc.setLineWidth(0.3)
-  doc.line(margin, 28, pageWidth - margin, 28)
+function pageHeader(doc, { W, mg, logo, date }) {
+  doc.setFillColor(...C.white)
+  doc.rect(0, 0, W, 24, 'F')
+  if (logo) doc.addImage(logo, 'PNG', mg, 5, 12, 12)
+  const lx = logo ? mg + 16 : mg
+  t(doc, 9.5, 'bold', C.navy);  doc.text('verifAi', lx, 13)
+  t(doc, 7,   'normal', C.subtle)
+  doc.text(`Verification Report  ·  ${date}`, lx, 20)
+  rule(doc, mg, 24, W - mg)
 }
 
-function drawFooter(doc, { pageWidth, pageHeight, margin, contentWidth, pageNum, totalPages }) {
-  doc.setDrawColor(220, 222, 228)
-  doc.setLineWidth(0.3)
-  doc.line(margin, pageHeight - 18, pageWidth - margin, pageHeight - 18)
+// ─── Running footer ───────────────────────────────────────────────────────────
 
-  setFont(doc, 7, 'italic', MID_GREY)
-  const disclaimer = doc.splitTextToSize(
-    'VerifAi uses AI-assisted analysis and automated source matching. Results may contain errors — please verify critical claims against the original sources.',
-    contentWidth - 30
+function pageFooter(doc, { W, H, mg, cw, pg, total }) {
+  rule(doc, mg, H - 16, W - mg)
+  t(doc, 6.5, 'italic', C.subtle)
+  doc.text(
+    'VerifAi uses AI-assisted analysis. Results may contain errors — always verify critical claims against original sources.',
+    mg, H - 10, { maxWidth: cw - 30 }
   )
-  doc.text(disclaimer, margin, pageHeight - 12)
-
-  setFont(doc, 7.5, 'normal', MID_GREY)
-  doc.text(`${pageNum} / ${totalPages}`, pageWidth - margin, pageHeight - 12, { align: 'right' })
+  t(doc, 7, 'normal', C.subtle)
+  doc.text(`${pg} / ${total}`, W - mg, H - 10, { align: 'right' })
 }
 
-// ─── cover page ──────────────────────────────────────────────────────────────
+// ─── Cover page ───────────────────────────────────────────────────────────────
 
-function drawCoverPage(doc, { pageWidth, pageHeight, margin, contentWidth, logoBase64, fileName, credibilityScore, credibilityLabel, credibilityColor, summaryItems }) {
-  // Dark navy header band
-  doc.setFillColor(...NAVY)
-  doc.rect(0, 0, pageWidth, 72, 'F')
+function cover(doc, { W, H, mg, cw, logo, file, score, label, scoreColor, items, date }) {
+  // Top stripe — full width, deep navy
+  doc.setFillColor(...C.navy)
+  doc.rect(0, 0, W, 52, 'F')
 
-  if (logoBase64) doc.addImage(logoBase64, 'PNG', margin, 12, 22, 22)
+  // Brand
+  if (logo) doc.addImage(logo, 'PNG', mg, 12, 16, 16)
+  const bx = logo ? mg + 20 : mg
+  t(doc, 16, 'bold', C.white);        doc.text('verifAi', bx, 23)
+  t(doc, 8,  'normal', [160,185,215]);doc.text('AI-Powered Citation Verification', bx, 31)
 
-  setFont(doc, 22, 'bold', [255, 255, 255])
-  doc.text('verifAi', margin + (logoBase64 ? 27 : 0), 24)
-  setFont(doc, 9, 'normal', [180, 200, 230])
-  doc.text('AI-Powered Citation Verification', margin + (logoBase64 ? 27 : 0), 32)
+  // Report title below stripe
+  t(doc, 8, 'bold', [160,185,215]);   doc.text('VERIFICATION REPORT', mg, 43)
 
-  setFont(doc, 14, 'bold', [255, 255, 255])
-  doc.text('Verification Report', margin, 52)
-  setFont(doc, 8.5, 'normal', [180, 200, 230])
-  const shortName = fileName.length > 60 ? fileName.slice(0, 57) + '...' : fileName
-  doc.text(shortName, margin, 62)
+  // File name — truncated
+  const short = file.length > 70 ? file.slice(0, 67) + '…' : file
+  t(doc, 8, 'normal', [200,215,235]); doc.text(short, mg, 50)
 
-  // Credibility score card
-  let y = 90
-  drawRoundRect(doc, margin, y, contentWidth, 48, 4, [255, 255, 255], null)
+  let y = 70
 
-  const [cr, cg, cb] = hexToRgb(credibilityColor)
-  const scoreText = `${credibilityScore.toFixed(1)}%`
+  // ── Score block ───────────────────────────────────────────────────────────
+  const [sr, sg, sb] = hex2rgb(scoreColor)
+  t(doc, 7, 'bold', C.subtle); doc.text('CREDIBILITY SCORE', mg, y)
+  y += 7
 
-  setFont(doc, 8, 'bold', MID_GREY)
-  doc.text('CREDIBILITY SCORE', margin + 10, y + 12)
+  t(doc, 36, 'bold', [sr, sg, sb])
+  doc.text(`${score.toFixed(1)}%`, mg, y + 18)
+  t(doc, 11, 'bold', [sr, sg, sb])
+  doc.text(label, mg, y + 27)
 
-  setFont(doc, 28, 'bold', [cr, cg, cb])
-  doc.text(scoreText, margin + 10, y + 33)
-
-  setFont(doc, 10, 'bold', [cr, cg, cb])
-  doc.text(credibilityLabel, margin + 10, y + 42)
-
-  // Mini bar chart
-  const barX = margin + contentWidth / 2
-  const barW = contentWidth / 2 - 16
-  const total = summaryItems.reduce((s, i) => s + i.count, 0)
-  let bx = barX
-  doc.setFillColor(230, 232, 236)
-  doc.roundedRect(barX, y + 22, barW, 5, 2, 2, 'F')
-  summaryItems.forEach(item => {
-    const segW = total > 0 ? (item.count / total) * barW : 0
-    if (segW > 0) {
-      const [r, g, b] = hexToRgb(item.color)
-      doc.setFillColor(r, g, b)
-      doc.rect(bx, y + 22, segW, 5, 'F')
-      bx += segW
+  // Stacked bar (right half of page)
+  const total = items.reduce((s, i) => s + i.count, 0)
+  const bw = cw * 0.42, bstart = mg + cw * 0.53
+  doc.setFillColor(...C.rule)
+  doc.roundedRect(bstart, y + 4, bw, 4, 2, 2, 'F')
+  let cx = bstart
+  items.forEach(item => {
+    const sw = total > 0 ? (item.count / total) * bw : 0
+    if (sw > 0) {
+      doc.setFillColor(...hex2rgb(item.color)); doc.rect(cx, y + 4, sw, 4, 'F'); cx += sw
     }
   })
 
-  let legendY = y + 32
-  summaryItems.forEach((item, i) => {
-    const lx = barX + (i % 2) * (barW / 2)
-    const ly = legendY + Math.floor(i / 2) * 7
-    const [r, g, b] = hexToRgb(item.color)
-    doc.setFillColor(r, g, b)
-    doc.circle(lx + 2, ly - 1.5, 1.5, 'F')
-    setFont(doc, 7.5, 'normal', [80, 80, 80])
-    doc.text(`${item.label}  ${item.count}`, lx + 6, ly)
+  // Legend
+  let ly = y + 13
+  items.forEach((item, i) => {
+    const col = i % 2, row = Math.floor(i / 2)
+    const lx = bstart + col * (bw / 2), _ly = ly + row * 7
+    doc.setFillColor(...hex2rgb(item.color)); doc.circle(lx + 2, _ly - 1.5, 1.5, 'F')
+    t(doc, 7.5, 'normal', C.body); doc.text(item.label, lx + 6, _ly)
+    t(doc, 7.5, 'bold',   C.ink);  doc.text(String(item.count), lx + bw / 2 - 2, _ly, { align: 'right' })
   })
 
-  y += 64
+  y += 46
+  rule(doc, mg, y, mg + cw)
+  y += 10
 
-  // Summary stats row
-  const statsY = y
-  const cols = [
-    { label: 'Total Claims', value: total },
-    { label: 'DOIs Resolved', value: summaryItems[0]?.doiResolved ?? '—' },
-    { label: 'Generated', value: new Date().toLocaleDateString('en-GB') },
+  // ── Stats row ─────────────────────────────────────────────────────────────
+  const stats = [
+    { v: String(total), l: 'Total claims analysed' },
+    { v: date, l: 'Report generated' },
+    { v: 'Llama 4 · RAG', l: 'Powered by' },
   ]
-  const colW = contentWidth / cols.length
-  cols.forEach((col, i) => {
-    const cx = margin + i * colW
-    drawRoundRect(doc, cx + 2, statsY, colW - 4, 26, 3, LIGHT_GREY, false)
-    setFont(doc, 14, 'bold', NAVY)
-    doc.text(String(col.value), cx + 8, statsY + 13)
-    setFont(doc, 7.5, 'normal', MID_GREY)
-    doc.text(col.label, cx + 8, statsY + 21)
+  const sw = cw / stats.length
+  stats.forEach((s, i) => {
+    const sx = mg + i * sw
+    t(doc, 12, 'bold', C.navy); doc.text(s.v, sx, y + 9)
+    t(doc, 7,  'normal', C.subtle); doc.text(s.l, sx, y + 17)
+    if (i < stats.length - 1) rule(doc, sx + sw - 4, y, sx + sw - 4, y + 22, C.rule, 0.3)
   })
 
-  y = statsY + 36
+  y += 28
+  rule(doc, mg, y, mg + cw)
+  y += 10
 
-  // Methodology box
-  drawRoundRect(doc, margin, y, contentWidth, 52, 3, LIGHT_GREY, false)
-  setFont(doc, 9, 'bold', NAVY)
-  doc.text('Methodology', margin + 8, y + 10)
-  setFont(doc, 8, 'normal', [60, 60, 60])
+  // ── How it works ──────────────────────────────────────────────────────────
+  t(doc, 9, 'bold', C.navy); doc.text('How it works', mg, y); y += 9
+
   const steps = [
-    '1.  PDF uploaded and text extracted from the research paper.',
-    '2.  Citations and references identified and DOIs resolved via CrossRef / OpenAlex.',
-    '3.  Claims linked to citations are extracted using the Llama 4 language model.',
-    '4.  Source documents retrieved and compared semantically via RAG pipeline.',
-    '5.  Each claim is verified and assigned a verdict with a confidence score.',
+    'PDF uploaded and text extracted from the research paper.',
+    'Citations and references identified; DOIs resolved via CrossRef and OpenAlex.',
+    'Claims linked to each citation extracted using the Llama 4 language model.',
+    'Source documents retrieved and compared semantically via RAG pipeline.',
+    'Each claim assigned a verdict and confidence score.',
   ]
   steps.forEach((step, i) => {
-    doc.text(step, margin + 8, y + 20 + i * 7)
+    // circle number
+    doc.setFillColor(...C.navy); doc.circle(mg + 3.5, y - 1.5, 3.5, 'F')
+    t(doc, 7, 'bold', C.white);  doc.text(String(i + 1), mg + 3.5, y - 0.5, { align: 'center' })
+    t(doc, 8, 'normal', C.body); doc.text(step, mg + 11, y)
+    y += 9
   })
 
-  y += 62
+  y += 4
+  rule(doc, mg, y, mg + cw)
+  y += 8
 
-  // Disclaimer
-  drawRoundRect(doc, margin, y, contentWidth, 22, 3, [255, 248, 230], [253, 186, 116])
-  setFont(doc, 7.5, 'italic', [120, 80, 20])
+  // ── Disclaimer ────────────────────────────────────────────────────────────
+  t(doc, 7.5, 'italic', C.subtle)
   const disc = doc.splitTextToSize(
-    'Disclaimer: VerifAi uses AI-assisted analysis. Results may contain errors. Always verify critical claims against original sources before drawing conclusions.',
-    contentWidth - 16
+    'Disclaimer: VerifAi uses AI-assisted analysis and automated source matching. Results may contain errors and accuracy is not guaranteed — please verify critical claims against the original sources before drawing conclusions.',
+    cw
   )
-  doc.text(disc, margin + 8, y + 8)
+  doc.text(disc, mg, y)
 }
 
-// ─── section divider ─────────────────────────────────────────────────────────
+// ─── Category reference page ─────────────────────────────────────────────────
 
-function drawSectionDivider(doc, { margin, contentWidth, y, title }) {
-  doc.setFillColor(...NAVY)
-  doc.rect(margin, y, contentWidth, 10, 'F')
-  setFont(doc, 8.5, 'bold', [255, 255, 255])
-  doc.text(title, margin + 6, y + 7)
-  return y + 16
-}
-
-// ─── category reference page ──────────────────────────────────────────────────
-
-function drawCategoryPage(doc, { pageWidth, pageHeight, margin, contentWidth, logoBase64, fileName }) {
+function categoryPage(doc, { W, H, mg, cw, logo, date }) {
   doc.addPage()
-  drawHeader(doc, { pageWidth, margin, logoBase64, fileName })
-  let y = 38
+  pageHeader(doc, { W, mg, logo, date })
+  let y = 33
 
-  y = drawSectionDivider(doc, { margin, contentWidth, y, title: 'Verdict Category Reference' })
+  t(doc, 10, 'bold', C.navy); doc.text('Verdict Category Reference', mg, y)
+  rule(doc, mg, y + 3, mg + cw, C.navy, 0.5)
+  y += 13
 
-  const categories = [
+  const cats = [
     {
-      key: 'Supported',
-      color: '#16a34a',
-      bg: '#dcfce7',
-      desc: 'The cited source explicitly confirms the claim. The AI found matching evidence and the source text directly supports the stated fact.',
+      key: 'Supported',  color: '#16a34a',
+      desc: 'The AI found text in the cited source that clearly confirms the claim. A valid DOI was resolved, similarity ≥ 0.50, and the model confirmed the match.',
       note: 'Strongest indicator of citation accuracy.',
     },
     {
-      key: 'Partially Supported',
-      color: '#d97706',
-      bg: '#fef3c7',
-      desc: 'The source partially supports the claim. Some aspects match but not all details are confirmed — figures or timeframes may differ.',
-      note: 'Review the specific discrepancy noted in AI reasoning.',
+      key: 'Partially Supported', color: '#ca8a04',
+      desc: 'The source addresses the same topic but does not fully confirm all aspects. Common causes: paraphrasing that overstates results, missing caveats, or combined findings.',
+      note: 'Review the specific discrepancy in the AI reasoning below the claim.',
     },
     {
-      key: 'Unsupported',
-      color: '#dc2626',
-      bg: '#fee2e2',
-      desc: 'The source was found but does not support the claim. The content contradicts or omits the stated fact.',
-      note: 'Recommend revising or removing the claim.',
+      key: 'Unsupported', color: '#dc2626',
+      desc: 'The source was retrieved and read, but the claim contradicts or is absent from the source content. Distinct from Insufficient Evidence: the evidence exists but does not back the claim.',
+      note: 'Consider revising or removing this claim.',
     },
     {
-      key: 'Hallucinated',
-      color: '#7c3aed',
-      bg: '#f3e8ff',
-      desc: 'The cited source could not be verified — the DOI is invalid, the reference does not appear to exist, or the source was fabricated.',
+      key: 'Hallucinated', color: '#7c3aed',
+      desc: 'The DOI in the citation is invalid or does not resolve to any existing publication. Assigned by a deterministic rule — not by the AI. The source may be fabricated.',
       note: 'Strongest signal of a fabricated citation.',
     },
     {
-      key: 'Insufficient Evidence',
-      color: '#6b7280',
-      bg: '#f3f4f6',
-      desc: 'The system could not retrieve enough text from the cited source. This may be due to a paywall, limited open-access availability, or low similarity scores.',
+      key: 'Insufficient Evidence', color: '#6b7280',
+      desc: 'Not enough accessible text was retrieved. Causes: paywalled source, abstract-only retrieval, similarity below threshold, or a malformed model response.',
       note: 'Upload the source PDF manually on the results page to enable full re-verification.',
     },
   ]
 
-  categories.forEach(cat => {
-    const [cr, cg, cb] = hexToRgb(cat.color)
-    const [bgr, bgg, bgb] = hexToRgb(cat.bg)
-    const descLines = doc.splitTextToSize(cat.desc, contentWidth - 24)
-    const noteLines = doc.splitTextToSize(cat.note, contentWidth - 24)
-    const cardH = 14 + descLines.length * 5 + noteLines.length * 5 + 10
+  cats.forEach(cat => {
+    const [cr, cg, cb] = hex2rgb(cat.color)
+    const dLines = doc.splitTextToSize(cat.desc, cw - 10)
+    const nLines = doc.splitTextToSize(`Note: ${cat.note}`, cw - 10)
+    const bh = 8 + dLines.length * 5 + nLines.length * 4.5 + 7
 
-    drawRoundRect(doc, margin, y, contentWidth, cardH, 3, [255, 255, 255], null)
-    doc.setFillColor(cr, cg, cb)
-    doc.roundedRect(margin, y, 4, cardH, 1.5, 1.5, 'F')
-
-    setFont(doc, 9, 'bold', [cr, cg, cb])
-    doc.text(cat.key, margin + 10, y + 9)
-
-    setFont(doc, 8.5, 'normal', [50, 50, 50])
-    doc.text(descLines, margin + 10, y + 16)
-
-    setFont(doc, 8, 'italic', [cr, cg, cb])
-    doc.text(noteLines, margin + 10, y + 16 + descLines.length * 5 + 3)
-
-    y += cardH + 6
-    if (y > pageHeight - 30) {
-      doc.addPage()
-      drawHeader(doc, { pageWidth, margin, logoBase64, fileName })
-      y = 38
+    if (y + bh > H - 22) {
+      doc.addPage(); pageHeader(doc, { W, mg, logo, date }); y = 33
     }
-  })
 
-  return y
+    // Left accent bar (thin line, not a fat filled rect)
+    doc.setFillColor(cr, cg, cb); doc.rect(mg, y, 2, bh, 'F')
+
+    // Status label
+    t(doc, 9, 'bold', [cr, cg, cb]); doc.text(cat.key, mg + 7, y + 7)
+
+    // Description
+    t(doc, 8, 'normal', C.body); doc.text(dLines, mg + 7, y + 13)
+
+    // Note (italic, same accent color)
+    t(doc, 7.5, 'italic', C.subtle)
+    doc.text(nLines, mg + 7, y + 13 + dLines.length * 5 + 3)
+
+    rule(doc, mg, y + bh, mg + cw, C.rule, 0.2)
+    y += bh + 7
+  })
 }
 
-// ─── claim card ───────────────────────────────────────────────────────────────
+// ─── Claims pages ─────────────────────────────────────────────────────────────
 
-function drawClaimCard(doc, { claim, config, margin, contentWidth, pageWidth, pageHeight, y, headerCtx, checkPageBreak }) {
-  const [cr, cg, cb] = hexToRgb(config.color)
-  const [bgr, bgg, bgb] = hexToRgb(config.bg)
+function claimBlock(doc, { claim, config, mg, cw, W, y }) {
+  const statusColor = STATUS_COLORS[claim.status] || '#888'
+  const [sr, sg, sb] = hex2rgb(statusColor)
 
-  const textLines = doc.splitTextToSize(`"${claim.text}"`, contentWidth - 22)
-  const reasoningLines = doc.splitTextToSize(claim.reasoning || '', contentWidth - 22)
-  const warningLines = claim.warning ? doc.splitTextToSize(claim.warning, contentWidth - 22) : []
-  const authorLine = claim.authorLine || ''
-  const doi = claim.doi || ''
+  const quoteLines  = doc.splitTextToSize(`"${claim.text}"`, cw - 8)
+  const reasonLines = doc.splitTextToSize(claim.reasoning || '', cw - 8)
+  const warnLines   = claim.warning ? doc.splitTextToSize(claim.warning, cw - 8) : []
 
-  let blockH = 10 + textLines.length * 5 + 6 + reasoningLines.length * 5 + 6 + 10
-  if (warningLines.length) blockH += warningLines.length * 5 + 5
-  if (authorLine) blockH += 7
-  if (doi) blockH += 6
+  const conf = Math.round((claim.confidence || 0) * 100)
 
-  checkPageBreak(blockH)
+  let h = 7 + quoteLines.length * 5 + 5 + reasonLines.length * 4.5 + 9
+  if (claim.authorLine) h += 5.5
+  if (claim.doi)        h += 5
+  if (warnLines.length) h += warnLines.length * 4.5 + 4
 
   const sy = y
 
-  // card background
-  doc.setFillColor(255, 255, 255)
-  doc.setDrawColor(bgr, bgg, bgb)
-  doc.setLineWidth(0.4)
-  doc.roundedRect(margin, sy, contentWidth, blockH, 3, 3, 'FD')
+  // Left status bar
+  doc.setFillColor(sr, sg, sb); doc.rect(mg, sy, 2, h, 'F')
 
-  // left accent bar
-  doc.setFillColor(cr, cg, cb)
-  doc.roundedRect(margin, sy, 3.5, blockH, 1.5, 1.5, 'F')
+  // Claim index
+  t(doc, 7, 'bold', C.subtle); doc.text(`CLAIM ${claim.displayId}`, mg + 7, sy + 6)
 
-  let iy = sy + 8
+  // Status badge (right-aligned, text only — no filled pill)
+  t(doc, 7.5, 'bold', [sr, sg, sb])
+  doc.text(config.label, W - mg, sy + 6, { align: 'right' })
 
-  // claim id + badge
-  setFont(doc, 8, 'bold', MID_GREY)
-  doc.text(`CLAIM ${claim.displayId}`, margin + 9, iy)
+  let iy = sy + 12
 
-  const badgeText = config.label
-  const bw = doc.getTextWidth(badgeText) + 8
-  const bx = pageWidth - margin - bw - 4
-  doc.setFillColor(bgr, bgg, bgb)
-  doc.roundedRect(bx, iy - 5, bw, 6.5, 2, 2, 'F')
-  setFont(doc, 7.5, 'bold', [cr, cg, cb])
-  doc.text(badgeText, bx + 4, iy)
-  iy += 7
+  // Claim text — italic quote
+  t(doc, 8.5, 'italic', C.ink)
+  doc.text(quoteLines, mg + 7, iy); iy += quoteLines.length * 5 + 4
 
-  // claim text
-  setFont(doc, 9, 'italic', [40, 40, 40])
-  doc.text(textLines, margin + 9, iy)
-  iy += textLines.length * 5 + 4
-
-  // author + doi
-  if (authorLine) {
-    setFont(doc, 7.5, 'normal', MID_GREY)
-    doc.text(`Source: ${authorLine}`, margin + 9, iy)
-    iy += 6
+  // Source meta
+  if (claim.authorLine) {
+    t(doc, 7, 'normal', C.subtle)
+    doc.text(`Source: ${claim.authorLine}`, mg + 7, iy); iy += 5.5
   }
-  if (doi) {
-    setFont(doc, 7.5, 'normal', [37, 99, 235])
-    doc.text(`DOI: ${doi}`, margin + 9, iy)
-    iy += 6
+  if (claim.doi) {
+    t(doc, 7, 'normal', [37, 99, 235])
+    doc.text(`DOI: ${claim.doi}`, mg + 7, iy); iy += 5
   }
 
-  // reasoning
-  setFont(doc, 8, 'normal', [70, 70, 70])
-  doc.setFillColor(...LIGHT_GREY)
-  const reasonBoxH = reasoningLines.length * 5 + 6
-  doc.roundedRect(margin + 9, iy - 2, contentWidth - 18, reasonBoxH, 2, 2, 'F')
-  setFont(doc, 7.5, 'normal', [70, 70, 70])
-  doc.text(reasoningLines, margin + 13, iy + 3)
-  iy += reasonBoxH + 4
+  // Reasoning — indented, smaller, muted
+  t(doc, 7.5, 'normal', C.subtle)
+  doc.text(reasonLines, mg + 7, iy); iy += reasonLines.length * 4.5 + 3
 
-  // warning
-  if (warningLines.length) {
-    setFont(doc, 7.5, 'italic', [180, 90, 10])
-    doc.text(warningLines, margin + 9, iy)
-    iy += warningLines.length * 5 + 3
+  // Warning
+  if (warnLines.length) {
+    t(doc, 7, 'italic', [160, 80, 10])
+    doc.text(warnLines, mg + 7, iy); iy += warnLines.length * 4.5 + 3
   }
 
-  // confidence bar
-  setFont(doc, 7.5, 'normal', MID_GREY)
-  doc.text('Confidence', margin + 9, iy + 3.5)
-  const barX = margin + 38
-  const barW = 50
-  doc.setFillColor(220, 222, 228)
-  doc.roundedRect(barX, iy, barW, 3, 1.5, 1.5, 'F')
-  const [fr, fg, fb] = hexToRgb(getConfidenceColor(claim.confidence))
-  doc.setFillColor(fr, fg, fb)
-  doc.roundedRect(barX, iy, Math.max(barW * (claim.confidence || 0), 2), 3, 1.5, 1.5, 'F')
-  setFont(doc, 7.5, 'normal', MID_GREY)
-  doc.text(`${((claim.confidence || 0) * 100).toFixed(0)}%`, barX + barW + 4, iy + 3.5)
+  // Confidence — inline text bar
+  const barX = mg + 7, barW = 38
+  t(doc, 6.5, 'normal', C.subtle); doc.text('Confidence', barX, iy + 3)
+  doc.setFillColor(...C.rule)
+  doc.roundedRect(barX + 24, iy, barW, 2.5, 1, 1, 'F')
+  const cHex = conf > 70 ? '#16a34a' : conf > 40 ? '#ca8a04' : '#dc2626'
+  doc.setFillColor(...hex2rgb(cHex))
+  doc.roundedRect(barX + 24, iy, Math.max(barW * (conf / 100), 1.5), 2.5, 1, 1, 'F')
+  t(doc, 6.5, 'normal', C.subtle); doc.text(`${conf}%`, barX + 24 + barW + 3, iy + 3)
 
-  return sy + blockH + 7
+  // Thin bottom rule
+  rule(doc, mg, sy + h, mg + cw, C.rule, 0.2)
+
+  return sy + h + 6
 }
 
-// ─── main export ─────────────────────────────────────────────────────────────
+// ─── Main export ─────────────────────────────────────────────────────────────
 
-export async function generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo, credibilityScore = 0, credibilityLabel = 'Unknown', credibilityColor = '#888888' }) {
-  const doc = new jsPDF()
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
-  const margin = 14
-  const contentWidth = pageWidth - margin * 2
+export async function generateVerificationPdf({
+  claims, statusConfig, summaryItems, fileName, logo,
+  credibilityScore = 0, credibilityLabel = 'Unknown', credibilityColor = '#888888',
+}) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W  = doc.internal.pageSize.getWidth()
+  const H  = doc.internal.pageSize.getHeight()
+  const mg = 16
+  const cw = W - mg * 2
 
-  const logoBase64 = logo ? await loadImageAsBase64(logo) : null
-  const headerCtx = { pageWidth, margin, logoBase64, fileName }
+  const logoB64 = logo ? await loadImg(logo) : null
+  const date    = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  const ctx     = { W, H, mg, cw, logo: logoB64, date }
 
-  // ── Cover page (no header/footer chrome)
-  drawCoverPage(doc, { pageWidth, pageHeight, margin, contentWidth, logoBase64, fileName, credibilityScore, credibilityLabel, credibilityColor, summaryItems })
+  // Cover
+  cover(doc, { ...ctx, file: fileName, score: credibilityScore, label: credibilityLabel, scoreColor: credibilityColor, items: summaryItems })
 
-  // ── Category reference page
-  drawCategoryPage(doc, { pageWidth, pageHeight, margin, contentWidth, logoBase64, fileName })
+  // Category reference
+  categoryPage(doc, ctx)
 
-  // ── Claims pages — grouped by paper/source
+  // ── Claims ────────────────────────────────────────────────────────────────
   doc.addPage()
-  drawHeader(doc, headerCtx)
-  let y = 38
+  pageHeader(doc, ctx)
+  let y = 33
 
-  const checkPageBreak = (needed) => {
-    if (y + needed > pageHeight - 24) {
-      doc.addPage()
-      drawHeader(doc, headerCtx)
-      y = 38
-    }
-  }
+  const newPage = () => { doc.addPage(); pageHeader(doc, ctx); y = 33 }
+  const guard   = (need) => { if (y + need > H - 22) newPage() }
 
-  // Group claims by authorLine (paper)
+  // Group by source
   const groups = {}
-  claims.forEach(claim => {
-    const key = claim.authorLine || 'Unknown Source'
+  claims.forEach(c => {
+    const key = c.authorLine || 'Unknown Source'
     if (!groups[key]) groups[key] = []
-    groups[key].push(claim)
+    groups[key].push(c)
   })
 
+  let firstGroup = true
   Object.entries(groups).forEach(([paper, groupClaims]) => {
-    checkPageBreak(18)
-    y = drawSectionDivider(doc, { margin, contentWidth, y, title: `Paper: ${paper}` })
+    guard(16)
+    if (!firstGroup) y += 4
+    firstGroup = false
+
+    // Section heading — simple bold text + rule, no filled band
+    t(doc, 9, 'bold', C.navy); doc.text(paper, mg, y)
+    rule(doc, mg, y + 3, mg + cw, C.navy, 0.5)
+    y += 12
 
     groupClaims.forEach(claim => {
-      const config = statusConfig[claim.status]
-      const textLines = doc.splitTextToSize(`"${claim.text}"`, contentWidth - 22)
-      const reasoningLines = doc.splitTextToSize(claim.reasoning || '', contentWidth - 22)
-      const warningLines = claim.warning ? doc.splitTextToSize(claim.warning, contentWidth - 22) : []
-      let blockH = 10 + textLines.length * 5 + 6 + reasoningLines.length * 5 + 6 + 10
-      if (warningLines.length) blockH += warningLines.length * 5 + 5
-      if (claim.doi) blockH += 6
+      const config = statusConfig[claim.status] || { label: claim.status, color: '#888', bg: '#eee' }
 
-      checkPageBreak(blockH)
-      y = drawClaimCard(doc, { claim, config, margin, contentWidth, pageWidth, pageHeight, y, headerCtx, checkPageBreak })
+      // Estimate block height to decide page break
+      const qLines = doc.splitTextToSize(`"${claim.text}"`, cw - 8)
+      const rLines = doc.splitTextToSize(claim.reasoning || '', cw - 8)
+      const wLines = claim.warning ? doc.splitTextToSize(claim.warning, cw - 8) : []
+      let bh = 7 + qLines.length * 5 + 5 + rLines.length * 4.5 + 9
+      if (claim.authorLine) bh += 5.5
+      if (claim.doi)        bh += 5
+      if (wLines.length)    bh += wLines.length * 4.5 + 4
+      guard(bh + 6)
+
+      y = claimBlock(doc, { claim, config, mg, cw, W, y })
     })
-
-    y += 4
   })
 
-  // ── Add footers to all pages except cover
-  const totalPages = doc.internal.getNumberOfPages()
-  for (let i = 2; i <= totalPages; i++) {
+  // Footers (skip cover = page 1)
+  const total = doc.internal.getNumberOfPages()
+  for (let i = 2; i <= total; i++) {
     doc.setPage(i)
-    drawFooter(doc, { pageWidth, pageHeight, margin, contentWidth, pageNum: i - 1, totalPages: totalPages - 1 })
+    pageFooter(doc, { W, H, mg, cw, pg: i - 1, total: total - 1 })
   }
 
   doc.save(`verifai_report_${fileName.replace(/\.pdf$/i, '')}.pdf`)
