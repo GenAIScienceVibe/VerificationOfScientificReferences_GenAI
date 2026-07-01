@@ -227,7 +227,14 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
   }
 
   const getConfidenceColor = (c) => c > 0.7 ? "#16a34a" : c > 0.4 ? "#d97706" : "#dc2626"
-  const handleDownload = () => generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo, credibilityScore, credibilityLabel, credibilityColor })
+  const handleDownload = async () => {
+    try {
+      await generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo, credibilityScore, credibilityLabel, credibilityColor })
+    } catch (err) {
+      console.error('PDF generation failed:', err)
+      alert('PDF generation failed: ' + err.message)
+    }
+  }
 
   const jumpToUnresolvedSources = () => {
     setActiveView('overview')

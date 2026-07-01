@@ -29,13 +29,15 @@ function hex2rgb(hex) {
 
 function loadImg(url) {
   return new Promise((res) => {
+    if (!url) return res(null)
     const img = new window.Image()
-    img.crossOrigin = 'Anonymous'
     img.onload = () => {
-      const c = document.createElement('canvas')
-      c.width = img.width; c.height = img.height
-      c.getContext('2d').drawImage(img, 0, 0)
-      res(c.toDataURL('image/png'))
+      try {
+        const c = document.createElement('canvas')
+        c.width = img.width; c.height = img.height
+        c.getContext('2d').drawImage(img, 0, 0)
+        res(c.toDataURL('image/png'))
+      } catch { res(null) }
     }
     img.onerror = () => res(null)
     img.src = url
