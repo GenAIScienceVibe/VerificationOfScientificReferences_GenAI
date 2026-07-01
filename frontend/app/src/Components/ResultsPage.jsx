@@ -4,23 +4,29 @@ import CitationGraph from './CitationGraph'
 import logo from '../assets/Logo_VerifAi.png'
 import { generateVerificationPdf } from './pdfReport'
 import { getVerificationResults, getVerificationResult, getDocumentReferences, uploadReferenceSourcePdf, prepareEvidence, startPipelineRun, getDocumentStatus, TERMINAL_SUCCESS_STATUSES, TERMINAL_FAILURE_STATUSES } from '../api'
-const SAFETY_RULE_LABELS = {
-  DOI_MISSING:                  'No DOI',
-  DOI_NOT_VALID:                'Invalid DOI',
-  DOI_INVALID:                  'Invalid DOI',
-  SOURCE_UNAVAILABLE:           'Source unavailable',
-  METADATA_UNAVAILABLE:         'No metadata',
-  LOW_RAG_SIMILARITY:           'Low retrieval match',
-  LOW_SIMILARITY:               'Low similarity',
-  LOW_GENAI_CONFIDENCE:         'Low AI confidence',
-  GENAI_INVALID_OR_UNAVAILABLE: 'AI response failed',
+
+const STATUS_TOOLTIPS = {
+  supported: "The claim is directly backed by the cited source — the AI found matching evidence and the source confirms the statement.",
+  partial: "The cited source partially supports the claim — some aspects match, but not all details are confirmed.",
+  unsupported: "The cited source does not support this claim — the AI found the source but the content contradicts or omits the claim.",
+  hallucinated: "The cited source could not be verified — the DOI is invalid or the reference does not appear to exist.",
+  insufficient: "There wasn't enough accessible text from the source to make a reliable determination. This may be due to a paywall or limited open-access availability.",
 }
 
-function mapToUiStatus(result) {
-  // An invalid/unresolvable DOI is the strongest signal of a fabricated
-  // citation, regardless of which fallback status the backend assigned.
-  if (result.doi_status === 'INVALID') return 'hallucinated'
+const STATUS_ANCHOR = {
+  supported: "supported",
+  partial: "partially-supported",
+  unsupported: "unsupported",
+  hallucinated: "hallucinated",
+  insufficient: "insufficient-evidence",
+}
 
+const CONFIDENCE_TOOLTIP = "Confidence reflects how certain the AI is about its verdict, based on how closely the retrieved source text matched the claim (similarity score) and how clearly the LLM could determine a verdict. A high score means the evidence was clear and unambiguous."
+
+const CREDIBILITY_TOOLTIP = "The credibility score summarises how well-supported the claims in this document are overall. It is calculated as: (Supported x 1.0 + Partially Supported x 0.5) / Total Claims x 100. A score above 80% is considered Reliable, 50-80% Partially Reliable, and below 50% Low Reliability."
+
+function mapToUiStatus(result) {
+  if (result.doi_status === 'INVALID') return 'hallucinated'
   switch (result.support_status) {
     case 'SUPPORTED': return 'supported'
     case 'PARTIALLY_SUPPORTED': return 'partial'
@@ -31,9 +37,6 @@ function mapToUiStatus(result) {
   }
 }
 
-// Explanatory badge for "Insufficient Evidence" cases where the reason
-// is a known evidence gap (abstract-only or source unavailable), rather
-// than a retrieval or LLM confidence issue.
 function getEvidenceAvailabilityHint(evidenceAvailability, status) {
   if (status !== 'insufficient') return null
   if (evidenceAvailability === 'ABSTRACT_AVAILABLE') {
@@ -72,25 +75,15 @@ function getDoiStatusExplanation(doiStatus, evidenceAvailability) {
   }
 }
 
-// Heuristic hint for low-similarity "Insufficient Evidence" cases.
-// This does NOT change the actual status - it's just an explanatory
-// note for whoever is reviewing the results, since a low score could
-// mean either "not covered in this source" or "retrieval missed the
-// right passage due to wording differences" (the RAG vocabulary-gap
-// issue noted by the backend team).
 function getSimilarityHint(score) {
   if (score == null) return null
-  if (score < 0.20) {
-    return {
-      label: `Low similarity score (${score.toFixed(2)})`,
-      detail: "This may indicate the claim isn't covered in this source at all.",
-    }
+  if (score < 0.20) return {
+    label: `Low similarity score (${score.toFixed(2)})`,
+    detail: "This may indicate the claim isn't covered in this source at all.",
   }
-  if (score < 0.50) {
-    return {
-      label: `Borderline similarity score (${score.toFixed(2)})`,
-      detail: "This is close to the threshold - it may just mean the search didn't find the right passage due to differing wording, rather than the claim being unsupported.",
-    }
+  if (score < 0.50) return {
+    label: `Borderline similarity score (${score.toFixed(2)})`,
+    detail: "This is close to the threshold - it may just mean the search didn't find the right passage due to differing wording, rather than the claim being unsupported.",
   }
   return null
 }
@@ -104,13 +97,12 @@ function ResultsPage() {
   const [activeFilter, setActiveFilter] = useState('All')
   const [activeView, setActiveView] = useState('overview')
   const [citationFilter, setCitationFilter] = useState('all')
-
   const [claims, setClaims] = useState([])
   const [isLoading, setIsLoading] = useState(true)
-
   const [refUploadStatus, setRefUploadStatus] = useState({})
   const [refUploadError, setRefUploadError] = useState({})
   const [expandedPassages, setExpandedPassages] = useState({})
+  const [expandedReasoning, setExpandedReasoning] = useState({})
   const [passageData, setPassageData] = useState({})
   const [flashUpload, setFlashUpload] = useState(false)
   const claimsListRef = useRef(null)
@@ -136,28 +128,25 @@ function ResultsPage() {
         }
         const mappedClaims = data.results.map((r, idx) => {
           const referenceId = r.reference_id ?? r.referenceId ?? r.ref_id ?? null
-          if (!referenceId) {
-            console.warn('No reference_id found on verification result:', r)
-          }
+          if (!referenceId) console.warn('No reference_id found on verification result:', r)
           const refInfo = referenceId ? (refMap[referenceId] ?? null) : null
           const hasAuthors = !!refInfo?.authors
-          // When author info is available, show title alone; author line carries the year.
-          // When no author info, append citation_text to the title as fallback.
           const authorLine = hasAuthors
             ? `${refInfo.authors}${refInfo.year ? ` (${refInfo.year})` : ''}`
             : null
           return {
-            id: r.result_id || idx + 1,
+            id: r.result_id,
+            displayId: idx + 1,
             referenceId,
             status: mapToUiStatus(r),
             text: `"${r.claim_text}" ${r.citation_text || ''}`.trim(),
             source: r.reference_title
-              ? hasAuthors
-                ? r.reference_title
-                : `${r.reference_title}${r.citation_text ? `  ·  ${r.citation_text}` : ''}`
+              ? hasAuthors ? r.reference_title : `${r.reference_title}${r.citation_text ? `  ·  ${r.citation_text}` : ''}`
               : r.citation_text || 'Unknown source',
             authorLine,
-            reasoning: r.explanation || 'No explanation available.',
+            reasoning: (r.explanation || 'No explanation available.')
+              .replace(/Reused cached verification result result_[a-z0-9]+\.\s*/gi, '')
+              .trim() || 'No explanation available.',
             confidence: r.confidence ?? 0,
             similarityScore: r.overall_similarity_score ?? null,
             evidenceAvailability: r.evidence_availability ?? null,
@@ -167,11 +156,12 @@ function ResultsPage() {
               : undefined,
             doiResolved: r.doi_status === 'VALID',
             doiStatus: r.doi_status ?? null,
+doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
           }
         })
         setClaims(mappedClaims)
       })
-      .catch(err => navigate('/error'))
+      .catch(() => navigate('/error'))
   }
 
   useEffect(() => {
@@ -197,18 +187,13 @@ function ResultsPage() {
 
   const totalClaims = claims.length
   const credibilityScore = totalClaims > 0
-    ? Math.round(
-        ((summaryItems[0].count + summaryItems[1].count * 0.5) / totalClaims) * 1000
-      ) / 10
+    ? Math.round(((summaryItems[0].count + summaryItems[1].count * 0.5) / totalClaims) * 1000) / 10
     : 0
 
   const credibilityLabel = credibilityScore >= 80 ? "Reliable"
-    : credibilityScore >= 50 ? "Partially Reliable"
-    : "Low Reliability"
-
+    : credibilityScore >= 50 ? "Partially Reliable" : "Low Reliability"
   const credibilityColor = credibilityScore >= 80 ? "#16a34a"
-    : credibilityScore >= 50 ? "#d97706"
-    : "#dc2626"
+    : credibilityScore >= 50 ? "#d97706" : "#dc2626"
 
   const filters = [
     { label: "All", key: "all", color: "#1a3a6b", border: "#1a3a6b" },
@@ -241,15 +226,8 @@ function ResultsPage() {
     return 'The source was found but there was not enough evidence to confidently verify this claim automatically.'
   }
 
-  const getConfidenceColor = (c) => {
-    if (c > 0.7) return "#16a34a"
-    if (c > 0.4) return "#d97706"
-    return "#dc2626"
-  }
-
-  const handleDownload = () => {
-    generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo })
-  }
+  const getConfidenceColor = (c) => c > 0.7 ? "#16a34a" : c > 0.4 ? "#d97706" : "#dc2626"
+  const handleDownload = () => generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo })
 
   const jumpToUnresolvedSources = () => {
     setActiveView('overview')
@@ -262,58 +240,37 @@ function ResultsPage() {
   }
 
   const handleManualReferenceUpload = async (claim, file) => {
-  if (!file) return
-
-  if (!claim.referenceId) {
-    console.error('Cannot upload: claim has no referenceId.', claim)
-    setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'no-reference' }))
-    return
+    if (!file) return
+    if (!claim.referenceId) {
+      console.error('Cannot upload: claim has no referenceId.', claim)
+      setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'no-reference' }))
+      return
+    }
+    setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'uploading' }))
+    setRefUploadError(prev => ({ ...prev, [claim.id]: null }))
+    try {
+      await uploadReferenceSourcePdf(claim.referenceId, file)
+      await prepareEvidence(documentId)
+      setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'checking' }))
+      await startPipelineRun(documentId)
+      await new Promise((resolve, reject) => {
+        const poll = setInterval(async () => {
+          try {
+            const status = await getDocumentStatus(documentId)
+            const pct = status.progress_percentage ?? 0
+            if (TERMINAL_SUCCESS_STATUSES.includes(status.status) || pct >= 100) { clearInterval(poll); resolve() }
+            else if (TERMINAL_FAILURE_STATUSES.includes(status.status)) { clearInterval(poll); reject(new Error('Re-verification failed.')) }
+          } catch (err) { clearInterval(poll); reject(err) }
+        }, 2000)
+      })
+      await loadResults()
+      setRefUploadStatus(prev => { const next = { ...prev }; delete next[claim.id]; return next })
+    } catch (err) {
+      console.error('Reference upload failed:', err)
+      setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'error' }))
+      setRefUploadError(prev => ({ ...prev, [claim.id]: err.message }))
+    }
   }
-
-  setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'uploading' }))
-  setRefUploadError(prev => ({ ...prev, [claim.id]: null }))
-  try {
-    await uploadReferenceSourcePdf(claim.referenceId, file)
-    await prepareEvidence(documentId)
-
-    setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'checking' }))
-
-    // prepareEvidence only rebuilds evidence packages - it does NOT re-run
-    // verification. Trigger a fresh pipeline run and poll until it's done,
-    // then reload results so the new full text actually gets used.
-    await startPipelineRun(documentId)
-
-    await new Promise((resolve, reject) => {
-      const poll = setInterval(async () => {
-        try {
-          const status = await getDocumentStatus(documentId)
-          const pct = status.progress_percentage ?? 0
-          if (TERMINAL_SUCCESS_STATUSES.includes(status.status) || pct >= 100) {
-            clearInterval(poll)
-            resolve()
-          } else if (TERMINAL_FAILURE_STATUSES.includes(status.status)) {
-            clearInterval(poll)
-            reject(new Error('Re-verification failed.'))
-          }
-        } catch (err) {
-          clearInterval(poll)
-          reject(err)
-        }
-      }, 2000)
-    })
-
-    await loadResults()
-    setRefUploadStatus(prev => {
-      const next = { ...prev }
-      delete next[claim.id]
-      return next
-    })
-  } catch (err) {
-    console.error('Reference upload failed:', err)
-    setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'error' }))
-    setRefUploadError(prev => ({ ...prev, [claim.id]: err.message }))
-  }
-}
 
   if (isLoading) {
     return (
@@ -325,33 +282,57 @@ function ResultsPage() {
 
   return (
     <div style={{ background: "#f5f5f5", minHeight: "100vh", padding: "32px 40px" }}>
-
       <style>{`
-        @keyframes verifai-dot-pulse {
-          0%, 80%, 100% { opacity: 0.2; }
-          40% { opacity: 1; }
-        }
-        @keyframes verifai-step-spin {
-          to { transform: rotate(360deg); }
-        }
+        @keyframes verifai-dot-pulse { 0%, 80%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
+        @keyframes verifai-step-spin { to { transform: rotate(360deg); } }
         @keyframes verifai-flash-highlight {
           0%, 100% { background: #f9fafb; border-color: #d1d5db; box-shadow: none; }
           25%, 75% { background: #eef2ff; border-color: #1a3a6b; box-shadow: 0 0 0 3px rgba(26,58,107,0.15); }
         }
+        .verifai-tooltip { position: relative; display: inline-flex; align-items: center; }
+        .verifai-tooltip .verifai-tooltip-text {
+  visibility: hidden; opacity: 0; width: 260px; background: #1a3a6b; color: white;
+  font-size: 12px; line-height: 1.5; border-radius: 8px; padding: 10px 12px;
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  transition: opacity 0.15s; pointer-events: auto; z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.verifai-tooltip .verifai-tooltip-text::after {
+  content: ''; position: absolute; top: 100%; left: 0; right: 0; height: 12px;
+}
+.verifai-tooltip:hover .verifai-tooltip-text { visibility: visible; opacity: 1; }
+.verifai-tooltip .verifai-tooltip-text a { color: #93c5fd; text-decoration: underline; cursor: pointer; }
       `}</style>
 
       <div style={{ display: "flex", gap: "24px", maxWidth: "1200px", margin: "0 auto" }}>
 
+        {/* Sidebar */}
         <div style={{ width: "280px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "16px" }}>
 
+          {/* Credibility Score */}
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0", textAlign: "center" }}>
-            <p style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", letterSpacing: "1px", marginBottom: "16px" }}>CREDIBILITY SCORE</p>
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", marginBottom: "16px" }}>
+              <p style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", letterSpacing: "1px", margin: 0 }}>CREDIBILITY SCORE</p>
+              <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
+                onMouseEnter={e => e.currentTarget.querySelector('.cred-tooltip').style.visibility = 'visible'}
+                onMouseLeave={e => e.currentTarget.querySelector('.cred-tooltip').style.visibility = 'hidden'}
+              >
+                <span style={{ fontSize: "13px", color: "#aaa", cursor: "default", lineHeight: 1 }}>i</span>
+                <div className="cred-tooltip" style={{
+                  visibility: "hidden", width: "240px", background: "#1a3a6b", color: "white",
+                  fontSize: "12px", lineHeight: "1.5", borderRadius: "8px", padding: "10px 12px",
+                  position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)",
+                  zIndex: 100, boxShadow: "0 4px 12px rgba(0,0,0,0.15)", pointerEvents: "none"
+                }}>
+                  {CREDIBILITY_TOOLTIP}
+                </div>
+              </div>
+            </div>
             <div style={{ position: "relative", width: "120px", height: "120px", margin: "0 auto 12px" }}>
               <svg viewBox="0 0 120 120" width="120" height="120">
                 <circle cx="60" cy="60" r="50" fill="none" stroke="#e0e0e0" strokeWidth="12"/>
                 <circle cx="60" cy="60" r="50" fill="none" stroke={credibilityColor} strokeWidth="12"
-                  strokeDasharray={`${2 * Math.PI * 50 * (credibilityScore / 100)} ${2 * Math.PI * 50}`}
-                  strokeDashoffset={2 * Math.PI * 50 * 0.25}
+                  strokeDasharray={`${2 * Math.PI * 50 * (credibilityScore / 100)} ${2 * Math.PI * 50 * (1 - credibilityScore / 100)}`}
                   strokeLinecap="round" transform="rotate(-90 60 60)"/>
               </svg>
               <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", fontSize: "20px", fontWeight: "700", color: "#111" }}>{credibilityScore.toFixed(1)}%</div>
@@ -360,6 +341,7 @@ function ResultsPage() {
             <p style={{ color: "#888", fontSize: "12px", lineHeight: "1.5" }}>Some claims are inaccurate or unsupported by their cited sources.</p>
           </div>
 
+          {/* Claims Summary */}
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
             <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "16px" }}>CLAIMS SUMMARY</p>
             {summaryItems.map(item => (
@@ -373,80 +355,41 @@ function ResultsPage() {
             ))}
             <div style={{ height: "8px", borderRadius: "99px", overflow: "hidden", marginTop: "12px", display: "flex" }}>
               {summaryItems.map(item => (
-                <div
-                  key={item.label}
-                  style={{
-                    width: totalClaims > 0 ? `${(item.count / totalClaims) * 100}%` : "0%",
-                    background: item.color,
-                  }}
-                />
+                <div key={item.label} style={{ width: totalClaims > 0 ? `${(item.count / totalClaims) * 100}%` : "0%", background: item.color }} />
               ))}
             </div>
           </div>
 
+          {/* File */}
           <div style={{ background: "white", borderRadius: "12px", padding: "16px 24px", border: "1px solid #e0e0e0", display: "flex", alignItems: "center", gap: "12px" }}>
             <div style={{ background: "#eef2ff", borderRadius: "8px", padding: "10px", fontSize: "20px", flexShrink: 0 }}>📄</div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <p
-                title={fileName}
-                style={{
-                  fontSize: "14px", fontWeight: "600", color: "#111",
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
-                }}
-              >
-                {fileName}
-              </p>
+              <p title={fileName} style={{ fontSize: "14px", fontWeight: "600", color: "#111", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fileName}</p>
               <p style={{ fontSize: "12px", color: "#888" }}>{totalClaims} claims processed</p>
             </div>
           </div>
 
+          {/* View */}
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
             <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "12px" }}>VIEW</p>
             <div style={{ display: "flex", border: "1px solid #1a3a6b", borderRadius: "8px", overflow: "hidden" }}>
-              <button
-                onClick={() => setActiveView('overview')}
-                style={{
-                  flex: 1, padding: "10px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: "700",
-                  background: activeView === 'overview' ? "#1a3a6b" : "white",
-                  color: activeView === 'overview' ? "white" : "#1a3a6b",
-                }}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setActiveView('citation')}
-                style={{
-                  flex: 1, padding: "10px", border: "none", borderLeft: "1px solid #1a3a6b", cursor: "pointer", fontSize: "14px", fontWeight: "700",
-                  background: activeView === 'citation' ? "#1a3a6b" : "white",
-                  color: activeView === 'citation' ? "white" : "#1a3a6b",
-                }}
-              >
-                Network Graph
-              </button>
+              <button onClick={() => setActiveView('overview')} style={{ flex: 1, padding: "10px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: "700", background: activeView === 'overview' ? "#1a3a6b" : "white", color: activeView === 'overview' ? "white" : "#1a3a6b" }}>Overview</button>
+              <button onClick={() => setActiveView('citation')} style={{ flex: 1, padding: "10px", border: "none", borderLeft: "1px solid #1a3a6b", cursor: "pointer", fontSize: "14px", fontWeight: "700", background: activeView === 'citation' ? "#1a3a6b" : "white", color: activeView === 'citation' ? "white" : "#1a3a6b" }}>Network Graph</button>
             </div>
           </div>
 
+          {/* Export */}
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
             <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "12px" }}>EXPORT</p>
-            <button onClick={handleDownload} style={{ width: "100%", background: "#1a3a6b", color: "white", border: "none", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>
-              Download PDF report
-            </button>
+            <button onClick={handleDownload} style={{ width: "100%", background: "#1a3a6b", color: "white", border: "none", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>Download PDF report</button>
           </div>
 
+          {/* Unresolved */}
           {summaryItems[4].count > 0 && (
             <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
               <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "8px" }}>UNRESOLVED SOURCES</p>
-              <p style={{ fontSize: "12px", color: "#888", marginBottom: "14px", lineHeight: "1.5" }}>
-                {summaryItems[4].count} claim(s) couldn't be checked automatically.
-              </p>
-              <button
-                onClick={jumpToUnresolvedSources}
-                style={{
-                  width: "100%", background: "white", color: "#1a3a6b",
-                  border: "1px solid #1a3a6b",
-                  borderRadius: "8px", padding: "12px", cursor: "pointer",
-                  fontSize: "13px", fontWeight: "600"
-                }}>
+              <p style={{ fontSize: "12px", color: "#888", marginBottom: "14px", lineHeight: "1.5" }}>{summaryItems[4].count} claim(s) couldn't be checked automatically.</p>
+              <button onClick={jumpToUnresolvedSources} style={{ width: "100%", background: "white", color: "#1a3a6b", border: "1px solid #1a3a6b", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>
                 Add reference documents to check claims
               </button>
             </div>
@@ -454,12 +397,11 @@ function ResultsPage() {
 
         </div>
 
+        {/* Main */}
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
             <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#111", margin: 0 }}>Verification Results</h2>
-            <button onClick={() => navigate('/')} style={{ border: "1px solid #ccc", background: "white", borderRadius: "8px", padding: "8px 20px", cursor: "pointer", fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}>
-              ← New document
-            </button>
+            <button onClick={() => navigate('/')} style={{ border: "1px solid #ccc", background: "white", borderRadius: "8px", padding: "8px 20px", cursor: "pointer", fontSize: "14px" }}>← New document</button>
           </div>
           <p style={{ color: "#888", fontSize: "14px", marginBottom: "20px" }}>
             {totalClaims} claims checked · {claims.filter(c => c.doiResolved).length} DOIs resolved · {claims.filter(c => !c.doiResolved).length} unresolvable
@@ -469,176 +411,152 @@ function ResultsPage() {
             <>
               <div ref={claimsListRef} style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>
                 {filters.map((filter) => (
-                  <button
-                    key={filter.label}
-                    onClick={() => setActiveFilter(filter.label)}
-                    style={{
-                      padding: "8px 16px", borderRadius: "99px", fontSize: "13px", fontWeight: "600", cursor: "pointer",
-                      background: activeFilter === filter.label ? filter.color : "white",
-                      color: activeFilter === filter.label ? "white" : filter.color,
-                      border: `1px solid ${filter.border}`
-                    }}>
+                  <button key={filter.label} onClick={() => setActiveFilter(filter.label)} style={{ padding: "8px 16px", borderRadius: "99px", fontSize: "13px", fontWeight: "600", cursor: "pointer", background: activeFilter === filter.label ? filter.color : "white", color: activeFilter === filter.label ? "white" : filter.color, border: `1px solid ${filter.border}` }}>
                     {filter.label}
                   </button>
                 ))}
               </div>
+              {/* Sort bar */}
+<div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+  <span style={{ fontSize: '12px', color: '#888', fontWeight: '600' }}>Sort by:</span>
+  <select
+    onChange={e => {
+      const val = e.target.value
+      if (val === 'default') return setClaims(prev => [...prev].sort((a, b) => (a.displayId ?? 0) - (b.displayId ?? 0)))
+      if (val === 'source') return setClaims(prev => [...prev].sort((a, b) => (a.source || '').localeCompare(b.source || '')))
+      if (val === 'author') return setClaims(prev => [...prev].sort((a, b) => (a.authorLine || '').localeCompare(b.authorLine || '')))
+      if (val === 'confidence') return setClaims(prev => [...prev].sort((a, b) => b.confidence - a.confidence))
+      if (val === 'status') return setClaims(prev => [...prev].sort((a, b) => {
+        const order = { supported: 0, partial: 1, unsupported: 2, hallucinated: 3, insufficient: 4 }
+        return (order[a.status] ?? 5) - (order[b.status] ?? 5)
+      }))
+    }}
+    style={{ background: '#f5f5f5', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '6px 12px', fontSize: '13px', color: '#444', cursor: 'pointer' }}
+  >
+    <option value="default">Default order</option>
+    <option value="source">Paper / Source</option>
+    <option value="author">Author</option>
+    <option value="confidence">Confidence (high to low)</option>
+    <option value="status">Status</option>
+  </select>
+</div>s
 
               {filteredClaims.length === 0 ? (
-                <p style={{ color: "#888", fontSize: "14px", textAlign: "center", padding: "40px 0" }}>
-                  No claims match this filter.
-                </p>
+                <p style={{ color: "#888", fontSize: "14px", textAlign: "center", padding: "40px 0" }}>No claims match this filter.</p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                   {filteredClaims.map(claim => {
                     const config = statusConfig[claim.status]
                     const showManualUpload = !claim.doiResolved || claim.status === 'insufficient'
                     const uploadState = refUploadStatus[claim.id]
-                    const similarityHint = claim.status === 'insufficient'
-                      ? getSimilarityHint(claim.similarityScore)
-                      : null
+                    const similarityHint = claim.status === 'insufficient' ? getSimilarityHint(claim.similarityScore) : null
                     const evidenceHint = getEvidenceAvailabilityHint(claim.evidenceAvailability, claim.status)
                     const doiExplanation = getDoiStatusExplanation(claim.doiStatus, claim.evidenceAvailability)
+                    const isPassageOpen = expandedPassages[claim.id]
+                    const isReasoningExpanded = expandedReasoning[claim.id]
+                    const reasoningIsLong = claim.reasoning.length > 120
+
                     return (
                       <div key={claim.id} style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
+
+                        {/* Header */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                          <span style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px" }}>CLAIM {claim.id}</span>
-                          <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}` }}>
-                            {config.label}
-                          </span>
+                          <span style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px" }}>CLAIM {claim.displayId}</span>
+                          <div className="verifai-tooltip">
+                            <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}`, cursor: "default" }}>
+                              {config.label} <span style={{ opacity: 0.6, fontSize: "10px" }}>i</span>
+                            </span>
+                            <span className="verifai-tooltip-text" style={{ textAlign: "left" }}>
+                              {STATUS_TOOLTIPS[claim.status]}
+                              {' '}
+<a href={`/how-it-works?tab=categories#category-${STATUS_ANCHOR[claim.status]}`} style={{ color: "#93c5fd", fontSize: "11px", display: "block", marginTop: "6px" }} onClick={e => e.stopPropagation()}>
+  Learn more
+</a>
+                            </span>
+                          </div>
                         </div>
 
                         <p style={{ fontSize: "14px", color: "#333", marginBottom: "16px", lineHeight: "1.6" }}>{claim.text}</p>
 
-                        <p style={{ fontSize: "13px", color: "#666", marginBottom: claim.authorLine ? "4px" : "8px", fontStyle: "italic" }}>
-                          {claim.source}
-                        </p>
-                        {claim.authorLine && (
-                          <p style={{ fontSize: "12px", color: "#999", marginBottom: "8px" }}>
-                            {claim.authorLine}
-                          </p>
-                        )}
+                        <p style={{ fontSize: "13px", color: "#666", marginBottom: claim.authorLine ? "4px" : "8px", fontStyle: "italic" }}>{claim.source}</p>
+                        {claim.authorLine && <p style={{ fontSize: "12px", color: "#999", marginBottom: "8px" }}>{claim.authorLine}</p>}
+
                         <div style={{ display: "flex", gap: "8px", marginBottom: doiExplanation ? "6px" : "16px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: "12px", color: "#555", background: "#f5f5f5", padding: "4px 12px", borderRadius: "99px", border: "1px solid #e0e0e0" }}>
                             {claim.doiResolved ? "✓ DOI resolved" : "✗ DOI unresolved"}
                           </span>
                         </div>
-                        {doiExplanation && (
-                          <p style={{ fontSize: "12px", color: doiExplanation.color, marginBottom: "16px", lineHeight: "1.5" }}>
-                            {doiExplanation.text}
+                        {doiExplanation && <p style={{ fontSize: "12px", color: doiExplanation.color, marginBottom: "16px", lineHeight: "1.5" }}>{doiExplanation.text}</p>}
+
+                        {/* AI Reasoning collapsible */}
+                        <div style={{ background: "#f8f8f8", borderRadius: "8px", padding: "16px", marginBottom: evidenceHint || similarityHint || claim.warning ? "12px" : "16px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                            <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", margin: 0 }}>AI REASONING</p>
+                            {reasoningIsLong && (
+                              <button onClick={() => setExpandedReasoning(prev => ({ ...prev, [claim.id]: !prev[claim.id] }))} style={{ fontSize: "11px", color: "#1a3a6b", background: "none", border: "none", cursor: "pointer", fontWeight: "600", padding: 0, flexShrink: 0 }}>
+                                {isReasoningExpanded ? "Show less" : "Show more"}
+                              </button>
+                            )}
+                          </div>
+                          <p style={{ fontSize: "13px", color: "#444", lineHeight: "1.6", margin: 0, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: isReasoningExpanded ? 999 : 2, WebkitBoxOrient: "vertical" }}>
+                            {claim.reasoning}
                           </p>
-                        )}
-
-
-                        <div style={{ background: "#f8f8f8", borderRadius: "8px", padding: "16px", marginBottom: claim.warning || similarityHint ? "12px" : "16px" }}>
-                          <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "8px" }}>AI REASONING</p>
-                          <p style={{ fontSize: "13px", color: "#444", lineHeight: "1.6" }}>{claim.reasoning}</p>
                         </div>
 
                         {evidenceHint && (
                           <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
-                            <p style={{ fontSize: "13px", fontWeight: "600", color: "#1d4ed8", marginBottom: "4px" }}>
-                              ℹ {evidenceHint.label}
-                            </p>
-                            <p style={{ fontSize: "12px", color: "#3b82f6", lineHeight: "1.5" }}>
-                              {evidenceHint.detail}
-                            </p>
+                            <p style={{ fontSize: "13px", fontWeight: "600", color: "#1d4ed8", marginBottom: "4px" }}>i {evidenceHint.label}</p>
+                            <p style={{ fontSize: "12px", color: "#3b82f6", lineHeight: "1.5" }}>{evidenceHint.detail}</p>
                           </div>
                         )}
 
                         {similarityHint && (
                           <div style={{ background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
-                            <p style={{ fontSize: "13px", fontWeight: "600", color: "#4b5563", marginBottom: "4px" }}>
-                              ⚠ {similarityHint.label}
-                            </p>
-                            <p style={{ fontSize: "12px", color: "#6b7280", lineHeight: "1.5" }}>
-                              {similarityHint.detail}
-                            </p>
+                            <p style={{ fontSize: "13px", fontWeight: "600", color: "#4b5563", marginBottom: "4px" }}>! {similarityHint.label}</p>
+                            <p style={{ fontSize: "12px", color: "#6b7280", lineHeight: "1.5" }}>{similarityHint.detail}</p>
                           </div>
                         )}
 
                         {claim.warning && (
                           <div style={{ background: "#fffbeb", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
                             <p style={{ fontSize: "13px", color: "#d97706", lineHeight: "1.5" }}>{claim.warning}</p>
-                            <p style={{ fontSize: "13px", color: "#d97706", lineHeight: "1.6", marginTop: "6px" }}>
-                              {getHumanReviewReason(claim.doiStatus, claim.evidenceAvailability)}
-                            </p>
+                            <p style={{ fontSize: "13px", color: "#d97706", lineHeight: "1.6", marginTop: "6px" }}>{getHumanReviewReason(claim.doiStatus, claim.evidenceAvailability)}</p>
                           </div>
                         )}
 
                         {showManualUpload && (
-                          <div style={{
-                            background: "#f9fafb", border: "1px dashed #d1d5db", borderRadius: "8px",
-                            padding: "12px 16px", marginBottom: "16px",
-                            animation: flashUpload ? "verifai-flash-highlight 0.6s ease-in-out 2" : "none",
-                          }}>
+                          <div style={{ background: "#f9fafb", border: "1px dashed #d1d5db", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", animation: flashUpload ? "verifai-flash-highlight 0.6s ease-in-out 2" : "none" }}>
                             {uploadState === 'checking' ? (
                               <p style={{ fontSize: "13px", color: "#1a3a6b", display: "flex", alignItems: "center", gap: "2px" }}>
                                 Re-checking this claim automatically
                                 <span style={{ display: "inline-flex", gap: "2px", marginLeft: "4px" }}>
-                                  <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#1a3a6b", animation: "verifai-dot-pulse 1.2s infinite", animationDelay: "0s" }} />
-                                  <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#1a3a6b", animation: "verifai-dot-pulse 1.2s infinite", animationDelay: "0.2s" }} />
-                                  <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#1a3a6b", animation: "verifai-dot-pulse 1.2s infinite", animationDelay: "0.4s" }} />
+                                  {[0, 0.2, 0.4].map(d => <span key={d} style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#1a3a6b", animation: "verifai-dot-pulse 1.2s infinite", animationDelay: `${d}s` }} />)}
                                 </span>
                               </p>
                             ) : (
                               <>
-                                <input
-                                  type="file"
-                                  accept=".pdf"
-                                  id={`ref-upload-${claim.id}`}
-                                  style={{ display: "none" }}
-                                  onChange={(e) => {
-                                    const file = e.target.files[0]
-                                    if (file) handleManualReferenceUpload(claim, file)
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => document.getElementById(`ref-upload-${claim.id}`).click()}
-                                  disabled={uploadState === 'uploading'}
-                                  style={{
-                                    fontSize: "13px", color: "#1a3a6b", background: "none",
-                                    border: "none", cursor: "pointer",
-                                    fontWeight: "600", padding: 0, display: "flex", alignItems: "center", gap: "6px"
-                                  }}>
-                                  {uploadState === 'uploading' ? (
-                                    <>
-                                      <span style={{
-                                        width: "12px", height: "12px", borderRadius: "50%",
-                                        border: "2px solid #c5cfe0", borderTopColor: "#1a3a6b",
-                                        animation: "verifai-step-spin 0.8s linear infinite", display: "inline-block"
-                                      }} />
-                                      Uploading...
-                                    </>
-                                  ) : (
-                                    "📎 Add the reference manually"
-                                  )}
+                                <input type="file" accept=".pdf" id={`ref-upload-${claim.id}`} style={{ display: "none" }} onChange={(e) => { const file = e.target.files[0]; if (file) handleManualReferenceUpload(claim, file) }} />
+                                <button type="button" onClick={() => document.getElementById(`ref-upload-${claim.id}`).click()} disabled={uploadState === 'uploading'} style={{ fontSize: "13px", color: "#1a3a6b", background: "none", border: "none", cursor: "pointer", fontWeight: "600", padding: 0, display: "flex", alignItems: "center", gap: "6px" }}>
+                                  {uploadState === 'uploading' ? (<><span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #c5cfe0", borderTopColor: "#1a3a6b", animation: "verifai-step-spin 0.8s linear infinite", display: "inline-block" }} />Uploading...</>) : "Add the reference manually"}
                                 </button>
-                                <p style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>
-                                  PDF only, max. 50 MB
-                                </p>
-                                {uploadState === 'error' && (
-                                  <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "6px" }}>
-                                    {refUploadError[claim.id] || "Upload failed, please try again."}
-                                  </p>
-                                )}
-                                {uploadState === 'no-reference' && (
-                                  <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "6px" }}>
-                                    This claim has no linked reference ID - manual upload isn't possible here.
-                                  </p>
-                                )}
+                                <p style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>PDF only, max. 50 MB</p>
+                                {uploadState === 'error' && <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "6px" }}>{refUploadError[claim.id] || "Upload failed, please try again."}</p>}
+                                {uploadState === 'no-reference' && <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "6px" }}>This claim has no linked reference ID - manual upload isn't possible here.</p>}
                               </>
                             )}
                           </div>
                         )}
 
+                        {/* Footer */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <div className="verifai-tooltip" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <span style={{ fontSize: "12px", color: "#888" }}>Confidence</span>
                             <div style={{ width: "80px", height: "6px", background: "#e0e0e0", borderRadius: "99px", overflow: "hidden" }}>
                               <div style={{ width: `${claim.confidence * 100}%`, height: "6px", background: getConfidenceColor(claim.confidence), borderRadius: "99px" }} />
                             </div>
                             <span style={{ fontSize: "12px", color: "#888" }}>{(claim.confidence * 100).toFixed(1)}%</span>
+                            <span style={{ fontSize: "11px", color: "#bbb", cursor: "default" }}>i</span>
+                            <span className="verifai-tooltip-text">{CONFIDENCE_TOOLTIP}</span>
                           </div>
                           <button
                             style={{ fontSize: "12px", color: "#1a3a6b", background: "none", border: "none", cursor: "pointer", fontWeight: "600" }}
@@ -648,28 +566,18 @@ function ResultsPage() {
                               if (!isOpen && !passageData[claim.id]) {
                                 try {
                                   const detail = await getVerificationResult(claim.id)
-                                  let chunks = (detail.retrieved_evidence ?? [])
-                                    .flatMap(r => r.top_chunks ?? [r])
-                                  // Cache hits store evidence under the original result, not the new one.
-                                  // Fall back to the original if this result has no chunks.
+                                  let chunks = (detail.retrieved_evidence ?? []).flatMap(r => r.top_chunks ?? [r])
                                   if (chunks.length === 0 && detail.explanation) {
                                     const match = detail.explanation.match(/Reused cached verification result (result_[a-z0-9]+)/)
                                     if (match && match[1] !== claim.id) {
                                       try {
                                         const original = await getVerificationResult(match[1])
-                                        chunks = (original.retrieved_evidence ?? [])
-                                          .flatMap(r => r.top_chunks ?? [r])
-                                      } catch { /* original not found, leave chunks empty */ }
+                                        chunks = (original.retrieved_evidence ?? []).flatMap(r => r.top_chunks ?? [r])
+                                      } catch { /* leave empty */ }
                                     }
                                   }
-                                  // Dense, BM25 and hybrid retrieval can return the same chunk — deduplicate.
                                   const seen = new Set()
-                                  chunks = chunks.filter(c => {
-                                    const key = c.chunk_id ?? c.chunk_text
-                                    if (seen.has(key)) return false
-                                    seen.add(key)
-                                    return true
-                                  })
+                                  chunks = chunks.filter(c => { const key = c.chunk_id ?? c.chunk_text; if (seen.has(key)) return false; seen.add(key); return true })
                                   setPassageData(prev => ({ ...prev, [claim.id]: chunks }))
                                 } catch {
                                   setPassageData(prev => ({ ...prev, [claim.id]: [] }))
@@ -677,11 +585,12 @@ function ResultsPage() {
                               }
                             }}
                           >
-                            {expandedPassages[claim.id] ? '▲ Hide source passage' : '▼ Show source passage'}
+                            {isPassageOpen ? 'Hide source passage' : 'Show source passage'}
                           </button>
                         </div>
 
-                        {expandedPassages[claim.id] && (
+                        {/* Source passage */}
+                        {isPassageOpen && (
                           <div style={{ marginTop: "16px", borderTop: "1px solid #e0e0e0", paddingTop: "16px" }}>
                             <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "12px" }}>SOURCE PASSAGES USED</p>
                             {passageData[claim.id] === undefined ? (
@@ -693,10 +602,10 @@ function ResultsPage() {
                                 <div key={i} style={{ background: "#f8f8f8", borderRadius: "8px", padding: "12px 16px", marginBottom: "10px", borderLeft: "3px solid #1a3a6b" }}>
                                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                                     <span style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                                      {chunk.section ?? chunk.evidence_type ?? 'Passage'} {chunk.similarity_score != null ? `· ${(chunk.similarity_score * 100).toFixed(1)}% match` : ''}
+                                      {chunk.section ?? chunk.evidence_type ?? 'Passage'}{chunk.similarity_score != null ? ` · ${(chunk.similarity_score * 100).toFixed(1)}% match` : ''}
                                     </span>
                                     {chunk.source_url && (
-                                      <a href={chunk.source_url} target="_blank" rel="noreferrer" style={{ fontSize: "11px", color: "#1a3a6b" }}>Open PDF ↗</a>
+                                      <a href={chunk.source_url} target="_blank" rel="noreferrer" style={{ fontSize: "11px", color: "#1a3a6b" }}>Open PDF</a>
                                     )}
                                   </div>
                                   <p style={{ fontSize: "13px", color: "#444", lineHeight: "1.6", margin: 0 }}>{chunk.chunk_text ?? chunk.text}</p>
@@ -718,45 +627,38 @@ function ResultsPage() {
             <>
               <div style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>
                 {filters.map((filter) => (
-                  <button
-                    key={filter.key}
-                    onClick={() => setCitationFilter(filter.key)}
-                    style={{
-                      padding: "8px 16px", borderRadius: "99px", fontSize: "13px", fontWeight: "600", cursor: "pointer",
-                      background: citationFilter === filter.key ? filter.color : "white",
-                      color: citationFilter === filter.key ? "white" : filter.color,
-                      border: `1px solid ${filter.border}`
-                    }}>
+                  <button key={filter.key} onClick={() => setCitationFilter(filter.key)} style={{ padding: "8px 16px", borderRadius: "99px", fontSize: "13px", fontWeight: "600", cursor: "pointer", background: citationFilter === filter.key ? filter.color : "white", color: citationFilter === filter.key ? "white" : filter.color, border: `1px solid ${filter.border}` }}>
                     {filter.label}
                   </button>
                 ))}
               </div>
-
-              <CitationGraph claims={claims} statusConfig={statusConfig} documentLabel={fileName} statusFilter={citationFilter} />
-            </>
+<CitationGraph
+  claims={claims}
+  statusConfig={statusConfig}
+  documentLabel={fileName}
+  statusFilter={citationFilter}
+  onManualUpload={handleManualReferenceUpload}
+  flashUpload={flashUpload}
+  refUploadStatus={refUploadStatus}
+  refUploadError={refUploadError}
+/>            </>
           )}
 
+          {/* Legend */}
           <div style={{ marginTop: "40px", paddingTop: "24px", borderTop: "1px solid #e0e0e0" }}>
-            <p style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "16px" }}>
-              UNDERSTANDING THESE RESULTS
-            </p>
+            <p style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px", marginBottom: "16px" }}>UNDERSTANDING THESE RESULTS</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "16px" }}>
-              {Object.values(statusConfig).map(item => (
-                <div key={item.label} style={{
-                  display: "flex", alignItems: "center", gap: "8px",
-                  background: item.bg, border: `1px solid ${item.border}`,
-                  borderRadius: "8px", padding: "8px 14px"
-                }}>
+              {Object.entries(statusConfig).map(([key, item]) => (
+                <div key={item.label} className="verifai-tooltip" style={{ display: "flex", alignItems: "center", gap: "8px", background: item.bg, border: `1px solid ${item.border}`, borderRadius: "8px", padding: "8px 14px" }}>
                   <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: item.color, flexShrink: 0 }} />
                   <span style={{ fontSize: "13px", color: "#333" }}>{item.label}</span>
+                  <span className="verifai-tooltip-text">{STATUS_TOOLTIPS[key]}</span>
                 </div>
               ))}
             </div>
             <p style={{ fontSize: "13px", color: "#888", lineHeight: "1.6" }}>
               Not sure how a verdict is determined, or why some sources can't be checked automatically?{' '}
-              <a href="/how-it-works" style={{ color: "#1a3a6b", fontWeight: "600", textDecoration: "underline" }}>
-                See how VerifAi works →
-              </a>
+              <a href="/how-it-works" style={{ color: "#1a3a6b", fontWeight: "600", textDecoration: "underline" }}>See how VerifAi works</a>
             </p>
           </div>
 
