@@ -436,30 +436,34 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                 ))}
               </div>
               {/* Sort bar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '12px', color: '#888', fontWeight: '600', marginRight: '2px' }}>Sort:</span>
-                {[
-                  { key: 'default', label: 'Default' },
-                  { key: 'status', label: 'Status' },
-                  { key: 'confidence', label: 'Confidence' },
-                  { key: 'source', label: 'Source' },
-                  { key: 'author', label: 'Author' },
-                ].map(opt => (
-                  <button
-                    key={opt.key}
-                    onClick={() => setSortBy(opt.key)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                <span style={{ fontSize: '13px', color: '#888', fontWeight: '600', whiteSpace: 'nowrap' }}>Sort by</span>
+                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                  <svg style={{ position: 'absolute', left: '10px', pointerEvents: 'none' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a3a6b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18M7 12h10M11 18h2"/>
+                  </svg>
+                  <select
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value)}
                     style={{
-                      padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '600',
-                      cursor: 'pointer', border: '1px solid',
-                      background: sortBy === opt.key ? '#1a3a6b' : 'white',
-                      color: sortBy === opt.key ? 'white' : '#555',
-                      borderColor: sortBy === opt.key ? '#1a3a6b' : '#ddd',
-                      transition: 'all 0.15s',
+                      appearance: 'none', WebkitAppearance: 'none',
+                      background: 'white', border: '1px solid #d0d5dd',
+                      borderRadius: '8px', padding: '7px 32px 7px 30px',
+                      fontSize: '13px', color: '#333', fontWeight: '500',
+                      cursor: 'pointer', outline: 'none',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                     }}
                   >
-                    {opt.label}
-                  </button>
-                ))}
+                    <option value="default">Default order</option>
+                    <option value="status">Status</option>
+                    <option value="confidence">Confidence (high → low)</option>
+                    <option value="source">Paper / Source</option>
+                    <option value="author">Author</option>
+                  </select>
+                  <svg style={{ position: 'absolute', right: '10px', pointerEvents: 'none' }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 9l6 6 6-6"/>
+                  </svg>
+                </div>
               </div>
 
               {filteredClaims.length === 0 ? (
@@ -679,7 +683,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
             </div>
             <p style={{ fontSize: "13px", color: "#888", lineHeight: "1.6" }}>
               Not sure how a verdict is determined, or why some sources can't be checked automatically?{' '}
-              <a href="/how-it-works" style={{ color: "#1a3a6b", fontWeight: "600", textDecoration: "underline" }}>See how VerifAi works</a>
+              <a href="/how-it-works" onClick={e => { e.preventDefault(); navigate('/how-it-works') }} style={{ color: "#1a3a6b", fontWeight: "600", textDecoration: "underline", cursor: "pointer" }}>See how VerifAi works</a>
             </p>
           </div>
 
