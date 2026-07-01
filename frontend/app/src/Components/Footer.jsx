@@ -7,26 +7,41 @@ function Footer() {
 
   return (
     <>
-      <footer style={{ background: "#e8edf2", padding: "12px 80px 8px" }}>
+      <footer style={{ background: "#f5f7fa", borderTop: "1px solid #e0e4ea", padding: "40px 80px 0" }}>
         <div style={{
           display: "flex", justifyContent: "space-between", alignItems: "flex-start",
-          maxWidth: "1200px", margin: "0 auto", marginBottom: "16px", gap: "60px", paddingTop: "20px"
+          maxWidth: "1200px", margin: "0 auto", gap: "48px", paddingBottom: "32px"
         }}>
-          <img src={logo} alt="verifAi logo" style={{ height: "200px", marginTop: "-60px", marginBottom: "-60px" }} />
-          <div style={{ textAlign: "left", flex: 1 }}>
-            <p style={{ fontWeight: "600", marginBottom: "12px", color: "#111", fontSize: "15px" }}>VerifAi</p>
-            <a onClick={() => setOpenModal('about')} style={{ display: "block", color: "#1a3a6b", textDecoration: "none", marginBottom: "8px", fontSize: "14px", cursor: "pointer" }}>About</a>
-            <a onClick={() => setOpenModal('contact')} style={{ display: "block", color: "#1a3a6b", textDecoration: "none", fontSize: "14px", cursor: "pointer" }}>Contact Us</a>
+          {/* Brand column */}
+          <div style={{ flex: "0 0 auto" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+              <img src={logo} alt="verifAi logo" style={{ height: "32px", width: "32px", objectFit: "contain" }} />
+              <span style={{ fontWeight: "700", fontSize: "16px", color: "#111" }}>verifAi</span>
+            </div>
+            <p style={{ fontSize: "13px", color: "#888", lineHeight: "1.6", maxWidth: "200px" }}>
+              AI-powered citation verification for research papers.
+            </p>
           </div>
-          <div style={{ textAlign: "left", flex: 1 }}>
-            <p style={{ fontWeight: "600", marginBottom: "12px", color: "#111", fontSize: "15px" }}>Legal & Privacy</p>
-            <a onClick={() => setOpenModal('imprint')} style={{ display: "block", color: "#1a3a6b", textDecoration: "none", marginBottom: "8px", fontSize: "14px", cursor: "pointer" }}>Imprint</a>
-            <a onClick={() => setOpenModal('privacy')} style={{ display: "block", color: "#1a3a6b", textDecoration: "none", fontSize: "14px", cursor: "pointer" }}>Privacy Policy</a>
+
+          {/* VerifAi links */}
+          <div style={{ textAlign: "left" }}>
+            <p style={{ fontWeight: "700", marginBottom: "14px", color: "#111", fontSize: "13px", letterSpacing: "0.5px" }}>VERIFAI</p>
+            <a onClick={() => setOpenModal('about')} style={{ display: "block", color: "#555", textDecoration: "none", marginBottom: "10px", fontSize: "14px", cursor: "pointer" }}>About</a>
+            <a onClick={() => setOpenModal('contact')} style={{ display: "block", color: "#555", textDecoration: "none", fontSize: "14px", cursor: "pointer" }}>Contact Us</a>
           </div>
-          <div style={{ textAlign: "left", flex: 1 }}>
-            <p style={{ fontWeight: "600", marginBottom: "12px", color: "#111", fontSize: "15px" }}>Socials</p>
-            <a href="https://www.linkedin.com/school/tum-campus-heilbronn/posts/?feedView=all" target="_blank" style={{ color: "#1a3a6b", textDecoration: "none", fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}>
-              <svg width="20" height="20" viewBox="0 0 24 24">
+
+          {/* Legal links */}
+          <div style={{ textAlign: "left" }}>
+            <p style={{ fontWeight: "700", marginBottom: "14px", color: "#111", fontSize: "13px", letterSpacing: "0.5px" }}>LEGAL</p>
+            <a onClick={() => setOpenModal('imprint')} style={{ display: "block", color: "#555", textDecoration: "none", marginBottom: "10px", fontSize: "14px", cursor: "pointer" }}>Imprint</a>
+            <a onClick={() => setOpenModal('privacy')} style={{ display: "block", color: "#555", textDecoration: "none", fontSize: "14px", cursor: "pointer" }}>Privacy Policy</a>
+          </div>
+
+          {/* Socials */}
+          <div style={{ textAlign: "left" }}>
+            <p style={{ fontWeight: "700", marginBottom: "14px", color: "#111", fontSize: "13px", letterSpacing: "0.5px" }}>FOLLOW US</p>
+            <a href="https://www.linkedin.com/school/tum-campus-heilbronn/posts/?feedView=all" target="_blank" rel="noreferrer" style={{ color: "#555", textDecoration: "none", fontSize: "14px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24">
                 <rect width="24" height="24" rx="4" fill="#0a66c2"/>
                 <path fill="white" d="M8.34 18.5H5.67V9.66h2.67v8.84zM7 8.48a1.55 1.55 0 1 1 0-3.1 1.55 1.55 0 0 1 0 3.1zM18.5 18.5h-2.67v-4.3c0-1.03-.02-2.35-1.43-2.35-1.43 0-1.65 1.12-1.65 2.28v4.37H10.1V9.66h2.56v1.2h.04c.36-.68 1.23-1.4 2.54-1.4 2.71 0 3.21 1.78 3.21 4.1v4.94z"/>
               </svg>
@@ -34,7 +49,12 @@ function Footer() {
             </a>
           </div>
         </div>
-        <p style={{ textAlign: "center", color: "#999", fontSize: "12px" }}>2026, Powered by TUM</p>
+
+        {/* Bottom bar */}
+        <div style={{ borderTop: "1px solid #e0e4ea", maxWidth: "1200px", margin: "0 auto", padding: "16px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <p style={{ color: "#aaa", fontSize: "12px", margin: 0 }}>© 2026 verifAi · Powered by TUM Campus Heilbronn</p>
+          <p style={{ color: "#aaa", fontSize: "12px", margin: 0 }}>Built with Llama 4 · RAG</p>
+        </div>
       </footer>
 
       {openModal === 'about' && (
