@@ -154,7 +154,10 @@ function cover(doc, { W, H, mg, cw, logo, file, score, label, scoreColor, items,
     const sx = mg + i * sw
     t(doc, 12, 'bold', C.navy); doc.text(s.v, sx, y + 9)
     t(doc, 7,  'normal', C.subtle); doc.text(s.l, sx, y + 17)
-    if (i < stats.length - 1) rule(doc, sx + sw - 4, y, sx + sw - 4, y + 22, C.rule, 0.3)
+    if (i < stats.length - 1) {
+      doc.setDrawColor(...C.rule); doc.setLineWidth(0.3)
+      doc.line(sx + sw - 4, y, sx + sw - 4, y + 26)
+    }
   })
 
   y += 28
