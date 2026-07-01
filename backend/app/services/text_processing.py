@@ -262,6 +262,21 @@ def clean_text(raw_text: str) -> str:
     """Clean extracted/submitted text without destroying citations, DOI strings, or reference lines."""
     text = raw_text.replace("\r\n", "\n").replace("\r", "\n")
     text = text.replace("\u00a0", " ")
+    # Strip soft hyphens (U+00AD) \u2014 PDFs insert these invisibly inside words and
+    # DOI strings, breaking regex matching without any visible indication.
+    text = text.replace("\u00ad", "")
+    # Normalize Unicode typography ligatures produced by LaTeX/PDF rendering.
+    # These look identical to their ASCII equivalents but are different code points,
+    # causing title-match and DOI-match failures in almost all LaTeX-generated papers.
+    text = (
+        text.replace("\ufb00", "ff")
+            .replace("\ufb01", "fi")
+            .replace("\ufb02", "fl")
+            .replace("\ufb03", "ffi")
+            .replace("\ufb04", "ffl")
+            .replace("\ufb05", "st")
+            .replace("\ufb06", "st")
+    )
     text = repair_doi_line_continuations(text)
     text = remove_repeated_page_artifacts(text)
     # Collapse horizontal whitespace but keep line breaks for headings/paragraphs.

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 import pymupdf
 
-from app.clients.metadata_clients import CoreClient, CrossrefClient, DoiResolverClient, MetadataLookupResponse, OpenAlexClient, SemanticScholarClient, SsrnClient, UnpaywallClient
+from app.clients.metadata_clients import ArXivAPIClient, CoreClient, CrossrefClient, DblpClient, DoiResolverClient, EuropePMCClient, GoogleBooksClient, IEEEXploreClient, MetadataLookupResponse, OpenAlexClient, OpenReviewClient, PubMedClient, SemanticScholarClient, SsrnClient, UnpaywallClient
 from app.core.config import Settings, get_settings
 from app.core.errors import AppException, ErrorCode
 from app.models import Document, Reference, SourceMetadata
@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 
 DOI_CANDIDATE_REGEX = re.compile(r"(?:https?://(?:dx\.)?doi\.org/|doi\s*[: ]\s*)?(10\.\d{4,9}/\S+)", re.IGNORECASE)
 _ARXIV_DOI_RE = re.compile(r"10\.48550/arxiv\.(\d{4}\.\d{4,5}(?:v\d+)?)", re.IGNORECASE)
+# Matches openreview.net forum, pdf, and abstract URL variants; captures the submission ID.
+_OPENREVIEW_URL_RE = re.compile(
+    r"openreview\.net/(?:forum|pdf|abstract)\?id=([\w-]+)",
+    re.IGNORECASE,
+)
 
 # Matches the title after a year anchor in common reference formats:
 #   APA:              Smith, J. (2023). Title. Journal.
@@ -34,22 +39,116 @@ _RAW_REF_TITLE_RE = re.compile(
     r"(?:\(\d{4}[a-z]?\)|\b\d{4})\.\s+(.+?)(?=\.\s+[A-Z\d]|\s+doi\s*[: ]|\s+https?://|$)",
     re.IGNORECASE,
 )
+# Strips [N] or N. prefix from numbered references before title extraction.
+_NUMBERED_PREFIX_RE = re.compile(r"^\s*(?:\[\d+\]|\d+[.)]\s)\s*")
+# Matches quoted titles common in IEEE-style references:
+#   [1] F. Smith, "Deep Learning for X," IEEE Trans., 2019.
+_QUOTED_TITLE_RE = re.compile(r'["“]([^"”]{10,})["”]')
+# Matches PubMed IDs (7-8 digits) in reference strings: "PMID: 29461966"
+_PMID_RE = re.compile(r"\bPMID\s*[: ]+(\d{7,8})\b", re.IGNORECASE)
+# Matches IEEE Xplore article numbers from URLs: ieeexplore.ieee.org/document/8099833
+_IEEE_XPLORE_URL_RE = re.compile(
+    r"ieeexplore\.ieee\.org/(?:abstract/)?document/(\d+)",
+    re.IGNORECASE,
+)
 
 
 def _extract_title_from_raw_reference(raw_reference: str) -> str | None:
     """Extract a paper title from a raw reference string when extracted_title is unavailable.
 
-    Covers APA (Author (Year). Title. Venue.) and numbered formats ([1] / 1.).
-    Returns None when no reliable title can be found (too short or no year anchor).
+    Covers APA/Harvard (year before title) and numbered formats ([N] / N. where year
+    is at the end). Returns None when no reliable title can be found.
     """
     if not raw_reference:
         return None
+
+    # Primary: year-anchored extraction (APA, SMJ/Harvard — year before title)
     m = _RAW_REF_TITLE_RE.search(raw_reference)
     if m:
         title = m.group(1).strip().rstrip(".")
         if len(title) >= 10:
             return title
+
+    # Fallback: quoted title — IEEE style places the title in double quotes:
+    #   [1] F. Smith, "Deep Learning for X," IEEE Trans., 2019.
+    # Checked before the numbered heuristic because quotes are more precise —
+    # the numbered split can merge author names with the quoted title otherwise.
+    # Handles both ASCII " and Unicode " " curly quotes from PDFs.
+    qm = _QUOTED_TITLE_RE.search(raw_reference)
+    if qm:
+        title = qm.group(1).strip().rstrip(".,")
+        if len(title) >= 10:
+            return title
+
+    # Fallback: numbered reference format — [N] or N. prefix, year at the end
+    # e.g. "[1] Brown T, Mann B. Language Models are Few-Shot Learners. NeurIPS, 2020."
+    # Strategy: strip prefix, split on ". Uppercase" sentence boundaries, collect
+    # segments >= 10 chars (filters out initials like "T"), return the second one
+    # (the first is authors; the second is typically the title).
+    prefix_m = _NUMBERED_PREFIX_RE.match(raw_reference)
+    if prefix_m:
+        rest = raw_reference[prefix_m.end():]
+        parts = [p.strip().rstrip(".") for p in re.split(r"\.\s+(?=[A-Z])", rest)]
+        long_parts = [p for p in parts if len(p) >= 10]
+        if len(long_parts) >= 2:
+            return long_parts[1]
+        if len(long_parts) == 1:
+            return long_parts[0]
+
     return None
+
+
+# Matches ISBN-13 (978/979 prefix) and ISBN-10, with optional separators.
+_ISBN_RE = re.compile(
+    r"\b(?:97[89][-\s]?(?:\d[-\s]?){9}\d|(?:\d[-\s]?){9}[\dXx])\b"
+)
+
+
+def _extract_openreview_id(raw_reference: str) -> str | None:
+    """Extract an OpenReview submission ID from a raw reference string.
+
+    Handles all three URL variants used by the OpenReview platform:
+        https://openreview.net/forum?id=XYZ
+        https://openreview.net/pdf?id=XYZ
+        https://openreview.net/abstract?id=XYZ
+    Returns None when no OpenReview URL is found.
+    """
+    m = _OPENREVIEW_URL_RE.search(raw_reference)
+    return m.group(1) if m else None
+
+
+def _extract_pmid(raw_reference: str) -> str | None:
+    """Extract a PubMed ID from a raw reference string (e.g. 'PMID: 29461966').
+
+    Returns the numeric ID string or None when no PMID is found.
+    """
+    m = _PMID_RE.search(raw_reference)
+    return m.group(1) if m else None
+
+
+def _extract_ieee_article_number(raw_reference: str) -> str | None:
+    """Extract an IEEE Xplore article number from an ieeexplore.ieee.org URL.
+
+    Handles:
+        https://ieeexplore.ieee.org/document/8099833
+        https://ieeexplore.ieee.org/abstract/document/8099833
+    Returns the article number string or None.
+    """
+    m = _IEEE_XPLORE_URL_RE.search(raw_reference)
+    return m.group(1) if m else None
+
+
+def _extract_isbn(raw_reference: str) -> str | None:
+    """Extract the first ISBN-10 or ISBN-13 found in a raw reference string.
+
+    Many textbook citations in APA bibliographies include an ISBN explicitly
+    (e.g. 'ISBN 978-1-4625-2175-4'). Extracting it lets us query CrossRef by
+    ISBN when no DOI is present — the most reliable path for books.
+
+    Returns the ISBN with hyphens/spaces stripped, or None if none is found.
+    """
+    m = _ISBN_RE.search(raw_reference)
+    return re.sub(r"[-\s]", "", m.group(0)) if m else None
 
 
 def _arxiv_pdf_url(doi: str) -> str | None:
@@ -246,7 +345,14 @@ class MetadataLookupService:
         unpaywall_client: UnpaywallClient | None = None,
         core_client: CoreClient | None = None,
         ssrn_client: SsrnClient | None = None,
+        pubmed_client: PubMedClient | None = None,
+        google_books_client: GoogleBooksClient | None = None,
         doi_resolver_client: DoiResolverClient | None = None,
+        openreview_client: OpenReviewClient | None = None,
+        ieee_xplore_client: IEEEXploreClient | None = None,
+        arxiv_api_client: ArXivAPIClient | None = None,
+        europe_pmc_client: EuropePMCClient | None = None,
+        dblp_client: DblpClient | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.crossref_client = crossref_client or CrossrefClient(self.settings)
@@ -255,7 +361,14 @@ class MetadataLookupService:
         self.unpaywall_client = unpaywall_client or UnpaywallClient(self.settings)
         self.core_client = core_client or CoreClient(self.settings)
         self.ssrn_client = ssrn_client or SsrnClient(self.settings)
+        self.pubmed_client = pubmed_client or PubMedClient(self.settings)
+        self.google_books_client = google_books_client or GoogleBooksClient(self.settings)
         self.doi_resolver_client = doi_resolver_client or DoiResolverClient(self.settings)
+        self.openreview_client = openreview_client or OpenReviewClient(self.settings)
+        self.ieee_xplore_client = ieee_xplore_client or IEEEXploreClient(self.settings)
+        self.arxiv_api_client = arxiv_api_client or ArXivAPIClient(self.settings)
+        self.europe_pmc_client = europe_pmc_client or EuropePMCClient(self.settings)
+        self.dblp_client = dblp_client or DblpClient(self.settings)
 
     def verify_reference_doi(self, reference_id: str, db: Session, *, request_id: str | None = None, force_refresh: bool = False) -> dict[str, Any]:
         reference = ReferenceRepository(db).get(reference_id)
@@ -377,16 +490,87 @@ class MetadataLookupService:
         # The local missing/malformed handling below remains available so mock
         # and offline pipelines persist safe statuses without provider calls.
         if not doi and self.settings.metadata_lookup_enabled:
+            # OpenReview lookup — NeurIPS, ICLR, ICML, and other ML-venue papers are
+            # often cited with only an openreview.net URL and no DOI. Calling the API
+            # yields the paper title (and occasionally a registered DOI), which is then
+            # fed into the title chain below. This runs first so the title chain has
+            # the best possible search string.
+            openreview_id = _extract_openreview_id(reference.raw_reference or "")
+            if openreview_id:
+                or_response = self.openreview_client.lookup_by_id(openreview_id)
+                if or_response.success:
+                    if or_response.doi:
+                        resolved_doi = normalize_doi_for_lookup(or_response.doi)
+                        if resolved_doi:
+                            doi = resolved_doi
+                            reference.extracted_doi = doi
+                            logger.info(
+                                "doi_resolved_via_openreview",
+                                extra={"reference_id": reference.id, "openreview_id": openreview_id, "found_doi": doi},
+                            )
+                    if not doi and or_response.title and not reference.extracted_title:
+                        # No registered DOI from OpenReview; inject title so the
+                        # title chain has a reliable search string.
+                        reference.extracted_title = or_response.title
+                        if not reference.extracted_authors and or_response.authors:
+                            reference.extracted_authors = "; ".join(or_response.authors)
+                        if not reference.extracted_year and or_response.year:
+                            reference.extracted_year = or_response.year
+                        logger.info(
+                            "openreview_title_injected",
+                            extra={"reference_id": reference.id, "openreview_id": openreview_id, "title": or_response.title},
+                        )
+                else:
+                    logger.info(
+                        "openreview_lookup_failed",
+                        extra={"reference_id": reference.id, "openreview_id": openreview_id, "error_code": or_response.error_code},
+                    )
+
+            # PMID lookup — biomedical references sometimes list a PubMed ID instead
+            # of a DOI (e.g. "PMID: 29461966"). PubMed's esummary maps it directly
+            # to a registered DOI via the articleids array.
+            if not doi:
+                pmid = _extract_pmid(reference.raw_reference or "")
+                if pmid:
+                    pmid_response = self.pubmed_client.lookup_by_pmid(pmid)
+                    if pmid_response.success and pmid_response.doi:
+                        resolved_doi = normalize_doi_for_lookup(pmid_response.doi)
+                        if resolved_doi:
+                            doi = resolved_doi
+                            reference.extracted_doi = doi
+                            logger.info(
+                                "doi_resolved_via_pmid",
+                                extra={"reference_id": reference.id, "pmid": pmid, "found_doi": doi},
+                            )
+
+            # IEEE Xplore lookup — references with ieeexplore.ieee.org/document/N URLs
+            # can be resolved to a DOI via the IEEE Xplore API (requires API key).
+            if not doi and self.settings.ieee_xplore_api_key:
+                ieee_id = _extract_ieee_article_number(reference.raw_reference or "")
+                if ieee_id:
+                    ieee_response = self.ieee_xplore_client.lookup_by_article_number(ieee_id)
+                    if ieee_response.success and ieee_response.doi:
+                        resolved_doi = normalize_doi_for_lookup(ieee_response.doi)
+                        if resolved_doi:
+                            doi = resolved_doi
+                            reference.extracted_doi = doi
+                            logger.info(
+                                "doi_resolved_via_ieee_xplore",
+                                extra={"reference_id": reference.id, "ieee_id": ieee_id, "found_doi": doi},
+                            )
+
             # Title-based DOI lookup: try CrossRef → OpenAlex → SemanticScholar in
-            # order of rate-limit generosity. CrossRef and OpenAlex have no meaningful
-            # rate limits with the mailto polite-pool setting, while SemanticScholar's
-            # /paper/search endpoint is restricted to ~5-10 unauthenticated req/min.
-            # All three use the same false-match gates (title substring + year ±1 +
-            # first-author last name). We stop at the first confident match.
+            # Order of rate-limit generosity: CrossRef and OpenAlex (unlimited with
+            # polite-pool mailto), PubMed (< 3 req/sec, very generous), then
+            # SemanticScholar (restricted to ~5-10 unauthenticated req/min), then
+            # CORE (10 req/sec with API key). All use the same false-match gates
+            # (title substring + year ±1 + first-author last name) and stop at the
+            # first confident match. PubMed is placed 3rd for strong coverage of
+            # psychology, medicine, and social-science journals.
             # Prefer the structured extracted_title; fall back to parsing raw_reference
             # when the reference parser could not isolate the title (non-standard format).
             search_title = (reference.extracted_title or "").strip() or _extract_title_from_raw_reference(reference.raw_reference)
-            if search_title:
+            if search_title and not doi:
                 _title_searchers = [
                     ("CrossRef-TitleSearch", lambda: self.crossref_client.search_by_title(
                         title=search_title,
@@ -398,7 +582,17 @@ class MetadataLookupService:
                         authors=reference.extracted_authors,
                         year=reference.extracted_year,
                     )),
+                    ("PubMed-TitleSearch", lambda: self.pubmed_client.search_by_title(
+                        title=search_title,
+                        authors=reference.extracted_authors,
+                        year=reference.extracted_year,
+                    )),
                     ("SemanticScholar-TitleSearch", lambda: self.semantic_scholar_client.search_by_title(
+                        title=search_title,
+                        authors=reference.extracted_authors,
+                        year=reference.extracted_year,
+                    )),
+                    ("DBLP-TitleSearch", lambda: self.dblp_client.search_by_title(
                         title=search_title,
                         authors=reference.extracted_authors,
                         year=reference.extracted_year,
@@ -435,6 +629,120 @@ class MetadataLookupService:
                                 "lookup_source": source_name,
                                 "error_code": title_response.error_code,
                             },
+                        )
+
+        # Short-title retry — if the full title failed all searchers, re-try with
+        # just the first 6 words. Long titles with subtitles (e.g. "Attention Is All
+        # You Need: A Comprehensive Study") sometimes fail because the subtitle or
+        # trailing phrase doesn't match the canonical title stored in CrossRef/DBLP.
+        # Only CrossRef and DBLP are used here to keep latency low.
+        if not doi and search_title and self.settings.metadata_lookup_enabled:
+            title_words = search_title.split()
+            if len(title_words) > 6:
+                short_title = " ".join(title_words[:6])
+                short_title_searchers = [
+                    ("CrossRef-ShortTitle", self.crossref_client, short_title),
+                    ("DBLP-ShortTitle", self.dblp_client, short_title),
+                ]
+                for short_source, short_client, stitle in short_title_searchers:
+                    short_response = short_client.search_by_title(
+                        title=stitle,
+                        authors=reference.extracted_authors,
+                        year=reference.extracted_year,
+                    )
+                    if short_response.success and short_response.doi:
+                        resolved_doi = normalize_doi_for_lookup(short_response.doi)
+                        if resolved_doi:
+                            doi = resolved_doi
+                            reference.extracted_doi = doi
+                            logger.info(
+                                "doi_resolved_via_short_title",
+                                extra={"reference_id": reference.id, "found_doi": doi, "lookup_source": short_source},
+                            )
+                            break
+
+        # ISBN fallback — for textbooks that lack DOIs but include an ISBN in
+        # the reference string (e.g. "ISBN 978-1-4625-2175-4"). CrossRef indexes
+        # most major publishers by ISBN and can return the registered DOI.
+        if not doi and self.settings.metadata_lookup_enabled:
+            isbn = _extract_isbn(reference.raw_reference or "")
+            if isbn:
+                isbn_response = self.crossref_client.lookup_by_isbn(isbn)
+                if isbn_response.success and isbn_response.doi:
+                    resolved_doi = normalize_doi_for_lookup(isbn_response.doi)
+                    if resolved_doi:
+                        doi = resolved_doi
+                        reference.extracted_doi = doi
+                        logger.info(
+                            "doi_resolved_via_isbn",
+                            extra={"reference_id": reference.id, "isbn": isbn, "found_doi": doi},
+                        )
+
+        # Google Books fallback — for textbooks where no DOI exists and no ISBN
+        # is written in the reference string. Google Books has near-complete book
+        # coverage and returns ISBN-13; we pipe that to CrossRef to find the DOI.
+        if not doi and self.settings.metadata_lookup_enabled and search_title:
+            gb_isbn = self.google_books_client.find_isbn_by_title(
+                search_title,
+                authors=reference.extracted_authors,
+                year=reference.extracted_year,
+            )
+            if gb_isbn:
+                gb_response = self.crossref_client.lookup_by_isbn(gb_isbn)
+                if gb_response.success and gb_response.doi:
+                    resolved_doi = normalize_doi_for_lookup(gb_response.doi)
+                    if resolved_doi:
+                        doi = resolved_doi
+                        reference.extracted_doi = doi
+                        logger.info(
+                            "doi_resolved_via_google_books",
+                            extra={"reference_id": reference.id, "isbn": gb_isbn, "found_doi": doi},
+                        )
+
+        # raw_reference broader search — last resort when extracted_title was
+        # too short or truncated to match. CrossRef's query.bibliographic
+        # endpoint accepts full APA strings (author, year, title, venue) so
+        # sending the first 200 chars of the raw reference can surface matches
+        # that a truncated title query would miss.
+        if not doi and self.settings.metadata_lookup_enabled:
+            raw_query = (reference.raw_reference or "")[:200].strip()
+            if raw_query and raw_query != search_title:
+                raw_response = self.crossref_client.search_by_title(
+                    title=raw_query,
+                    authors=reference.extracted_authors,
+                    year=reference.extracted_year,
+                )
+                if raw_response.success and raw_response.doi:
+                    resolved_doi = normalize_doi_for_lookup(raw_response.doi)
+                    if resolved_doi:
+                        doi = resolved_doi
+                        reference.extracted_doi = doi
+                        logger.info(
+                            "doi_resolved_via_raw_reference",
+                            extra={"reference_id": reference.id, "found_doi": doi},
+                        )
+
+        # SemanticScholar raw-reference fallback — if CrossRef's bibliographic search
+        # also failed, try the same raw string against Semantic Scholar. SS has
+        # superior coverage of CS, ML, and preprint papers. The title-match gate
+        # in search_by_title checks whether the result title is a *substring* of our
+        # query string — which passes here because the raw reference includes the title.
+        if not doi and self.settings.metadata_lookup_enabled:
+            raw_query = (reference.raw_reference or "")[:200].strip()
+            if raw_query and raw_query != search_title:
+                ss_raw_response = self.semantic_scholar_client.search_by_title(
+                    title=raw_query,
+                    authors=None,  # author gate relaxed — raw query already embeds authors
+                    year=reference.extracted_year,
+                )
+                if ss_raw_response.success and ss_raw_response.doi:
+                    resolved_doi = normalize_doi_for_lookup(ss_raw_response.doi)
+                    if resolved_doi:
+                        doi = resolved_doi
+                        reference.extracted_doi = doi
+                        logger.info(
+                            "doi_resolved_via_ss_raw_reference",
+                            extra={"reference_id": reference.id, "found_doi": doi},
                         )
 
         if not doi:
@@ -510,14 +818,16 @@ class MetadataLookupService:
 
         existing = metadata_repo.get_latest_for_reference(reference.id)
         if existing and existing.lookup_status == MetadataStatus.LOOKUP_SUCCEEDED.value and not force_refresh:
-            reference.doi_status = DoiStatus.VALID.value
-            reference.metadata_status = MetadataStatus.LOOKUP_SUCCEEDED.value
-            reference.metadata_match_score = existing.metadata_match_score
-            db.commit()
-            return existing
+            # Only trust cache if it has actual content — empty successes are false positives
+            if existing.title or existing.abstract:
+                reference.doi_status = DoiStatus.VALID.value
+                reference.metadata_status = MetadataStatus.LOOKUP_SUCCEEDED.value
+                reference.metadata_match_score = existing.metadata_match_score
+                db.commit()
+                return existing
 
         cached = metadata_repo.find_success_by_doi(doi) if not force_refresh else None
-        if cached and cached.reference_id != reference.id:
+        if cached and cached.reference_id != reference.id and (cached.title or cached.abstract):
             metadata = self._copy_cached_metadata(reference, cached, db)
             reference.doi_status = DoiStatus.VALID.value
             reference.metadata_status = MetadataStatus.LOOKUP_SUCCEEDED.value
@@ -595,6 +905,35 @@ class MetadataLookupService:
                     ),
                 )
                 logger.info("abstract_fallback_ssrn", extra={"reference_id": reference.id, "doi": doi})
+
+        # PubMed abstract fallback — strongest coverage for psychology, medicine,
+        # neuroscience, and life sciences. CrossRef and OpenAlex often lack abstracts
+        # for journals in these domains; PubMed is authoritative for them.
+        if response.success and not response.abstract:
+            pm = self.pubmed_client.lookup_by_doi(doi)
+            if pm.abstract:
+                response = _merge_abstract_fallback(response, pm)
+                logger.info("abstract_fallback_pubmed", extra={"reference_id": reference.id, "doi": doi})
+
+        # arXiv API abstract fallback — arXiv's export API returns structured metadata
+        # including the full abstract without PDF download. Only attempted for arXiv DOIs
+        # (10.48550/arXiv.*) where all prior abstract sources already failed.
+        if response.success and not response.abstract and arxiv_pdf:
+            arxiv_id_m = _ARXIV_DOI_RE.match(doi)
+            if arxiv_id_m:
+                arxiv_meta = self.arxiv_api_client.lookup_by_id(arxiv_id_m.group(1))
+                if arxiv_meta.abstract:
+                    response = _merge_abstract_fallback(response, arxiv_meta)
+                    logger.info("abstract_fallback_arxiv_api", extra={"reference_id": reference.id, "doi": doi})
+
+        # Europe PMC abstract fallback — broader biomedical coverage than PubMed:
+        # includes preprints (bioRxiv, medRxiv) and EU-funded research not indexed
+        # by the US NLM. Also exposes OA full-text URLs for eligible papers.
+        if response.success and not response.abstract:
+            epmc = self.europe_pmc_client.lookup_by_doi(doi)
+            if epmc.abstract:
+                response = _merge_abstract_fallback(response, epmc)
+                logger.info("abstract_fallback_europe_pmc", extra={"reference_id": reference.id, "doi": doi})
 
         # Full-text upgrade — priority: arXiv direct URL → OA URL from metadata
         # → Unpaywall → CORE (inline full text or download URL).
@@ -686,6 +1025,21 @@ class MetadataLookupService:
         if response.success:
             metadata_doi = normalize_doi_for_lookup(response.doi) or reference.extracted_doi
             url = response.url or (self.doi_resolver_client.resolver_url(metadata_doi) if metadata_doi else None)
+            # A "success" with no title and no abstract is an empty response (e.g. CrossRef
+            # returning a stub for an unregistered DOI). Treat it as a failed lookup so
+            # hallucinated citations are not incorrectly marked as VALID.
+            has_content = bool(response.title or response.abstract)
+            if not has_content:
+                reference.doi_status = DoiStatus.INVALID.value
+                reference.metadata_status = MetadataStatus.LOOKUP_FAILED.value
+                db.commit()
+                return SourceMetadataRepository(db).upsert_for_reference(
+                    reference_id=reference.id,
+                    doi=metadata_doi,
+                    lookup_source=response.lookup_source,
+                    lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                    commit=True,
+                )
             match = calculate_metadata_match(
                 extracted_title=reference.extracted_title,
                 extracted_authors=reference.extracted_authors,

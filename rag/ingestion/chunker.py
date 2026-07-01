@@ -20,7 +20,6 @@ Pipeline within this module:
 
 import logging
 import re
-from functools import lru_cache
 from typing import Optional
 
 import tiktoken
@@ -121,20 +120,12 @@ _STRIP_PREFIX_RE = re.compile(
 
 # ── Token counter ─────────────────────────────────────────────────────────────
 
-@lru_cache(maxsize=1)
-def _get_tokeniser():
-    """Load the tokenizer on first use, never during module import.
-
-    tiktoken may download its encoding asset on the first tokenization call.
-    Keeping that work lazy makes dependency/import readiness deterministic and
-    prevents a network requirement merely to import Door 1 or Door 2.
-    """
-    return tiktoken.get_encoding(TIKTOKEN_ENCODING)
+_tokeniser = tiktoken.get_encoding(TIKTOKEN_ENCODING)
 
 
 def count_tokens(text: str) -> int:
     """Return the number of tokens in *text* using the cl100k_base encoding."""
-    return len(_get_tokeniser().encode(text))
+    return len(_tokeniser.encode(text))
 
 
 # ── Splitter (built once, reused across calls) ────────────────────────────────
