@@ -308,17 +308,22 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
         }
         .verifai-tooltip { position: relative; display: inline-flex; align-items: center; }
         .verifai-tooltip .verifai-tooltip-text {
-  visibility: hidden; opacity: 0; width: 260px; background: #1a3a6b; color: white;
-  font-size: 12px; line-height: 1.5; border-radius: 8px; padding: 10px 12px;
-  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-  transition: opacity 0.15s; pointer-events: auto; z-index: 100;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-.verifai-tooltip .verifai-tooltip-text::after {
-  content: ''; position: absolute; top: 100%; left: 0; right: 0; height: 12px;
-}
-.verifai-tooltip:hover .verifai-tooltip-text { visibility: visible; opacity: 1; }
-.verifai-tooltip .verifai-tooltip-text a { color: #93c5fd; text-decoration: underline; cursor: pointer; }
+          visibility: hidden; opacity: 0; width: 260px; background: #1a3a6b; color: white;
+          font-size: 12px; line-height: 1.5; border-radius: 8px; padding: 10px 12px;
+          position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+          transition: opacity 0.15s; pointer-events: auto; z-index: 100;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .verifai-tooltip .verifai-tooltip-text::after {
+          content: ''; position: absolute; top: 100%; left: 0; right: 0; height: 12px;
+        }
+        .verifai-tooltip:hover .verifai-tooltip-text { visibility: visible; opacity: 1; }
+        .verifai-tooltip .verifai-tooltip-text a { color: #93c5fd; text-decoration: underline; cursor: pointer; }
+        .verifai-btn-primary { transition: background 0.15s, opacity 0.15s; }
+        .verifai-btn-primary:hover { background: #0f2a5a !important; }
+        .verifai-btn-outline:hover { background: #f0f4ff !important; }
+        .verifai-filter-btn:hover { opacity: 0.85; }
+        .verifai-legend-chip:hover { opacity: 0.8; }
       `}</style>
 
       <div style={{ display: "flex", gap: "24px", maxWidth: "1200px", margin: "0 auto" }}>
@@ -362,7 +367,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
 
           {/* Claims Summary */}
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
-            <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "16px" }}>CLAIMS SUMMARY</p>
+            <p style={{ fontSize: "13px", fontWeight: "700", color: "#111", marginBottom: "16px" }}>Claims Summary</p>
             {summaryItems.map(item => (
               <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <span style={{ fontSize: "13px", color: "#444", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -390,7 +395,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
 
           {/* View */}
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
-            <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "12px" }}>VIEW</p>
+            <p style={{ fontSize: "13px", fontWeight: "700", color: "#111", marginBottom: "12px" }}>View</p>
             <div style={{ display: "flex", border: "1px solid #1a3a6b", borderRadius: "8px", overflow: "hidden" }}>
               <button onClick={() => setActiveView('overview')} style={{ flex: 1, padding: "10px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: "700", background: activeView === 'overview' ? "#1a3a6b" : "white", color: activeView === 'overview' ? "white" : "#1a3a6b" }}>Overview</button>
               <button onClick={() => setActiveView('citation')} style={{ flex: 1, padding: "10px", border: "none", borderLeft: "1px solid #1a3a6b", cursor: "pointer", fontSize: "14px", fontWeight: "700", background: activeView === 'citation' ? "#1a3a6b" : "white", color: activeView === 'citation' ? "white" : "#1a3a6b" }}>Network Graph</button>
@@ -399,16 +404,16 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
 
           {/* Export */}
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
-            <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "12px" }}>EXPORT</p>
-            <button onClick={handleDownload} style={{ width: "100%", background: "#1a3a6b", color: "white", border: "none", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>Download PDF report</button>
+            <p style={{ fontSize: "13px", fontWeight: "700", color: "#111", marginBottom: "12px" }}>Export</p>
+            <button onClick={handleDownload} className="verifai-btn-primary" style={{ width: "100%", background: "#1a3a6b", color: "white", border: "none", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>Download PDF report</button>
           </div>
 
           {/* Unresolved */}
           {summaryItems[4].count > 0 && (
             <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
-              <p style={{ fontSize: "12px", fontWeight: "700", color: "#111", letterSpacing: "1px", marginBottom: "8px" }}>UNRESOLVED SOURCES</p>
+              <p style={{ fontSize: "13px", fontWeight: "700", color: "#111", marginBottom: "8px" }}>Unresolved Sources</p>
               <p style={{ fontSize: "12px", color: "#888", marginBottom: "14px", lineHeight: "1.5" }}>{summaryItems[4].count} claim(s) couldn't be checked automatically.</p>
-              <button onClick={jumpToUnresolvedSources} style={{ width: "100%", background: "white", color: "#1a3a6b", border: "1px solid #1a3a6b", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>
+              <button onClick={jumpToUnresolvedSources} className="verifai-btn-outline" style={{ width: "100%", background: "white", color: "#1a3a6b", border: "1px solid #1a3a6b", borderRadius: "8px", padding: "12px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>
                 Add reference documents to check claims
               </button>
             </div>
@@ -420,7 +425,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
             <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#111", margin: 0 }}>Verification Results</h2>
-            <button onClick={() => navigate('/')} style={{ border: "1px solid #ccc", background: "white", borderRadius: "8px", padding: "8px 20px", cursor: "pointer", fontSize: "14px" }}>← New document</button>
+            <button onClick={() => navigate('/')} className="verifai-btn-outline" style={{ border: "1px solid #ccc", background: "white", borderRadius: "8px", padding: "8px 20px", cursor: "pointer", fontSize: "14px" }}>← New document</button>
           </div>
           <p style={{ color: "#888", fontSize: "14px", marginBottom: "20px" }}>
             {totalClaims} claims checked · {claims.filter(c => c.doiResolved).length} DOIs resolved · {claims.filter(c => !c.doiResolved).length} unresolvable

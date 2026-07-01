@@ -13,7 +13,7 @@ function Header() {
       position: "relative", zIndex: 10
     }}>
       <Link to="/">
-        <img src={logo} alt="verifAi logo" style={{ height: "120px", cursor: "pointer", marginTop: "-20px", marginBottom: "-20px" }} />
+        <img src={logo} alt="verifAi logo" style={{ height: "80px", cursor: "pointer" }} />
       </Link>
       <nav>
         {onHowItWorks ? (

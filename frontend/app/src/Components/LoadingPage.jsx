@@ -204,8 +204,10 @@ function LoadingPage() {
         </div>
 
         <div style={{ background: "#eef2ff", borderRadius: "10px", padding: "14px 18px", marginBottom: "20px", fontSize: "13px", color: "#444", display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: "#1a3a6b", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: "700", flexShrink: 0 }}>i</div>
-          No need to refresh - your report will appear automatically.
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a3a6b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          No need to refresh — your report will appear automatically.
         </div>
 
         <button onClick={() => navigate('/')} style={{ border: "1px solid #ccc", background: "white", borderRadius: "10px", padding: "12px 28px", cursor: "pointer", fontSize: "14px", color: "#444" }}>

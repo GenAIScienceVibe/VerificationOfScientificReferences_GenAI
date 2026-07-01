@@ -101,7 +101,7 @@ function UploadPage() {
         }}>
           {step.id}
         </div>
-        <span style={{ fontSize: "13px", color: "#555", lineHeight: "1.5", textAlign: "center", marginTop: "14px", width: "110px" }}>
+        <span style={{ fontSize: "12px", color: "#555", lineHeight: "1.5", textAlign: "center", marginTop: "10px", width: "80px" }}>
           {step.label}
         </span>
       </div>
@@ -198,8 +198,11 @@ function UploadPage() {
                 style={{
                   width: "100%", background: "#1a3a6b", color: "white", border: "none",
                   borderRadius: "10px", padding: "14px", cursor: "pointer", fontSize: "15px",
-                  fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px"
-                }}>
+                  fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                  transition: "background 0.15s"
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#0f2a5a'}
+                onMouseLeave={e => e.currentTarget.style.background = '#1a3a6b'}>
                 Start verification
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M5 12h14M13 6l6 6-6 6"/>
