@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import CitationGraph from './CitationGraph'
 import logo from '../assets/Logo_VerifAi.png'
 import { generateVerificationPdf } from './pdfReport'
@@ -86,6 +86,83 @@ function getSimilarityHint(score) {
     detail: "This is close to the threshold - it may just mean the search didn't find the right passage due to differing wording, rather than the claim being unsupported.",
   }
   return null
+}
+
+const SORT_OPTIONS = [
+  { value: 'default',    label: 'Default order' },
+  { value: 'status',     label: 'Status' },
+  { value: 'confidence', label: 'Confidence (high → low)' },
+  { value: 'source',     label: 'Paper / Source' },
+  { value: 'author',     label: 'Author' },
+]
+
+function SortDropdown({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const selected = SORT_OPTIONS.find(o => o.value === value)
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', position: 'relative' }}>
+      <span style={{ fontSize: '13px', color: '#888', fontWeight: '600', whiteSpace: 'nowrap' }}>Sort by</span>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: '8px',
+          background: 'white', border: '1px solid #d0d5dd', borderRadius: '8px',
+          padding: '7px 12px', fontSize: '13px', color: '#1a3a6b', fontWeight: '600',
+          cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'border-color 0.15s',
+          borderColor: open ? '#1a3a6b' : '#d0d5dd',
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a3a6b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 6h18M7 12h10M11 18h2"/>
+        </svg>
+        {selected?.label}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1a3a6b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: '60px', zIndex: 50,
+          background: 'white', border: '1px solid #e0e4ea', borderRadius: '10px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.10)', minWidth: '200px', overflow: 'hidden',
+        }}>
+          {SORT_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => { onChange(opt.value); setOpen(false) }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%', padding: '10px 14px', border: 'none', textAlign: 'left',
+                background: opt.value === value ? '#eff6ff' : 'white',
+                color: opt.value === value ? '#1a3a6b' : '#333',
+                fontSize: '13px', fontWeight: opt.value === value ? '600' : '400',
+                cursor: 'pointer', transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => { if (opt.value !== value) e.currentTarget.style.background = '#f5f8ff' }}
+              onMouseLeave={e => { if (opt.value !== value) e.currentTarget.style.background = 'white' }}
+            >
+              {opt.label}
+              {opt.value === value && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a3a6b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function ResultsPage() {
@@ -441,35 +518,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                 ))}
               </div>
               {/* Sort bar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                <span style={{ fontSize: '13px', color: '#888', fontWeight: '600', whiteSpace: 'nowrap' }}>Sort by</span>
-                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-                  <svg style={{ position: 'absolute', left: '10px', pointerEvents: 'none' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a3a6b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 6h18M7 12h10M11 18h2"/>
-                  </svg>
-                  <select
-                    value={sortBy}
-                    onChange={e => setSortBy(e.target.value)}
-                    style={{
-                      appearance: 'none', WebkitAppearance: 'none',
-                      background: 'white', border: '1px solid #d0d5dd',
-                      borderRadius: '8px', padding: '7px 32px 7px 30px',
-                      fontSize: '13px', color: '#333', fontWeight: '500',
-                      cursor: 'pointer', outline: 'none',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                    }}
-                  >
-                    <option value="default">Default order</option>
-                    <option value="status">Status</option>
-                    <option value="confidence">Confidence (high → low)</option>
-                    <option value="source">Paper / Source</option>
-                    <option value="author">Author</option>
-                  </select>
-                  <svg style={{ position: 'absolute', right: '10px', pointerEvents: 'none' }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M6 9l6 6 6-6"/>
-                  </svg>
-                </div>
-              </div>
+              <SortDropdown value={sortBy} onChange={setSortBy} />
 
               {filteredClaims.length === 0 ? (
                 <p style={{ color: "#888", fontSize: "14px", textAlign: "center", padding: "40px 0" }}>No claims match this filter.</p>
