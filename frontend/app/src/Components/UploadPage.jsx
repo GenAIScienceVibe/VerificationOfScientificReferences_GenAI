@@ -7,6 +7,21 @@ function UploadPage() {
   const [mainFile, setMainFile] = useState(null)
   const [showReferenceUpload, setShowReferenceUpload] = useState(false)
   const [referenceFiles, setReferenceFiles] = useState([])
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = () => setIsDragging(false)
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (file && file.type === 'application/pdf') setMainFile(file)
+  }
 
   const handleMainFileSelected = (e) => {
     const file = e.target.files[0]
@@ -94,10 +109,16 @@ function UploadPage() {
   ))}
 </div>
 
-        <div style={{
-          background: "white", borderRadius: "16px", padding: "60px 48px",
-          maxWidth: "600px", margin: "0 auto", boxShadow: "0 2px 16px rgba(0,0,0,0.07)"
-        }}>
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          style={{
+            background: "white", borderRadius: "16px", padding: "60px 48px",
+            maxWidth: "600px", margin: "0 auto", boxShadow: "0 2px 16px rgba(0,0,0,0.07)",
+            border: isDragging ? "2px dashed #1a3a6b" : "2px dashed transparent",
+            transition: "border 0.2s"
+          }}>
           {!mainFile ? (
             <>
               <div style={{ marginBottom: "16px" }}>
