@@ -313,20 +313,6 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0", textAlign: "center" }}>
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", marginBottom: "16px" }}>
               <p style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", letterSpacing: "1px", margin: 0 }}>CREDIBILITY SCORE</p>
-              <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
-                onMouseEnter={e => e.currentTarget.querySelector('.cred-tooltip').style.visibility = 'visible'}
-                onMouseLeave={e => e.currentTarget.querySelector('.cred-tooltip').style.visibility = 'hidden'}
-              >
-                <span style={{ fontSize: "13px", color: "#aaa", cursor: "default", lineHeight: 1 }}>i</span>
-                <div className="cred-tooltip" style={{
-                  visibility: "hidden", width: "240px", background: "#1a3a6b", color: "white",
-                  fontSize: "12px", lineHeight: "1.5", borderRadius: "8px", padding: "10px 12px",
-                  position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)",
-                  zIndex: 100, boxShadow: "0 4px 12px rgba(0,0,0,0.15)", pointerEvents: "none"
-                }}>
-                  {CREDIBILITY_TOOLTIP}
-                </div>
-              </div>
             </div>
             <div style={{ position: "relative", width: "120px", height: "120px", margin: "0 auto 12px" }}>
               <svg viewBox="0 0 120 120" width="120" height="120">
