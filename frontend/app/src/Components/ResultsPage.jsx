@@ -396,11 +396,21 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
         }
         .verifai-tooltip:hover .verifai-tooltip-text { visibility: visible; opacity: 1; }
         .verifai-tooltip .verifai-tooltip-text a { color: #93c5fd; text-decoration: underline; cursor: pointer; }
-        .verifai-btn-primary { transition: background 0.15s, opacity 0.15s; }
-        .verifai-btn-primary:hover { background: #0f2a5a !important; }
+        .verifai-btn-primary { transition: background 0.15s, box-shadow 0.15s; }
+        .verifai-btn-primary:hover { background: #0f2a5a !important; box-shadow: 0 4px 12px rgba(26,58,107,0.25); }
         .verifai-btn-outline:hover { background: #f0f4ff !important; }
-        .verifai-filter-btn:hover { opacity: 0.85; }
-        .verifai-legend-chip:hover { opacity: 0.8; }
+        .verifai-filter-btn { transition: background 0.15s, color 0.15s, box-shadow 0.15s, transform 0.1s; }
+        .verifai-filter-btn:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); transform: translateY(-1px); }
+        .verifai-legend-chip { transition: opacity 0.15s, transform 0.1s; }
+        .verifai-legend-chip:hover { opacity: 0.8; transform: translateY(-1px); }
+        .verifai-claim-card { transition: box-shadow 0.15s, border-color 0.15s; }
+        .verifai-claim-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+        .verifai-text-btn { transition: color 0.15s, opacity 0.15s; }
+        .verifai-text-btn:hover { opacity: 0.7; text-decoration: underline; }
+        .verifai-view-btn { transition: background 0.15s, color 0.15s, opacity 0.15s; }
+        .verifai-view-btn:not([data-active="true"]):hover { background: #f0f4ff !important; }
+        .verifai-sidebar-card { transition: box-shadow 0.15s; }
+        .verifai-sidebar-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.07); }
       `}</style>
 
       <div style={{ display: "flex", gap: "24px", maxWidth: "1200px", margin: "0 auto" }}>
@@ -409,7 +419,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
         <div style={{ width: "280px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "16px" }}>
 
           {/* Credibility Score */}
-          <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0", textAlign: "center" }}>
+          <div className="verifai-sidebar-card" style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0", textAlign: "center" }}>
             <div className="verifai-tooltip" style={{ display: "inline-flex", justifyContent: "center", alignItems: "center", gap: "6px", marginBottom: "16px", cursor: "default" }}>
               <p style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", letterSpacing: "1px", margin: 0 }}>CREDIBILITY SCORE</p>
               <span style={{ width: "15px", height: "15px", borderRadius: "50%", background: "#e8edf5", color: "#1a3a6b", fontSize: "9px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>?</span>
@@ -443,7 +453,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
           </div>
 
           {/* Claims Summary */}
-          <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
+          <div className="verifai-sidebar-card" style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
             <p style={{ fontSize: "13px", fontWeight: "700", color: "#111", marginBottom: "16px" }}>Claims Summary</p>
             {summaryItems.map(item => (
               <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
@@ -474,8 +484,8 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
           <div style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0" }}>
             <p style={{ fontSize: "13px", fontWeight: "700", color: "#111", marginBottom: "12px" }}>View</p>
             <div style={{ display: "flex", border: "1px solid #1a3a6b", borderRadius: "8px", overflow: "hidden" }}>
-              <button onClick={() => setActiveView('overview')} style={{ flex: 1, padding: "10px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: "700", background: activeView === 'overview' ? "#1a3a6b" : "white", color: activeView === 'overview' ? "white" : "#1a3a6b" }}>Overview</button>
-              <button onClick={() => setActiveView('citation')} style={{ flex: 1, padding: "10px", border: "none", borderLeft: "1px solid #1a3a6b", cursor: "pointer", fontSize: "14px", fontWeight: "700", background: activeView === 'citation' ? "#1a3a6b" : "white", color: activeView === 'citation' ? "white" : "#1a3a6b" }}>Network Graph</button>
+              <button onClick={() => setActiveView('overview')} className="verifai-view-btn" data-active={activeView === 'overview'} style={{ flex: 1, padding: "10px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: "700", background: activeView === 'overview' ? "#1a3a6b" : "white", color: activeView === 'overview' ? "white" : "#1a3a6b" }}>Overview</button>
+              <button onClick={() => setActiveView('citation')} className="verifai-view-btn" data-active={activeView === 'citation'} style={{ flex: 1, padding: "10px", border: "none", borderLeft: "1px solid #1a3a6b", cursor: "pointer", fontSize: "14px", fontWeight: "700", background: activeView === 'citation' ? "#1a3a6b" : "white", color: activeView === 'citation' ? "white" : "#1a3a6b" }}>Network Graph</button>
             </div>
           </div>
 
@@ -512,7 +522,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
             <>
               <div ref={claimsListRef} style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>
                 {filters.map((filter) => (
-                  <button key={filter.label} onClick={() => setActiveFilter(filter.label)} style={{ padding: "8px 16px", borderRadius: "99px", fontSize: "13px", fontWeight: "600", cursor: "pointer", background: activeFilter === filter.label ? filter.color : "white", color: activeFilter === filter.label ? "white" : filter.color, border: `1px solid ${filter.border}` }}>
+                  <button key={filter.label} onClick={() => setActiveFilter(filter.label)} className="verifai-filter-btn" style={{ padding: "8px 16px", borderRadius: "99px", fontSize: "13px", fontWeight: "600", cursor: "pointer", background: activeFilter === filter.label ? filter.color : "white", color: activeFilter === filter.label ? "white" : filter.color, border: `1px solid ${filter.border}` }}>
                     {filter.label}
                   </button>
                 ))}
@@ -536,7 +546,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                     const reasoningIsLong = claim.reasoning.length > 120
 
                     return (
-                      <div key={claim.id} style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
+                      <div key={claim.id} className="verifai-claim-card" style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
 
                         {/* Header */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -572,7 +582,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                             <p style={{ fontSize: "11px", fontWeight: "700", color: "#888", letterSpacing: "1px", margin: 0 }}>AI REASONING</p>
                             {reasoningIsLong && (
-                              <button onClick={() => setExpandedReasoning(prev => ({ ...prev, [claim.id]: !prev[claim.id] }))} style={{ fontSize: "11px", color: "#1a3a6b", background: "none", border: "none", cursor: "pointer", fontWeight: "600", padding: 0, flexShrink: 0 }}>
+                              <button onClick={() => setExpandedReasoning(prev => ({ ...prev, [claim.id]: !prev[claim.id] }))} className="verifai-text-btn" style={{ fontSize: "11px", color: "#1a3a6b", background: "none", border: "none", cursor: "pointer", fontWeight: "600", padding: 0, flexShrink: 0 }}>
                                 {isReasoningExpanded ? "Show less" : "Show more"}
                               </button>
                             )}
@@ -638,6 +648,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                             <span className="verifai-tooltip-text">{CONFIDENCE_TOOLTIP}</span>
                           </div>
                           <button
+                            className="verifai-text-btn"
                             style={{ fontSize: "12px", color: "#1a3a6b", background: "none", border: "none", cursor: "pointer", fontWeight: "600" }}
                             onClick={async () => {
                               const isOpen = expandedPassages[claim.id]
