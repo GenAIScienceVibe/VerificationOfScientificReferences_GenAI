@@ -439,7 +439,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
     <option value="confidence">Confidence (high to low)</option>
     <option value="status">Status</option>
   </select>
-</div>s
+</div>
 
               {filteredClaims.length === 0 ? (
                 <p style={{ color: "#888", fontSize: "14px", textAlign: "center", padding: "40px 0" }}>No claims match this filter.</p>
@@ -464,7 +464,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                           <span style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px" }}>CLAIM {claim.displayId}</span>
                           <div className="verifai-tooltip">
                             <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}`, cursor: "default" }}>
-                              {config.label} <span style={{ opacity: 0.6, fontSize: "10px" }}>i</span>
+                              {config.label}
                             </span>
                             <span className="verifai-tooltip-text" style={{ textAlign: "left" }}>
                               {STATUS_TOOLTIPS[claim.status]}
