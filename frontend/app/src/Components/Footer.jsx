@@ -14,7 +14,7 @@ function Footer() {
         }}>
           {/* Brand column */}
           <div style={{ flex: "0 0 auto" }}>
-            <img src={logo} alt="verifAi logo" style={{ height: "120px", width: "120px", objectFit: "contain", display: "block" }} />
+            <img src={logo} alt="verifAi logo" style={{ height: "200px", width: "200px", objectFit: "contain", display: "block" }} />
           </div>
 
           {/* VerifAi links */}
