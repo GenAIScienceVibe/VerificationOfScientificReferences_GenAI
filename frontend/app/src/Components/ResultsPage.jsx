@@ -419,20 +419,20 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
         <div style={{ width: "280px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "16px" }}>
 
           {/* Credibility Score */}
-          <div className="verifai-sidebar-card" style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0", textAlign: "center" }}>
-            <div className="verifai-tooltip" style={{ display: "inline-flex", justifyContent: "center", alignItems: "center", gap: "6px", marginBottom: "16px", cursor: "default" }}>
+          <div className="verifai-sidebar-card verifai-tooltip" style={{ background: "white", borderRadius: "12px", padding: "24px", border: "1px solid #e0e0e0", textAlign: "center" }}>
+            <div style={{ display: "inline-flex", justifyContent: "center", alignItems: "center", gap: "6px", marginBottom: "16px", cursor: "default" }}>
               <p style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", letterSpacing: "1px", margin: 0 }}>CREDIBILITY SCORE</p>
               <span style={{ width: "15px", height: "15px", borderRadius: "50%", background: "#e8edf5", color: "#1a3a6b", fontSize: "9px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>?</span>
-              <span className="verifai-tooltip-text" style={{ width: "240px", left: "0", transform: "none", textAlign: "left" }}>
-                <strong style={{ display: "block", marginBottom: "6px" }}>How is this calculated?</strong>
-                Each verified claim is weighted by verdict:<br />
-                Supported × 1.0 + Partially Supported × 0.5<br />
-                divided by total claims × 100.<br /><br />
-                <strong>≥ 80%</strong> — Reliable<br />
-                <strong>50–79%</strong> — Partially Reliable<br />
-                <strong>&lt; 50%</strong> — Low Reliability
-              </span>
             </div>
+            <span className="verifai-tooltip-text" style={{ width: "220px", left: "12px", transform: "none", textAlign: "left" }}>
+              <strong style={{ display: "block", marginBottom: "6px" }}>How is this calculated?</strong>
+              Each verified claim is weighted by verdict:<br />
+              Supported × 1.0 + Partially Supported × 0.5<br />
+              divided by total claims × 100.<br /><br />
+              <strong>≥ 80%</strong> — Reliable<br />
+              <strong>50–79%</strong> — Partially Reliable<br />
+              <strong>&lt; 50%</strong> — Low Reliability
+            </span>
             <div style={{ position: "relative", width: "120px", height: "120px", margin: "0 auto 12px" }}>
               <svg viewBox="0 0 120 120" width="120" height="120">
                 <circle cx="60" cy="60" r="50" fill="none" stroke="#e0e0e0" strokeWidth="12"/>
