@@ -227,7 +227,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
   }
 
   const getConfidenceColor = (c) => c > 0.7 ? "#16a34a" : c > 0.4 ? "#d97706" : "#dc2626"
-  const handleDownload = () => generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo })
+  const handleDownload = () => generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo, credibilityScore, credibilityLabel, credibilityColor })
 
   const jumpToUnresolvedSources = () => {
     setActiveView('overview')
