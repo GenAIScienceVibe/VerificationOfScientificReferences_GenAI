@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy import func
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
@@ -7,7 +8,8 @@ from app.core.config import get_settings
 from app.core.errors import AppException, ErrorCode
 from app.core.responses import success_response
 from app.db.session import get_db
-from app.models.enums import DoiStatus, MetadataStatus
+from app.models.enums import DoiStatus, MetadataStatus, SupportStatus
+from app.models.workflow import Document, VerificationResult
 from app.schemas.documents import TextSubmissionRequest
 from app.services.reference_extraction import extract_references_for_document, list_document_references
 from app.services.doi_metadata_lookup import MetadataLookupService
@@ -21,6 +23,69 @@ from app.services.document_processing_service import (
 )
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+
+@router.get("/")
+async def list_documents(
+    request: Request,
+    limit: int = Query(default=10, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """Return recently processed documents with their computed credibility scores."""
+    docs = (
+        db.query(Document)
+        .filter(Document.deleted_at.is_(None))
+        .order_by(Document.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    counts_by_doc = (
+        db.query(
+            VerificationResult.document_id,
+            VerificationResult.support_status,
+            func.count(VerificationResult.id).label("cnt"),
+        )
+        .filter(
+            VerificationResult.document_id.in_([d.id for d in docs]),
+            VerificationResult.deleted_at.is_(None),
+        )
+        .group_by(VerificationResult.document_id, VerificationResult.support_status)
+        .all()
+    )
+
+    status_map: dict[str, dict[str, int]] = {}
+    for doc_id, status, cnt in counts_by_doc:
+        status_map.setdefault(doc_id, {})[status] = cnt
+
+    result = []
+    for doc in docs:
+        counts = status_map.get(doc.id, {})
+        total = sum(counts.values())
+        if total > 0:
+            credibility_score = round(
+                (
+                    counts.get(SupportStatus.SUPPORTED.value, 0) * 1.0
+                    + counts.get(SupportStatus.PARTIALLY_SUPPORTED.value, 0) * 0.5
+                )
+                / total
+                * 100,
+                1,
+            )
+        else:
+            credibility_score = None
+
+        result.append({
+            "document_id": doc.id,
+            "filename": doc.filename,
+            "title": doc.title,
+            "status": doc.status,
+            "created_at": doc.created_at.isoformat() if doc.created_at else None,
+            "claims_count": doc.claims_count,
+            "credibility_score": credibility_score,
+        })
+
+    return success_response(request=request, data=result, message="Documents listed")
 
 
 @router.post("/upload")
