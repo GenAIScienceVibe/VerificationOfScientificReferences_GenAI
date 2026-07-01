@@ -427,19 +427,15 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
               <span style={{ width: "15px", height: "15px", borderRadius: "50%", background: "#e8edf5", color: "#1a3a6b", fontSize: "9px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>?</span>
               <div className="cred-tip" style={{
                 opacity: 0, pointerEvents: "none", transition: "opacity 0.15s",
-                position: "absolute", bottom: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)",
-                width: "220px", background: "#1a3a6b", color: "white",
-                fontSize: "12px", lineHeight: "1.5", borderRadius: "8px", padding: "10px 12px",
+                position: "absolute", top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)",
+                width: "200px", background: "#1a3a6b", color: "white",
+                fontSize: "11px", lineHeight: "1.5", borderRadius: "8px", padding: "8px 10px",
                 textAlign: "left", zIndex: 200, boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                 whiteSpace: "normal",
               }}>
-                <strong style={{ display: "block", marginBottom: "6px" }}>How is this calculated?</strong>
-                Each verified claim is weighted by verdict:<br />
-                Supported × 1.0 + Partially Supported × 0.5<br />
-                divided by total claims × 100.<br /><br />
-                <strong>≥ 80%</strong> — Reliable<br />
-                <strong>50–79%</strong> — Partially Reliable<br />
-                <strong>&lt; 50%</strong> — Low Reliability
+                <strong style={{ display: "block", marginBottom: "4px" }}>Score formula</strong>
+                (Supported × 1.0 + Partial × 0.5) ÷ total × 100<br /><br />
+                <strong>≥ 80%</strong> Reliable · <strong>50–79%</strong> Partial · <strong>&lt;50%</strong> Low
               </div>
             </div>
             <div style={{ position: "relative", width: "120px", height: "120px", margin: "0 auto 12px" }}>
