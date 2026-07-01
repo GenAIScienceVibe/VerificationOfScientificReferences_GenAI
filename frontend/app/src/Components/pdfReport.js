@@ -1,6 +1,24 @@
 import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 
 const NAVY = [26, 58, 107]
+const GRAY = [140, 140, 140]
+
+const STATUS_COLORS = {
+  supported:    { r: [22, 163, 74],    label: 'Supported' },
+  partial:      { r: [217, 119, 6],    label: 'Partially Supported' },
+  unsupported:  { r: [220, 38, 38],    label: 'Unsupported' },
+  hallucinated: { r: [107, 33, 168],   label: 'Hallucinated' },
+  insufficient: { r: [107, 114, 128],  label: 'Insufficient Evidence' },
+}
+
+const CATEGORY_DESCRIPTIONS = {
+  supported: "The AI found relevant text in the cited source that clearly and directly confirms the claim as stated. A valid DOI was resolved, similarity score >= 0.50, and the LLM confirmed the claim.",
+  partial: "The cited source addresses the same topic but does not fully confirm all aspects of the claim. Common causes: paraphrasing that overstates the original, missing caveats, or combined results.",
+  unsupported: "The source was retrieved and read, but the AI found the claim contradicts or is absent from the source content. Distinct from Insufficient Evidence: the source was read but does not back the claim.",
+  hallucinated: "The DOI is invalid or does not resolve to any existing publication. This verdict is assigned by a deterministic rule, not the LLM. The citation may be fabricated.",
+  insufficient: "Not enough accessible text was retrieved to make a reliable determination. Causes: paywalled source, abstract-only retrieval, similarity below threshold (0.50), or malformed LLM response.",
+}
 
 const hexToRgb = (hex) => {
   const clean = hex.replace('#', '')
@@ -9,276 +27,514 @@ const hexToRgb = (hex) => {
 }
 
 const loadImageAsBase64 = (url) =>
-  new Promise((resolve, reject) => {
+  new Promise((resolve) => {
     const img = new window.Image()
     img.crossOrigin = 'Anonymous'
     img.onload = () => {
       const canvas = document.createElement('canvas')
       canvas.width = img.width
       canvas.height = img.height
-      const ctx = canvas.getContext('2d')
-      ctx.drawImage(img, 0, 0)
+      canvas.getContext('2d').drawImage(img, 0, 0)
       resolve(canvas.toDataURL('image/png'))
     }
-    img.onerror = reject
+    img.onerror = () => resolve(null)
     img.src = url
   })
 
 const getConfidenceColor = (c) => {
-  if (c > 0.7) return "#16a34a"
-  if (c > 0.4) return "#d97706"
-  return "#dc2626"
+  if (c > 0.7) return [22, 163, 74]
+  if (c > 0.4) return [217, 119, 6]
+  return [220, 38, 38]
 }
 
-function drawHeader(doc, { pageWidth, margin, logoBase64, fileName }) {
+// ── Helpers ──────────────────────────────────────────────────────
+
+function drawPageHeader(doc, { pageWidth, margin, logoBase64, fileName, pageNum, totalPages }) {
   doc.setFillColor(255, 255, 255)
-  doc.rect(0, 0, pageWidth, 32, 'F')
-
-  if (logoBase64) {
-    doc.addImage(logoBase64, 'PNG', margin, 6, 20, 20)
-  }
-
-  const textX = logoBase64 ? margin + 24 : margin
-  doc.setTextColor(...NAVY)
-  doc.setFont(undefined, 'bold')
-  doc.setFontSize(15)
-  doc.text('verifAi', textX, 16)
-
-  doc.setFont(undefined, 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(140, 140, 140)
-  doc.text(`Verification Report  ·  ${fileName}  ·  ${new Date().toLocaleDateString()}`, textX, 23)
-
-  doc.setDrawColor(225, 225, 230)
-  doc.setLineWidth(0.4)
-  doc.line(margin, 32, pageWidth - margin, 32)
-}
-
-function drawFooter(doc, { pageWidth, pageHeight, margin, contentWidth, pageNum, totalPages }) {
-  doc.setDrawColor(224, 224, 224)
+  doc.rect(0, 0, pageWidth, 26, 'F')
+  doc.setDrawColor(220, 220, 220)
   doc.setLineWidth(0.3)
-  doc.line(margin, pageHeight - 22, pageWidth - margin, pageHeight - 22)
+  doc.line(margin, 26, pageWidth - margin, 26)
 
-  doc.setFont(undefined, 'italic')
-  doc.setFontSize(8)
-  doc.setTextColor(140, 140, 140)
-  const disclaimer = doc.splitTextToSize(
-    'VerifAi uses AI-assisted analysis and automated source matching. Results may contain errors and accuracy is not guaranteed to be 100% — please verify critical claims against the original sources.',
-    contentWidth - 28
-  )
-  doc.text(disclaimer, margin, pageHeight - 15)
+  if (logoBase64) doc.addImage(logoBase64, 'PNG', margin, 4, 14, 14)
+  const textX = logoBase64 ? margin + 18 : margin
 
-  doc.setFont(undefined, 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(140, 140, 140)
-  doc.text(`Page ${pageNum} / ${totalPages}`, pageWidth - margin, pageHeight - 15, { align: 'right' })
-}
-
-function drawCredibilityCard(doc, { margin, contentWidth, y }) {
-  doc.setDrawColor(224, 224, 224)
-  doc.setFillColor(248, 249, 251)
-  doc.roundedRect(margin, y, contentWidth, 28, 3, 3, 'FD')
-  doc.setFont(undefined, 'bold')
-  doc.setFontSize(13)
   doc.setTextColor(...NAVY)
-  doc.text('Credibility Score: 72% — Partially Reliable', margin + 8, y + 12)
-  doc.setFont(undefined, 'normal')
-  doc.setFontSize(9.5)
-  doc.setTextColor(120, 120, 120)
-  doc.text('Some claims are inaccurate or unsupported by their cited sources.', margin + 8, y + 21)
-  return y + 38
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.text('verifAi', textX, 13)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  doc.setTextColor(...GRAY)
+  doc.text(`Citation Verification Report  |  ${fileName}`, textX, 20)
+  if (pageNum && totalPages) {
+    doc.text(`Page ${pageNum} / ${totalPages}`, pageWidth - margin, 20, { align: 'right' })
+  }
 }
 
-function drawSummaryCard(doc, { margin, contentWidth, y, summaryItems }) {
-  const totalClaims = summaryItems.reduce((sum, i) => sum + i.count, 0)
-  const summaryCardHeight = 16 + summaryItems.length * 8 + 14
-
-  doc.setDrawColor(224, 224, 224)
-  doc.setFillColor(255, 255, 255)
-  doc.roundedRect(margin, y, contentWidth, summaryCardHeight, 3, 3, 'FD')
-
-  let sumY = y + 11
-  doc.setFont(undefined, 'bold')
-  doc.setFontSize(11)
-  doc.setTextColor(30, 30, 30)
-  doc.text('Fazit — Claims Summary', margin + 8, sumY)
-  sumY += 9
-
-  const colWidth = (contentWidth - 16) / 2
-  summaryItems.forEach((item, idx) => {
-    const col = idx % 2
-    const row = Math.floor(idx / 2)
-    const itemX = margin + 8 + col * colWidth
-    const itemY = sumY + row * 8
-
-    const [ir, ig, ib] = hexToRgb(item.color)
-    doc.setFillColor(ir, ig, ib)
-    doc.circle(itemX + 1.5, itemY - 1.5, 1.5, 'F')
-
-    doc.setFont(undefined, 'normal')
-    doc.setFontSize(9.5)
-    doc.setTextColor(60, 60, 60)
-    doc.text(item.label, itemX + 6, itemY)
-
-    doc.setFont(undefined, 'bold')
-    doc.setTextColor(20, 20, 20)
-    doc.text(`${item.count}`, itemX + colWidth - 10, itemY, { align: 'right' })
-  })
-
-  sumY += Math.ceil(summaryItems.length / 2) * 8 + 4
-
-  let barCursorX = margin + 8
-  const stackBarWidth = contentWidth - 16
-  summaryItems.forEach((item) => {
-    const segWidth = (item.count / totalClaims) * stackBarWidth
-    const [ir, ig, ib] = hexToRgb(item.color)
-    doc.setFillColor(ir, ig, ib)
-    doc.rect(barCursorX, sumY, segWidth, 4, 'F')
-    barCursorX += segWidth
-  })
-
-  return y + summaryCardHeight + 10
+function drawPageFooter(doc, { pageWidth, margin }) {
+  const y = doc.internal.pageSize.getHeight() - 10
+  doc.setDrawColor(220, 220, 220)
+  doc.setLineWidth(0.3)
+  doc.line(margin, y - 3, pageWidth - margin, y - 3)
+  doc.setFontSize(6.5)
+  doc.setTextColor(...GRAY)
+  doc.setFont('helvetica', 'normal')
+  doc.text(
+    'Generated by verifAi  |  TUM Campus Heilbronn  |  AI-powered citation verification  |  Results are indicative and should be reviewed by a human.',
+    pageWidth / 2, y + 1, { align: 'center' }
+  )
 }
 
-function drawClaimCard(doc, { claim, config, margin, contentWidth, pageWidth, y }) {
-  const [cr, cg, cb] = hexToRgb(config.color)
-  const [bgr, bgg, bgb] = hexToRgb(config.bg)
-  const [br, bgB, bb2] = hexToRgb(config.border)
+function statusBadge(doc, x, y, status) {
+  const s = STATUS_COLORS[status]
+  if (!s) return 0
+  const [r, g, b] = s.r
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7.5)
+  const tw = doc.getStringUnitWidth(s.label) * 7.5 / doc.internal.scaleFactor
+  const badgeW = tw + 8
+  doc.setFillColor(
+    r + Math.round((255 - r) * 0.85),
+    g + Math.round((255 - g) * 0.85),
+    b + Math.round((255 - b) * 0.85)
+  )
+  doc.roundedRect(x, y - 5, badgeW, 6.5, 1.5, 1.5, 'F')
+  doc.setDrawColor(r, g, b)
+  doc.setLineWidth(0.3)
+  doc.roundedRect(x, y - 5, badgeW, 6.5, 1.5, 1.5, 'S')
+  doc.setTextColor(r, g, b)
+  doc.text(s.label, x + 4, y)
+  return badgeW
+}
 
-  const textLines = doc.splitTextToSize(claim.text, contentWidth - 20)
-  const reasoningLines = doc.splitTextToSize(`AI reasoning: ${claim.reasoning}`, contentWidth - 20)
-  const warningLines = claim.warning ? doc.splitTextToSize(claim.warning, contentWidth - 20) : []
+function confidenceBar(doc, x, y, confidence) {
+  const barW = 36
+  const [r, g, b] = getConfidenceColor(confidence)
+  doc.setFillColor(220, 220, 220)
+  doc.roundedRect(x, y, barW, 2.5, 1, 1, 'F')
+  if (confidence > 0) {
+    doc.setFillColor(r, g, b)
+    doc.roundedRect(x, y, Math.max(barW * confidence, 2), 2.5, 1, 1, 'F')
+  }
+  doc.setTextColor(...GRAY)
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`${(confidence * 100).toFixed(1)}%`, x + barW + 3, y + 2.2)
+}
 
-  let blockHeight = 16 + textLines.length * 5 + 6 + reasoningLines.length * 5 + 6
-  if (claim.warning) blockHeight += warningLines.length * 5 + 6
-  blockHeight += 12
-
-  const startY = y
-
-  doc.setDrawColor(br, bgB, bb2)
-  doc.setFillColor(255, 255, 255)
-  doc.roundedRect(margin, startY, contentWidth, blockHeight, 3, 3, 'FD')
-
-  doc.setFillColor(cr, cg, cb)
-  doc.roundedRect(margin, startY, 3.5, blockHeight, 1.5, 1.5, 'F')
-
-  let innerY = startY + 9
-
-  doc.setFont(undefined, 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(120, 120, 120)
-  doc.text(`CLAIM ${claim.id}`, margin + 9, innerY)
-
+function estimateClaimHeight(doc, claim, contentW) {
+  doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
-  const badgeWidth = doc.getTextWidth(config.label) + 10
-  const badgeX = pageWidth - margin - badgeWidth - 6
-  doc.setFillColor(bgr, bgg, bgb)
-  doc.roundedRect(badgeX, innerY - 5, badgeWidth, 7, 3, 3, 'F')
-  doc.setTextColor(cr, cg, cb)
-  doc.text(config.label, badgeX + 5, innerY)
+  const textLines = doc.splitTextToSize(claim.text || '', contentW - 14).length
+  doc.setFontSize(7.5)
+  const reasoningLines = doc.splitTextToSize(claim.reasoning || '', contentW - 18).length
+  const warningH = claim.warning ? 8 : 0
+  return 8 + textLines * 4.8 + 6 + 6 + reasoningLines * 4.2 + 6 + warningH + 10
+}
 
-  innerY += 8
+function drawClaimCard(doc, claim, startY, { margin, contentW }) {
+  const s = STATUS_COLORS[claim.status]
+  const [r, g, b] = s?.r ?? [107, 114, 128]
 
-  doc.setFont(undefined, 'normal')
-  doc.setFontSize(9.5)
+  const cardH = estimateClaimHeight(doc, claim, contentW)
+  let y = startY
+
+  // Card
+  doc.setFillColor(255, 255, 255)
+  doc.roundedRect(margin, y, contentW, cardH, 2, 2, 'F')
+  doc.setDrawColor(
+    r + Math.round((255 - r) * 0.55),
+    g + Math.round((255 - g) * 0.55),
+    b + Math.round((255 - b) * 0.55)
+  )
+  doc.setLineWidth(0.3)
+  doc.roundedRect(margin, y, contentW, cardH, 2, 2, 'S')
+  // Left accent
+  doc.setFillColor(r, g, b)
+  doc.rect(margin, y + 2, 2.5, cardH - 4, 'F')
+
+  y += 6
+
+  // Claim label
+  doc.setTextColor(...GRAY)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6.5)
+  doc.text(`CLAIM ${claim.displayId ?? ''}`, margin + 6, y)
+
+  // Status badge (right aligned)
+  const badgeX = margin + contentW - 60
+  statusBadge(doc, badgeX, y, claim.status)
+
+  y += 6
+
+  // Claim text
   doc.setTextColor(40, 40, 40)
-  doc.text(textLines, margin + 9, innerY)
-  innerY += textLines.length * 5 + 4
-
-  doc.setFont(undefined, 'italic')
+  doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
-  doc.setTextColor(90, 90, 90)
-  doc.text(reasoningLines, margin + 9, innerY)
-  innerY += reasoningLines.length * 5 + 4
+  const claimLines = doc.splitTextToSize(claim.text || '', contentW - 14)
+  doc.text(claimLines, margin + 6, y)
+  y += claimLines.length * 4.8 + 5
 
+  // AI Reasoning box
+  doc.setFillColor(248, 248, 248)
+  doc.setDrawColor(230, 230, 230)
+  doc.setLineWidth(0.2)
+  const reasoningLines = doc.splitTextToSize(claim.reasoning || 'No explanation available.', contentW - 20)
+  const reasonH = reasoningLines.length * 4.2 + 9
+  doc.roundedRect(margin + 5, y, contentW - 10, reasonH, 1.5, 1.5, 'F')
+  doc.roundedRect(margin + 5, y, contentW - 10, reasonH, 1.5, 1.5, 'S')
+
+  doc.setTextColor(...GRAY)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6)
+  doc.text('AI REASONING', margin + 9, y + 5)
+
+  doc.setTextColor(70, 70, 70)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.text(reasoningLines, margin + 9, y + 10)
+  y += reasonH + 4
+
+  // Warning
   if (claim.warning) {
-    doc.setFont(undefined, 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(217, 119, 6)
-    doc.text(warningLines, margin + 9, innerY)
-    innerY += warningLines.length * 5 + 4
+    doc.setFillColor(255, 251, 235)
+    doc.roundedRect(margin + 5, y, contentW - 10, 8, 1.5, 1.5, 'F')
+    doc.setTextColor(180, 100, 0)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    const wLine = doc.splitTextToSize(claim.warning, contentW - 18)[0]
+    doc.text(wLine, margin + 9, y + 5.5)
+    y += 10
   }
 
-  doc.setFont(undefined, 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(120, 120, 120)
-  doc.text('Confidence', margin + 9, innerY + 4)
+  // Confidence + DOI
+  doc.setTextColor(...GRAY)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  doc.text('Confidence', margin + 6, y + 2.5)
+  confidenceBar(doc, margin + 26, y + 0.5, claim.confidence)
 
-  const barX = margin + 38
-  const barWidth = 40
-  doc.setFillColor(224, 224, 224)
-  doc.roundedRect(barX, innerY, barWidth, 3, 1.5, 1.5, 'F')
-  const confHex = getConfidenceColor(claim.confidence)
-  const [fr, fg, fb] = hexToRgb(confHex)
-  doc.setFillColor(fr, fg, fb)
-  doc.roundedRect(barX, innerY, Math.max(barWidth * claim.confidence, 2), 3, 1.5, 1.5, 'F')
-  doc.setTextColor(120, 120, 120)
-  doc.text(`${claim.confidence}`, barX + barWidth + 6, innerY + 4)
+  if (claim.doiUrl) {
+    doc.setTextColor(...NAVY)
+    doc.setFontSize(6.5)
+    doc.textWithLink(`DOI: ${claim.doiUrl}`, margin + contentW - 70, y + 2.5, { url: claim.doiUrl })
+  }
 
-  return startY + blockHeight + 8
+  return startY + cardH
 }
 
-export async function generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo }) {
-  const doc = new jsPDF()
+// ── Main ─────────────────────────────────────────────────────────
+
+export async function generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo, graphRef }) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  const margin = 14
-  const contentWidth = pageWidth - margin * 2
+  const margin = 16
+  const contentW = pageWidth - margin * 2
 
-  let logoBase64 = null
-  try {
-    logoBase64 = await loadImageAsBase64(logo)
-  } catch (e) {
-    logoBase64 = null
+  const logoBase64 = logo ? await loadImageAsBase64(logo) : null
+  const now = new Date()
+  const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+  const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+
+  const totalClaims = claims.length
+  const credScore = totalClaims > 0
+    ? Math.round(((summaryItems[0].count + summaryItems[1].count * 0.5) / totalClaims) * 1000) / 10
+    : 0
+  const credLabel = credScore >= 80 ? 'Reliable' : credScore >= 50 ? 'Partially Reliable' : 'Low Reliability'
+  const credColor = credScore >= 80 ? [22, 163, 74] : credScore >= 50 ? [217, 119, 6] : [220, 38, 38]
+
+  // Group by source
+  const bySource = new Map()
+  for (const claim of claims) {
+    const key = claim.source || 'Unknown source'
+    if (!bySource.has(key)) bySource.set(key, [])
+    bySource.get(key).push(claim)
   }
 
-  const headerCtx = { pageWidth, margin, logoBase64, fileName }
+  let pageNum = 1
 
-  let y = 0
-  drawHeader(doc, headerCtx)
-  y = 42
+  const newPage = () => {
+    doc.addPage()
+    pageNum++
+    return 34
+  }
 
-  const checkPageBreak = (neededHeight) => {
-    if (y + neededHeight > pageHeight - 28) {
-      doc.addPage()
-      drawHeader(doc, headerCtx)
-      y = 42
+  // ── PAGE 1: Cover ────────────────────────────────────────────
+
+  // Same header as all other pages
+  drawPageHeader(doc, { pageWidth, margin, logoBase64, fileName, pageNum: null, totalPages: null })
+
+  let y = 36
+
+  // Title block
+  doc.setFillColor(26, 58, 107)
+  doc.roundedRect(margin, y, contentW, 36, 3, 3, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(20)
+  doc.text('Citation Verification Report', margin + 8, y + 14)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(180, 200, 235)
+  doc.text(`Generated on ${dateStr} at ${timeStr}`, margin + 8, y + 22)
+  doc.text('TUM Campus Heilbronn  |  Foundations and Applications of Generative AI', margin + 8, y + 28)
+  doc.text('Developed by: VerifAi Team', margin + 8, y + 34)
+
+  y += 44
+
+  // Analysed document
+  doc.setFillColor(248, 249, 252)
+  doc.setDrawColor(220, 226, 240)
+  doc.setLineWidth(0.3)
+  doc.roundedRect(margin, y, contentW, 20, 2, 2, 'F')
+  doc.roundedRect(margin, y, contentW, 20, 2, 2, 'S')
+  doc.setTextColor(...GRAY)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6.5)
+  doc.text('ANALYSED DOCUMENT', margin + 5, y + 6)
+  doc.setTextColor(40, 40, 40)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  const fnLines = doc.splitTextToSize(fileName, contentW - 10)
+  doc.text(fnLines[0], margin + 5, y + 14)
+
+  y += 28
+
+  // Credibility Score + Summary side by side
+  const scoreW = 55
+  const summaryX = margin + scoreW + 10
+
+  doc.setTextColor(...GRAY)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6.5)
+  doc.text('CREDIBILITY SCORE', margin, y)
+  doc.text('CLAIMS SUMMARY', summaryX, y)
+
+  y += 6
+
+  // Score as simple large text (no circle rendering issues)
+  doc.setFillColor(credColor[0], credColor[1], credColor[2])
+  doc.roundedRect(margin, y, scoreW, 28, 2, 2, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(22)
+  doc.text(`${credScore.toFixed(1)}%`, margin + scoreW / 2, y + 14, { align: 'center' })
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.text(credLabel, margin + scoreW / 2, y + 22, { align: 'center' })
+
+  // Summary list
+  let sy = y + 4
+  summaryItems.forEach(item => {
+    const [ir, ig, ib] = hexToRgb(item.color)
+    doc.setFillColor(ir, ig, ib)
+    doc.circle(summaryX + 2, sy + 1.5, 1.8, 'F')
+    doc.setTextColor(50, 50, 50)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.text(item.label, summaryX + 7, sy + 3)
+    doc.setFont('helvetica', 'bold')
+    doc.text(String(item.count), margin + contentW - 5, sy + 3, { align: 'right' })
+    sy += 6
+  })
+
+  // Proportion bar
+  y += 34
+  let barX = margin
+  const barTotal = summaryItems.reduce((s, i) => s + i.count, 0)
+  summaryItems.forEach(item => {
+    if (item.count === 0 || barTotal === 0) return
+    const [ir, ig, ib] = hexToRgb(item.color)
+    const w = (item.count / barTotal) * contentW
+    doc.setFillColor(ir, ig, ib)
+    doc.rect(barX, y, w, 5, 'F')
+    barX += w
+  })
+
+  y += 12
+
+  // Methodology
+  doc.setFillColor(240, 244, 255)
+  doc.setDrawColor(...NAVY)
+  doc.setLineWidth(0.3)
+  const methodText = 'verifAi uses a multi-stage verification pipeline: (1) PDF parsing and reference extraction, (2) DOI resolution via CrossRef, OpenAlex, Semantic Scholar, CORE, ArXiv, and Europe PMC, (3) full-text retrieval via Unpaywall and CORE, (4) embedding-based retrieval (OpenRouter) with cosine similarity threshold 0.50, (5) LLM-based verdict generation, and (6) deterministic safety policy gating. Results reflect the state of open-access availability at the time of analysis.'
+  const methodLines = doc.splitTextToSize(methodText, contentW - 10)
+  const methodH = methodLines.length * 4 + 12
+  doc.roundedRect(margin, y, contentW, methodH, 2, 2, 'F')
+  doc.roundedRect(margin, y, contentW, methodH, 2, 2, 'S')
+  doc.setTextColor(...NAVY)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.text('METHODOLOGY', margin + 5, y + 6)
+  doc.setTextColor(60, 60, 60)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.text(methodLines, margin + 5, y + 12)
+
+  y += methodH + 8
+
+  // Disclaimer
+  doc.setFillColor(255, 251, 235)
+  doc.setDrawColor(217, 119, 6)
+  const disclaimerText = 'This report was generated automatically by an AI system and is intended as a research aid, not a definitive assessment. Results should be reviewed by a qualified human expert. verifAi was developed as a student project at TUM Campus Heilbronn.'
+  const disclaimerLines = doc.splitTextToSize(disclaimerText, contentW - 10)
+  const disclaimerH = disclaimerLines.length * 4 + 10
+  doc.roundedRect(margin, y, contentW, disclaimerH, 2, 2, 'F')
+  doc.roundedRect(margin, y, contentW, disclaimerH, 2, 2, 'S')
+  doc.setTextColor(180, 100, 0)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.text('DISCLAIMER', margin + 5, y + 6)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.text(disclaimerLines, margin + 5, y + 11)
+
+  drawPageFooter(doc, { pageWidth, margin })
+
+  // ── Claims grouped by source ──────────────────────────────────
+
+  for (const [source, sourceClaims] of bySource) {
+    y = newPage()
+    drawPageHeader(doc, { pageWidth, margin, logoBase64, fileName, pageNum, totalPages: '?' })
+
+    // Source header
+    doc.setFillColor(240, 244, 255)
+    doc.setDrawColor(...NAVY)
+    doc.setLineWidth(0.4)
+    const firstClaim = sourceClaims[0]
+    const sourceH = firstClaim?.authorLine ? 24 : 18
+    doc.roundedRect(margin, y, contentW, sourceH, 2, 2, 'F')
+    doc.roundedRect(margin, y, contentW, sourceH, 2, 2, 'S')
+
+    doc.setTextColor(...GRAY)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6.5)
+    doc.text('SOURCE', margin + 5, y + 6)
+
+    doc.setTextColor(...NAVY)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    const sourceLabel = doc.splitTextToSize(source, contentW - 10)[0]
+    doc.text(sourceLabel, margin + 5, y + 13)
+
+    if (firstClaim?.authorLine) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.setTextColor(...GRAY)
+      doc.text(firstClaim.authorLine, margin + 5, y + 19)
+    }
+
+    if (firstClaim?.doiUrl) {
+      doc.setTextColor(...NAVY)
+      doc.setFontSize(7)
+      const doiY = y + (firstClaim?.authorLine ? 19 : 13) + 5
+      doc.textWithLink(`DOI: ${firstClaim.doiUrl}`, margin + 5, doiY, { url: firstClaim.doiUrl })
+      y += sourceH + (firstClaim?.authorLine ? 10 : 6)
+    } else {
+      y += sourceH + 6
+    }
+
+    for (const claim of sourceClaims) {
+      const claimH = estimateClaimHeight(doc, claim, contentW)
+      if (y + claimH > pageHeight - 18) {
+        drawPageFooter(doc, { pageWidth, margin })
+        y = newPage()
+        drawPageHeader(doc, { pageWidth, margin, logoBase64, fileName, pageNum, totalPages: '?' })
+      }
+      y = drawClaimCard(doc, claim, y, { margin, contentW })
+      y += 5
+    }
+
+    drawPageFooter(doc, { pageWidth, margin })
+  }
+
+  // ── Network Graph ─────────────────────────────────────────────
+
+  if (graphRef?.current) {
+    y = newPage()
+    drawPageHeader(doc, { pageWidth, margin, logoBase64, fileName, pageNum, totalPages: '?' })
+    drawPageFooter(doc, { pageWidth, margin })
+
+    doc.setTextColor(...NAVY)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(14)
+    doc.text('Citation Network Graph', margin, y)
+    y += 10
+
+    try {
+      const canvas = await html2canvas(graphRef.current, { scale: 2, backgroundColor: '#ffffff' })
+      const imgData = canvas.toDataURL('image/png')
+      const imgW = contentW
+      const imgH = (canvas.height / canvas.width) * imgW
+      doc.addImage(imgData, 'PNG', margin, y, imgW, Math.min(imgH, pageHeight - y - 20))
+    } catch {
+      doc.setTextColor(...GRAY)
+      doc.setFontSize(8)
+      doc.text('Graph could not be rendered — please ensure the Network Graph tab was viewed before downloading.', margin, y + 10)
     }
   }
 
-  y = drawCredibilityCard(doc, { margin, contentWidth, y })
+  // ── Category Reference ────────────────────────────────────────
 
-  const summaryCardHeight = 16 + summaryItems.length * 8 + 14
-  checkPageBreak(summaryCardHeight)
-  y = drawSummaryCard(doc, { margin, contentWidth, y, summaryItems })
+  y = newPage()
+  drawPageHeader(doc, { pageWidth, margin, logoBase64, fileName, pageNum, totalPages: '?' })
 
-  doc.setFont(undefined, 'bold')
-  doc.setFontSize(11)
-  doc.setTextColor(30, 30, 30)
-  doc.text('Claims Overview', margin, y)
-  y += 8
+  doc.setTextColor(...NAVY)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(14)
+  doc.text('Verdict Category Reference', margin, y)
+  y += 5
+  doc.setTextColor(...GRAY)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.text('Definitions and conditions for each verification verdict assigned by verifAi.', margin, y)
+  y += 10
 
-  claims.forEach((claim) => {
-    const config = statusConfig[claim.status]
+  for (const [status, desc] of Object.entries(CATEGORY_DESCRIPTIONS)) {
+    const s = STATUS_COLORS[status]
+    if (!s) continue
+    const [r, g, b] = s.r
 
-    const textLines = doc.splitTextToSize(claim.text, contentWidth - 20)
-    const reasoningLines = doc.splitTextToSize(`AI reasoning: ${claim.reasoning}`, contentWidth - 20)
-    const warningLines = claim.warning ? doc.splitTextToSize(claim.warning, contentWidth - 20) : []
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    const descLines = doc.splitTextToSize(desc, contentW - 12)
+    const catH = descLines.length * 4.2 + 14
 
-    let blockHeight = 16 + textLines.length * 5 + 6 + reasoningLines.length * 5 + 6
-    if (claim.warning) blockHeight += warningLines.length * 5 + 6
-    blockHeight += 12
+    if (y + catH > pageHeight - 18) {
+      drawPageFooter(doc, { pageWidth, margin })
+      y = newPage()
+      drawPageHeader(doc, { pageWidth, margin, logoBase64, fileName, pageNum, totalPages: '?' })
+    }
 
-    checkPageBreak(blockHeight)
+    doc.setFillColor(
+      r + Math.round((255 - r) * 0.9),
+      g + Math.round((255 - g) * 0.9),
+      b + Math.round((255 - b) * 0.9)
+    )
+    doc.roundedRect(margin, y, contentW, catH, 2, 2, 'F')
+    doc.setFillColor(r, g, b)
+    doc.rect(margin, y + 2, 3, catH - 4, 'F')
+    doc.setDrawColor(r + Math.round((255-r)*0.5), g + Math.round((255-g)*0.5), b + Math.round((255-b)*0.5))
+    doc.setLineWidth(0.3)
+    doc.roundedRect(margin, y, contentW, catH, 2, 2, 'S')
 
-    y = drawClaimCard(doc, { claim, config, margin, contentWidth, pageWidth, y })
-  })
+    doc.setTextColor(r, g, b)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text(s.label, margin + 7, y + 8)
 
-  const totalPages = doc.internal.getNumberOfPages()
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i)
-    drawFooter(doc, { pageWidth, pageHeight, margin, contentWidth, pageNum: i, totalPages })
+    doc.setTextColor(60, 60, 60)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.text(descLines, margin + 7, y + 14)
+
+    y += catH + 5
   }
 
-  doc.save(`verifai_report_${fileName.replace('.pdf', '')}.pdf`)
+  drawPageFooter(doc, { pageWidth, margin })
+
+  doc.save(`verifAi_report_${fileName.replace('.pdf', '')}_${now.toISOString().slice(0, 10)}.pdf`)
 }

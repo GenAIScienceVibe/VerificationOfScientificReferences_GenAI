@@ -60,20 +60,21 @@ function UploadPage() {
   backgroundPosition: "center 80%",
   backgroundRepeat: "no-repeat"
 }}>
-    <div style={{
-  position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-  background: "rgba(245,245,245,0.9)"
-}} />
+  
+  <div style={{
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    background: "rgba(245,245,245,0.9)"
+  }} />
 
-      <div style={{ maxWidth: "900px", width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
+  <div style={{ maxWidth: "900px", width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
 
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
-          <Mascot mood="idle" size={80} />
-        </div>
+    <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
+  <Mascot mood="idle" size={80} />
+</div>
 
-        <span style={{ background: "#dbeafe", color: "#1a3a6b", borderRadius: "20px", padding: "6px 16px", fontSize: "13px", fontWeight: "600" }}>
-          AI - Powered Verification
-        </span>
+    <span style={{ background: "#dbeafe", color: "#1a3a6b", borderRadius: "20px", padding: "6px 16px", fontSize: "13px", fontWeight: "600" }}>
+      AI - Powered Verification
+    </span>
 
         <h1 style={{ fontWeight: "800", fontSize: "42px", color: "#111", margin: "24px 0 16px" }}>
           Are your citations actually legit?
