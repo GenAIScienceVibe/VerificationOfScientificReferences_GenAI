@@ -33,6 +33,14 @@ class EvidencePackageRepository(BaseRepository[EvidencePackage]):
         )
         return list(self.db.scalars(statement).all())
 
+    def list_for_reference(self, reference_id: str) -> list[EvidencePackage]:
+        statement = (
+            select(EvidencePackage)
+            .where(EvidencePackage.reference_id == reference_id)
+            .order_by(EvidencePackage.created_at.desc(), EvidencePackage.id.desc())
+        )
+        return list(self.db.scalars(statement).all())
+
     def list_for_claim(self, claim_id: str) -> list[EvidencePackage]:
         statement = (
             select(EvidencePackage)
