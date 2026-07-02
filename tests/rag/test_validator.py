@@ -181,3 +181,42 @@ def test_validate_output_logs_error_on_schema_mismatch(caplog):
         validate_output(raw_json)
 
     assert any("does not match VerificationOutput schema" in record.message for record in caplog.records)
+
+
+# ── Verdict label normalisation ───────────────────────────────────────────────
+
+
+def test_validate_output_normalises_verdict_label_with_space():
+    """LLM returns "INSUFFICIENT EVIDENCE" (space) — should parse as INSUFFICIENT_EVIDENCE."""
+    raw_json = json.dumps(
+        {
+            "verdict": "INSUFFICIENT EVIDENCE",
+            "confidence": 0.0,
+            "explanation": "Not enough information to verify.",
+            "evidence_used": [],
+            "limitations": None,
+        }
+    )
+
+    result = validate_output(raw_json)
+
+    assert result.verdict == Verdict.INSUFFICIENT_EVIDENCE
+    assert result.human_review_required is True
+
+
+def test_validate_output_normalises_verdict_label_mixed_case():
+    """LLM returns "not_supported" (lowercase) — should parse as NOT_SUPPORTED."""
+    raw_json = json.dumps(
+        {
+            "verdict": "not_supported",
+            "confidence": 0.88,
+            "explanation": "The claim is contradicted by the source.",
+            "evidence_used": ["chunk_001"],
+            "limitations": None,
+        }
+    )
+
+    result = validate_output(raw_json)
+
+    assert result.verdict == Verdict.NOT_SUPPORTED
+    assert result.confidence == 0.88
