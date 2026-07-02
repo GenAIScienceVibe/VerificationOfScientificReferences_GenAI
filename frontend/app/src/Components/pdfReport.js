@@ -1,21 +1,61 @@
 import jsPDF from 'jspdf'
 
-const INK = [20, 22, 26]
-const BODY = [45, 48, 55]
-const MUTED = [95, 99, 108]
-const RULE = [215, 219, 226]
-
-const STATUS = {
-  supported: { label: 'Supported', color: [22, 130, 70] },
-  partial: { label: 'Partially supported', color: [180, 110, 4] },
-  partially_supported: { label: 'Partially supported', color: [180, 110, 4] },
-  unsupported: { label: 'Unsupported', color: [190, 35, 35] },
-  hallucinated: { label: 'Hallucinated', color: [110, 45, 190] },
-  insufficient: { label: 'Insufficient Evidence', color: [95, 100, 110] },
-  insufficient_evidence: { label: 'Insufficient Evidence', color: [95, 100, 110] },
+const COLORS = {
+  navy: [24, 55, 103],
+  navyDark: [18, 43, 84],
+  ink: [25, 28, 34],
+  body: [65, 68, 76],
+  muted: [132, 136, 145],
+  border: [220, 224, 231],
+  softBg: [247, 248, 250],
+  cardBg: [255, 255, 255],
+  reasoningBg: [248, 249, 251],
+  green: [34, 197, 94],
+  orange: [245, 158, 11],
+  red: [239, 68, 68],
+  purple: [147, 51, 234],
+  gray: [107, 114, 128],
 }
 
-function font(doc, size, style = 'normal', color = INK) {
+const STATUS = {
+  supported: {
+    label: 'Supported',
+    color: COLORS.green,
+    pale: [236, 253, 245],
+  },
+  partial: {
+    label: 'Partially supported',
+    color: COLORS.orange,
+    pale: [255, 247, 237],
+  },
+  partially_supported: {
+    label: 'Partially supported',
+    color: COLORS.orange,
+    pale: [255, 247, 237],
+  },
+  unsupported: {
+    label: 'Unsupported',
+    color: COLORS.red,
+    pale: [254, 242, 242],
+  },
+  hallucinated: {
+    label: 'Hallucinated',
+    color: COLORS.purple,
+    pale: [250, 245, 255],
+  },
+  insufficient: {
+    label: 'Insufficient Evidence',
+    color: COLORS.gray,
+    pale: [248, 250, 252],
+  },
+  insufficient_evidence: {
+    label: 'Insufficient Evidence',
+    color: COLORS.gray,
+    pale: [248, 250, 252],
+  },
+}
+
+function font(doc, size, style = 'normal', color = COLORS.ink) {
   doc.setFont('helvetica', style)
   doc.setFontSize(size)
   doc.setTextColor(...color)
@@ -24,17 +64,6 @@ function font(doc, size, style = 'normal', color = INK) {
 function clean(value) {
   if (value === null || value === undefined) return ''
   return String(value).replace(/\s+/g, ' ').trim()
-}
-
-function stripOuterQuotes(text) {
-  let t = clean(text)
-  while (
-    (t.startsWith('"') && t.endsWith('"')) ||
-    (t.startsWith('“') && t.endsWith('”'))
-  ) {
-    t = t.slice(1, -1).trim()
-  }
-  return t
 }
 
 function normalizeStatus(value) {
@@ -57,16 +86,57 @@ function formatDate() {
   return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`
 }
 
+function toArray(value) {
+  if (!value) return []
+  if (Array.isArray(value)) return value
+  if (typeof value === 'object') return Object.values(value)
+  return []
+}
+
 function writeWrapped(doc, text, x, y, width, lineHeight = 4.8) {
   const lines = doc.splitTextToSize(clean(text), width)
   doc.text(lines, x, y)
   return y + lines.length * lineHeight
 }
 
-function rule(doc, x1, y, x2) {
-  doc.setDrawColor(...RULE)
-  doc.setLineWidth(0.35)
+function roundedCard(doc, x, y, w, h, fill = COLORS.cardBg, stroke = COLORS.border) {
+  doc.setFillColor(...fill)
+  doc.setDrawColor(...stroke)
+  doc.setLineWidth(0.45)
+  doc.roundedRect(x, y, w, h, 3.2, 3.2, 'FD')
+}
+
+function line(doc, x1, y, x2, color = COLORS.border, width = 0.35) {
+  doc.setDrawColor(...color)
+  doc.setLineWidth(width)
   doc.line(x1, y, x2, y)
+}
+
+function parseClaimText(value) {
+  let t = clean(value)
+
+  t = t.replace(/^"+/, '"').replace(/"+$/, '"')
+
+  let match = t.match(/^["“](.*?)["”]\s*(\([^)]+\))?$/)
+  if (match) {
+    return {
+      statement: clean(match[1]),
+      citation: clean(match[2] || ''),
+    }
+  }
+
+  match = t.match(/^(.*?)\s+(\([^)]*\d{4}[^)]*\))$/)
+  if (match) {
+    return {
+      statement: clean(match[1]).replace(/^["“]+|["”]+$/g, ''),
+      citation: clean(match[2]),
+    }
+  }
+
+  return {
+    statement: t.replace(/^["“]+|["”]+$/g, ''),
+    citation: '',
+  }
 }
 
 function getFileName(input, fallback) {
@@ -86,13 +156,6 @@ function getFileName(input, fallback) {
   )
 }
 
-function toArray(value) {
-  if (!value) return []
-  if (Array.isArray(value)) return value
-  if (typeof value === 'object') return Object.values(value)
-  return []
-}
-
 function getClaims(input) {
   const possible =
     input?.claims ||
@@ -108,18 +171,45 @@ function getClaims(input) {
     []
 
   return toArray(possible).map((claim, index) => {
+    const parsed = parseClaimText(
+      claim?.text ||
+      claim?.claim ||
+      claim?.claim_text ||
+      claim?.statement ||
+      claim?.content ||
+      claim?.sentence ||
+      ''
+    )
+
     const rawConfidence =
       claim?.confidence ??
       claim?.confidence_score ??
       claim?.score ??
       0
 
-    const number = Number(rawConfidence)
-    const confidence = Number.isFinite(number)
-      ? number <= 1
-        ? Math.round(number * 100)
-        : Math.round(number)
+    const n = Number(rawConfidence)
+    const confidence = Number.isFinite(n)
+      ? n <= 1
+        ? Math.round(n * 100)
+        : Math.round(n)
       : 0
+
+    const authorLine = clean(
+      claim?.authorLine ||
+      claim?.author_line ||
+      claim?.source ||
+      claim?.reference ||
+      ''
+    )
+
+    const sourceTitle = clean(
+      claim?.sourceTitle ||
+      claim?.source_title ||
+      claim?.title ||
+      claim?.paper_title ||
+      claim?.reference_title ||
+      ''
+    )
 
     return {
       id: clean(
@@ -130,15 +220,10 @@ function getClaims(input) {
         claim?.resultId ||
         `result_${String(index + 1).padStart(2, '0')}`
       ),
-      text: stripOuterQuotes(
-        claim?.text ||
-        claim?.claim ||
-        claim?.claim_text ||
-        claim?.statement ||
-        claim?.content ||
-        claim?.sentence ||
-        ''
-      ),
+      text: parsed.statement,
+      citation: parsed.citation,
+      sourceTitle,
+      authorLine,
       reasoning: clean(
         claim?.reasoning ||
         claim?.ai_reasoning ||
@@ -154,14 +239,6 @@ function getClaims(input) {
         claim?.human_review ||
         claim?.review_note ||
         claim?.note ||
-        ''
-      ),
-      authorLine: clean(
-        claim?.authorLine ||
-        claim?.author_line ||
-        claim?.citation ||
-        claim?.source ||
-        claim?.reference ||
         ''
       ),
       doi: clean(claim?.doi || claim?.DOI || ''),
@@ -203,17 +280,22 @@ function getScore(input, claims) {
 }
 
 function scoreLabel(score) {
-  if (score >= 85) return 'Reliable'
+  if (score >= 85) return 'High Reliability'
   if (score >= 60) return 'Partially Reliable'
   if (score >= 35) return 'Low Reliability'
-  return 'Not Reliable'
+  return 'Low Reliability'
 }
 
-function scoreExplanation(score) {
+function scoreColor(score) {
+  if (score >= 85) return COLORS.green
+  if (score >= 60) return COLORS.orange
+  return COLORS.red
+}
+
+function scoreDescription(score) {
   if (score >= 85) return 'Most claims appear to be supported by their cited sources.'
   if (score >= 60) return 'Some claims are inaccurate or unsupported by their cited sources.'
-  if (score >= 35) return 'Several claims are unsupported or require manual verification.'
-  return 'Most claims require manual verification against the original sources.'
+  return 'A significant portion of claims could not be verified or are unsupported.'
 }
 
 function countClaims(claims) {
@@ -243,190 +325,354 @@ function inputFromArgs(args) {
   }
 }
 
+function drawLogo(doc, x, y) {
+  font(doc, 10, 'bold', COLORS.navy)
+  doc.text('verif', x, y)
+
+  const cx = x + 19
+  const cy = y - 2.4
+
+  doc.setDrawColor(48, 133, 214)
+  doc.setLineWidth(0.45)
+  for (let i = 0; i < 14; i += 1) {
+    const a = (Math.PI * 2 * i) / 14
+    doc.line(
+      cx + Math.cos(a) * 1.7,
+      cy + Math.sin(a) * 1.7,
+      cx + Math.cos(a) * 4.2,
+      cy + Math.sin(a) * 4.2
+    )
+  }
+}
+
 function drawHeader(doc, layout, fileName) {
   const { pageW, margin } = layout
 
-  font(doc, 18, 'bold', INK)
-  doc.text('verifAi', margin, 18)
+  doc.setFillColor(255, 255, 255)
+  doc.rect(0, 0, pageW, 28, 'F')
 
-  font(doc, 9, 'normal', MUTED)
-  doc.text(`Verification Report · ${fileName} · ${formatDate()}`, margin, 28, {
-    maxWidth: pageW - margin * 2,
+  drawLogo(doc, margin, 17)
+
+  font(doc, 7.5, 'normal', COLORS.muted)
+  doc.text(`Verification Report · ${fileName} · ${formatDate()}`, pageW - margin, 17, {
+    align: 'right',
   })
 
-  rule(doc, margin, 38, pageW - margin)
+  line(doc, margin, 27, pageW - margin)
 }
 
 function drawFooter(doc, layout, page, total) {
   const { pageW, pageH, margin } = layout
 
-  rule(doc, margin, pageH - 22, pageW - margin)
+  line(doc, margin, pageH - 18, pageW - margin)
 
-  font(doc, 7.3, 'normal', MUTED)
+  font(doc, 6.8, 'normal', COLORS.muted)
   doc.text(
-    'VerifAi uses AI-assisted analysis and automated source matching. Results may contain errors and accuracy is not guaranteed to be 100% — please verify critical claims against the original sources.',
+    'VerifAI uses AI-assisted analysis and automated source matching. Results may contain errors — verify critical claims against original sources.',
     margin,
-    pageH - 15,
+    pageH - 10,
     { maxWidth: pageW - margin * 2 - 28 }
   )
 
-  font(doc, 8, 'normal', MUTED)
-  doc.text(`Page ${page} / ${total}`, pageW - margin, pageH - 9, { align: 'right' })
+  font(doc, 7.2, 'normal', COLORS.muted)
+  doc.text(`Page ${page} / ${total}`, pageW - margin, pageH - 10, { align: 'right' })
 }
 
-function ensureSpace(doc, y, needed, layout, fileName) {
-  if (y + needed <= layout.pageH - 30) return y
+function ensurePage(doc, y, needed, layout, fileName) {
+  if (y + needed <= layout.pageH - 24) return y
 
   doc.addPage()
   drawHeader(doc, layout, fileName)
-  return 50
+  return 38
 }
 
-function estimateClaimHeight(doc, claim, layout) {
-  const w = layout.contentW
-  const citation = claim.authorLine ? ` (${claim.authorLine})` : ''
-  const quoteLines = doc.splitTextToSize(`"${claim.text}"${citation}`, w)
-  const reasoningLines = doc.splitTextToSize(`AI reasoning: ${claim.reasoning || 'No reasoning provided.'}`, w)
-  const warningText =
-    claim.warning ||
-    (claim.status === 'supported'
-      ? ''
-      : 'Human review recommended - this result may need manual verification.')
-  const warningLines = warningText ? doc.splitTextToSize(warningText, w) : []
+function drawDonut(doc, cx, cy, radius, score) {
+  const color = scoreColor(score)
 
-  return 15 + quoteLines.length * 4.8 + reasoningLines.length * 4.8 + warningLines.length * 4.8 + 14
+  doc.setDrawColor(226, 226, 226)
+  doc.setLineWidth(4)
+  doc.circle(cx, cy, radius, 'S')
+
+  const start = -90
+  const end = start + (360 * Math.max(0, Math.min(score, 100))) / 100
+  const steps = Math.max(8, Math.round((end - start) / 8))
+
+  doc.setDrawColor(...color)
+  doc.setLineWidth(4)
+
+  let prev = null
+  for (let i = 0; i <= steps; i += 1) {
+    const angle = (Math.PI / 180) * (start + ((end - start) * i) / steps)
+    const point = {
+      x: cx + Math.cos(angle) * radius,
+      y: cy + Math.sin(angle) * radius,
+    }
+    if (prev) doc.line(prev.x, prev.y, point.x, point.y)
+    prev = point
+  }
+
+  font(doc, 12, 'bold', COLORS.ink)
+  doc.text(`${score}%`, cx, cy + 1.5, { align: 'center' })
 }
 
-function drawSummary(doc, y, counts, layout) {
-  const { margin, contentW } = layout
+function drawScorePanel(doc, x, y, w, score) {
+  roundedCard(doc, x, y, w, 58)
 
-  font(doc, 14, 'bold', INK)
-  doc.text('Fazit — Claims Summary', margin, y)
-  y += 9
+  font(doc, 7, 'bold', COLORS.navy)
+  doc.text('CREDIBILITY SCORE', x + w / 2, y + 10, { align: 'center' })
 
-  font(doc, 10, 'normal', INK)
+  drawDonut(doc, x + w / 2, y + 29, 13, score)
 
-  const leftX = margin
-  const rightX = margin + contentW / 2 + 8
-  const valueLeft = margin + contentW / 2 - 8
-  const valueRight = margin + contentW
+  font(doc, 8.5, 'bold', scoreColor(score))
+  doc.text(scoreLabel(score), x + w / 2, y + 47, { align: 'center' })
 
-  doc.text('Supported', leftX, y)
-  doc.text(String(counts.supported), valueLeft, y, { align: 'right' })
-  doc.text('Partially supported', rightX, y)
-  doc.text(String(counts.partial), valueRight, y, { align: 'right' })
-
-  y += 7
-  doc.text('Unsupported', leftX, y)
-  doc.text(String(counts.unsupported), valueLeft, y, { align: 'right' })
-  doc.text('Hallucinated', rightX, y)
-  doc.text(String(counts.hallucinated), valueRight, y, { align: 'right' })
-
-  y += 7
-  doc.text('Insufficient evidence', leftX, y)
-  doc.text(String(counts.insufficient), valueLeft, y, { align: 'right' })
-
-  return y + 14
+  font(doc, 6.8, 'normal', COLORS.muted)
+  const desc = doc.splitTextToSize(scoreDescription(score), w - 12)
+  doc.text(desc, x + w / 2, y + 53, { align: 'center' })
 }
 
-function drawClaim(doc, y, claim, index, layout, fileName) {
-  const { margin, contentW, pageW } = layout
-  const needed = estimateClaimHeight(doc, claim, layout)
-  y = ensureSpace(doc, y, needed, layout, fileName)
+function drawSummaryPanel(doc, x, y, w, c) {
+  const h = 61
+  roundedCard(doc, x, y, w, h)
 
-  const info = statusInfo(claim.status)
+  font(doc, 8.5, 'bold', COLORS.ink)
+  doc.text('Claims Summary', x + 8, y + 11)
 
-  font(doc, 8.8, 'bold', INK)
-  doc.text('CLAIM', margin, y)
+  const rows = [
+    ['Supported', c.supported, COLORS.green],
+    ['Partially supported', c.partial, COLORS.orange],
+    ['Unsupported', c.unsupported, COLORS.red],
+    ['Hallucinated', c.hallucinated, COLORS.purple],
+    ['Insufficient evidence', c.insufficient, COLORS.gray],
+  ]
 
-  font(doc, 8.8, 'bold', MUTED)
-  doc.text(claim.id || `result_${index}`, margin + 22, y, {
-    maxWidth: contentW - 70,
+  rows.forEach((row, index) => {
+    const yy = y + 20 + index * 7.2
+    doc.setFillColor(...row[2])
+    doc.circle(x + 9, yy - 1.7, 1.2, 'F')
+
+    font(doc, 7.8, 'normal', COLORS.body)
+    doc.text(row[0], x + 13, yy)
+
+    font(doc, 7.8, 'bold', COLORS.ink)
+    doc.text(String(row[1]), x + w - 8, yy, { align: 'right' })
   })
 
-  font(doc, 8.8, 'bold', info.color)
-  doc.text(info.label, pageW - margin, y, { align: 'right' })
+  const total = Object.values(c).reduce((s, n) => s + n, 0)
+  const barX = x + 8
+  const barY = y + 54
+  const barW = w - 16
+  const barH = 2.3
 
-  y += 8
+  doc.setFillColor(226, 230, 236)
+  doc.roundedRect(barX, barY, barW, barH, 1.1, 1.1, 'F')
 
-  const citation = claim.authorLine ? ` (${claim.authorLine})` : ''
+  let bx = barX
+  rows.forEach(row => {
+    const width = total ? (row[1] / total) * barW : 0
+    if (width > 0) {
+      doc.setFillColor(...row[2])
+      doc.rect(bx, barY, width, barH, 'F')
+      bx += width
+    }
+  })
 
-  font(doc, 9.4, 'normal', INK)
-  y = writeWrapped(doc, `"${claim.text}"${citation}`, margin, y, contentW, 4.8)
-  y += 7
+  return h
+}
 
-  font(doc, 8.8, 'normal', BODY)
-  y = writeWrapped(
-    doc,
-    `AI reasoning: ${claim.reasoning || 'No reasoning provided.'}`,
-    margin,
-    y,
-    contentW,
-    4.8
-  )
-  y += 5
+function drawDocumentPanel(doc, x, y, w, fileName, claimsCount) {
+  roundedCard(doc, x, y, w, 25)
+
+  doc.setFillColor(238, 242, 255)
+  doc.roundedRect(x + 8, y + 6, 12, 12, 2, 2, 'F')
+
+  font(doc, 9, 'bold', COLORS.ink)
+  doc.text(fileName, x + 25, y + 11)
+
+  font(doc, 7.2, 'normal', COLORS.muted)
+  doc.text(`${claimsCount} claims processed`, x + 25, y + 17)
+}
+
+function drawClaimCard(doc, y, claim, index, layout, fileName) {
+  const { mainX, mainW, pageW, margin } = layout
+  const info = statusInfo(claim.status)
+
+  const textW = mainW - 16
+  const citation = claim.citation ? ` ${claim.citation}` : ''
+  const quoteLines = doc.splitTextToSize(`"${claim.text}"${citation}`, textW)
+  const sourceLines = claim.sourceTitle ? doc.splitTextToSize(claim.sourceTitle, textW) : []
+  const authorLines = claim.authorLine ? doc.splitTextToSize(claim.authorLine, textW) : []
+  const reasoningLines = doc.splitTextToSize(claim.reasoning || 'No reasoning provided.', textW - 8)
 
   const warning =
     claim.warning ||
-    (claim.status === 'supported'
-      ? ''
-      : 'Human review recommended - this result may need manual verification.')
+    (claim.status === 'supported' ? '' : 'Human review recommended - this result may need manual verification.')
+  const warningLines = warning ? doc.splitTextToSize(warning, textW) : []
 
-  if (warning) {
-    font(doc, 8.8, 'normal', BODY)
-    y = writeWrapped(doc, warning, margin, y, contentW, 4.8)
-    y += 5
+  const h =
+    26 +
+    quoteLines.length * 4.8 +
+    sourceLines.length * 4.4 +
+    authorLines.length * 4.2 +
+    13 +
+    reasoningLines.length * 4.6 +
+    warningLines.length * 4.6 +
+    18
+
+  y = ensurePage(doc, y, h, layout, fileName)
+
+  roundedCard(doc, mainX, y, mainW, h, COLORS.cardBg, info.color)
+
+  font(doc, 7.2, 'bold', COLORS.muted)
+  doc.text(`CLAIM ${index}`, mainX + 8, y + 12)
+
+  const badgeW = Math.max(28, doc.getTextWidth(info.label) + 10)
+  doc.setFillColor(...info.pale)
+  doc.setDrawColor(...info.color)
+  doc.setLineWidth(0.35)
+  doc.roundedRect(mainX + mainW - badgeW - 7, y + 7, badgeW, 8, 4, 4, 'FD')
+
+  font(doc, 7.5, 'bold', info.color)
+  doc.text(info.label, mainX + mainW - badgeW / 2 - 7, y + 12.6, { align: 'center' })
+
+  let yy = y + 22
+
+  font(doc, 8.8, 'normal', COLORS.ink)
+  doc.text(quoteLines, mainX + 8, yy)
+  yy += quoteLines.length * 4.8 + 5
+
+  if (sourceLines.length) {
+    font(doc, 7.8, 'italic', COLORS.body)
+    doc.text(sourceLines, mainX + 8, yy)
+    yy += sourceLines.length * 4.4 + 2
+  }
+
+  if (authorLines.length) {
+    font(doc, 7.2, 'normal', COLORS.muted)
+    doc.text(authorLines, mainX + 8, yy)
+    yy += authorLines.length * 4.2 + 3
   }
 
   if (claim.doi) {
-    font(doc, 8, 'normal', MUTED)
-    y = writeWrapped(doc, `DOI: ${claim.doi}`, margin, y, contentW, 4.6)
-    y += 3
+    doc.setFillColor(245, 245, 245)
+    doc.roundedRect(mainX + 8, yy - 3.8, 28, 6, 3, 3, 'F')
+    font(doc, 6.7, 'normal', COLORS.body)
+    doc.text('✓ DOI resolved', mainX + 11, yy + 0.5)
+    yy += 7
   }
 
-  font(doc, 8.8, 'normal', INK)
-  doc.text(`Confidence ${claim.confidence}`, margin, y)
+  doc.setFillColor(...COLORS.reasoningBg)
+  doc.roundedRect(mainX + 8, yy, textW, 10 + reasoningLines.length * 4.6, 2, 2, 'F')
 
-  return y + 12
+  font(doc, 6.8, 'bold', COLORS.muted)
+  doc.text('AI REASONING', mainX + 12, yy + 6)
+
+  font(doc, 7.9, 'normal', COLORS.body)
+  doc.text(reasoningLines, mainX + 12, yy + 13)
+  yy += 13 + reasoningLines.length * 4.6 + 6
+
+  if (warningLines.length) {
+    font(doc, 7.6, 'normal', COLORS.body)
+    doc.text(warningLines, mainX + 8, yy)
+    yy += warningLines.length * 4.6 + 5
+  }
+
+  font(doc, 7.4, 'normal', COLORS.muted)
+  doc.text('Confidence', mainX + 8, yy + 1)
+
+  const barX = mainX + 32
+  const barY = yy
+  const barW = 38
+
+  doc.setDrawColor(225, 229, 235)
+  doc.setLineWidth(1.8)
+  doc.line(barX, barY, barX + barW, barY)
+
+  doc.setDrawColor(...info.color)
+  doc.setLineWidth(1.8)
+  doc.line(barX, barY, barX + (Math.max(0, Math.min(100, claim.confidence)) / 100) * barW, barY)
+
+  font(doc, 7.2, 'normal', COLORS.muted)
+  doc.text(`${claim.confidence}.0%`, barX + barW + 5, yy + 1)
+
+  return y + h + 7
 }
 
 function buildReport(...args) {
   const { raw, fileName } = inputFromArgs(args)
   const claims = getClaims(raw)
   const score = getScore(raw, claims)
-  const summary = countClaims(claims)
+  const c = countClaims(claims)
 
   const doc = new jsPDF('p', 'mm', 'a4')
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
-  const margin = 17
-  const contentW = pageW - margin * 2
-  const layout = { pageW, pageH, margin, contentW }
+  const margin = 13
+
+  const sidebarW = 45
+  const gap = 8
+  const mainX = margin + sidebarW + gap
+  const mainW = pageW - mainX - margin
+
+  const layout = {
+    pageW,
+    pageH,
+    margin,
+    sidebarW,
+    mainX,
+    mainW,
+    contentW: pageW - margin * 2,
+  }
+
+  doc.setFillColor(...COLORS.softBg)
+  doc.rect(0, 0, pageW, pageH, 'F')
 
   drawHeader(doc, layout, fileName)
 
-  let y = 52
+  drawScorePanel(doc, margin, 40, sidebarW, score)
+  drawSummaryPanel(doc, margin, 105, sidebarW, c)
+  drawDocumentPanel(doc, margin, 174, sidebarW, fileName, claims.length)
 
-  font(doc, 13, 'bold', INK)
-  doc.text(`Credibility Score: ${score}% — ${scoreLabel(score)}`, margin, y)
-  y += 8
+  font(doc, 17, 'bold', COLORS.ink)
+  doc.text('Verification Results', mainX, 45)
 
-  font(doc, 9.5, 'normal', INK)
-  y = writeWrapped(doc, scoreExplanation(score), margin, y, contentW, 4.8)
-  y += 12
+  font(doc, 8.8, 'normal', COLORS.muted)
+  doc.text(
+    `${claims.length} claims checked · ${c.supported} supported · ${c.hallucinated + c.unsupported + c.insufficient} requiring review`,
+    mainX,
+    53
+  )
 
-  y = drawSummary(doc, y, summary, layout)
+  const chips = [
+    ['All', claims.length, COLORS.navy, [236, 242, 255]],
+    ['Supported', c.supported, COLORS.green, [236, 253, 245]],
+    ['Partial', c.partial, COLORS.orange, [255, 247, 237]],
+    ['Unsupported', c.unsupported, COLORS.red, [254, 242, 242]],
+    ['Hallucinated', c.hallucinated, COLORS.purple, [250, 245, 255]],
+  ]
 
-  font(doc, 14, 'bold', INK)
-  doc.text('Claims Overview', margin, y)
-  y += 10
+  let chipX = mainX
+  chips.forEach(([label, value, color, pale]) => {
+    const text = `${label} ${value}`
+    const w = doc.getTextWidth(text) + 9
+    doc.setFillColor(...pale)
+    doc.setDrawColor(...color)
+    doc.setLineWidth(0.3)
+    doc.roundedRect(chipX, 61, w, 8, 4, 4, 'FD')
+    font(doc, 6.9, 'bold', color)
+    doc.text(text, chipX + w / 2, 66.4, { align: 'center' })
+    chipX += w + 3
+  })
+
+  let y = 78
 
   if (!claims.length) {
-    font(doc, 9.5, 'normal', MUTED)
-    doc.text('No claims were available for this report.', margin, y)
+    roundedCard(doc, mainX, y, mainW, 28)
+    font(doc, 8.5, 'normal', COLORS.muted)
+    doc.text('No claims were available for this report.', mainX + 8, y + 15)
   } else {
     claims.forEach((claim, index) => {
-      y = drawClaim(doc, y, claim, index + 1, layout, fileName)
+      y = drawClaimCard(doc, y, claim, index + 1, layout, fileName)
     })
   }
 
