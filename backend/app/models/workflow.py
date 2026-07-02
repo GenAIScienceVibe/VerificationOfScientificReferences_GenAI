@@ -141,6 +141,7 @@ class Claim(TimestampMixin, SoftDeleteMixin, Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: prefixed_id("claim"))
     document_id: Mapped[str] = mapped_column(String(64), ForeignKey("documents.id"), nullable=False, index=True)
     claim_text: Mapped[str] = mapped_column(Text, nullable=False)
+    preceding_context: Mapped[str | None] = mapped_column(Text, nullable=True)
     claim_type: Mapped[str] = mapped_column(String(64), nullable=False, default=ClaimType.UNKNOWN.value)
     section_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_paragraph: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -54,9 +54,20 @@ class GenAiVerificationResponseValidator:
         if not isinstance(evidence_used, list):
             raise ValueError("evidence_used must be a list.")
         available_chunk_ids = {str(chunk.get("chunk_id")) for chunk in retrieved_chunks if chunk.get("chunk_id")}
+        # Normalize each evidence_used entry to its full canonical chunk_id.
+        # The LLM sometimes abbreviates "doi_slug_chunk_000" to "chunk_000".
+        # Accepting only the suffix is not enough: safety_policy.py does a
+        # strict exact-match check, so we must store the full canonical ID.
+        normalized_evidence: list[str] = []
         for chunk_id in evidence_used:
-            if str(chunk_id) not in available_chunk_ids:
-                raise ValueError(f"evidence_used contains unknown chunk_id: {chunk_id!r}.")
+            cid = str(chunk_id)
+            if cid in available_chunk_ids:
+                normalized_evidence.append(cid)
+            else:
+                canonical = next((aid for aid in available_chunk_ids if aid.endswith(cid)), None)
+                if canonical is None:
+                    raise ValueError(f"evidence_used contains unknown chunk_id: {chunk_id!r}.")
+                normalized_evidence.append(canonical)
         if not isinstance(response.get("human_review_required"), bool):
             raise ValueError("human_review_required must be boolean.")
 
@@ -64,7 +75,7 @@ class GenAiVerificationResponseValidator:
             "support_status": status,
             "confidence": confidence,
             "explanation": explanation,
-            "evidence_used": [str(item) for item in evidence_used],
+            "evidence_used": normalized_evidence,
             "limitations": str(response.get("limitations") or "No additional limitations were provided."),
             "human_review_required": bool(response.get("human_review_required")),
         }

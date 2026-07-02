@@ -426,6 +426,7 @@ class RagDirectClient:
             claim_id=request_payload["claim_id"],
             reference_id=request_payload["reference_id"],
             claim_text=request_payload["claim_text"],
+            preceding_context=request_payload.get("preceding_context") or "",
             citation_text=request_payload.get("citation_text") or "",
             doi=request_payload.get("doi") or "",
             doi_status=request_payload["doi_status"],
@@ -571,6 +572,7 @@ class RagRetrievalService:
             return self.result_to_dict(result)
 
         request_payload = self.request_builder.build(package, top_k=top_k)
+        request_payload["preceding_context"] = claim.preceding_context or ""
         logger.info(
             "rag_retrieval_start",
             extra={"request_id": request_id, "claim_id": claim_id, "reference_id": package.reference_id, "evidence_package_id": package.id, "force_refresh": force_refresh},

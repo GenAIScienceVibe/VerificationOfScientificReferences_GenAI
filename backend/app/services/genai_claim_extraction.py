@@ -103,7 +103,11 @@ class LocalDeterministicClaimExtractionClient:
                     "confidence": 0.78,
                 }
             )
-        output = {"claims": claims}
+        output = {
+            "claims": claims,
+            # preceding_context is passed through for real LLM clients to use as prompt context
+            "preceding_context": prepared_sentence.preceding_context,
+        }
         return self.validator.validate(output, prepared_sentence), output
 
     def _sentence_to_claim(self, sentence: str, citation_texts: list[str]) -> str:
