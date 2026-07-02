@@ -470,128 +470,149 @@ function drawChips(doc, mainX, mainW, y, counts, totalClaims) {
 }
 
 function drawClaimCard(doc, y, claim, index, layout, fileName) {
-  const { mainX, mainW } = layout
+  const pageInfo = doc.internal.getCurrentPageInfo()
+  const currentPage = pageInfo?.pageNumber || 1
   const info = statusInfo(claim.status)
 
+  // Page 1 keeps the two-column layout. From page 2 onward, cards use the full page width and are centered.
+  const cardX = currentPage === 1 ? layout.mainX : layout.margin + 16
+  const cardW = currentPage === 1 ? layout.mainW : layout.pageW - layout.margin * 2 - 32
+
   const padX = 8
-  const textW = mainW - padX * 2 - 8
+  const textW = cardW - padX * 2 - 8
   const citation = claim.citation ? ` ${claim.citation}` : ''
 
-  font(doc, 8.1, 'normal', COLORS.ink)
+  // Set font before wrapping — otherwise jsPDF calculates line breaks badly.
+  font(doc, 7.8, 'normal', COLORS.ink)
   const quoteLines = doc.splitTextToSize(`"${claim.text}"${citation}`, textW)
 
-  font(doc, 7.5, 'italic', COLORS.body)
+  font(doc, 7.1, 'italic', COLORS.body)
   const sourceLines = claim.sourceTitle ? doc.splitTextToSize(claim.sourceTitle, textW) : []
 
-  font(doc, 6.9, 'normal', COLORS.muted)
+  font(doc, 6.5, 'normal', COLORS.muted)
   const authorLines = claim.authorLine ? doc.splitTextToSize(claim.authorLine, textW) : []
 
-  font(doc, 7.6, 'normal', COLORS.body)
+  font(doc, 7.2, 'normal', COLORS.body)
   const reasoningLines = doc.splitTextToSize(claim.reasoning || 'No reasoning provided.', textW - 10)
 
   const warning =
     claim.warning ||
     (claim.status === 'supported' ? '' : 'Human review recommended - this result may need manual verification.')
 
-  font(doc, 7.3, 'normal', COLORS.body)
+  font(doc, 6.9, 'normal', COLORS.body)
   const warningLines = warning ? doc.splitTextToSize(warning, textW) : []
 
+  // More compact height, especially useful on pages 2+
   const h =
-    30 +
-    quoteLines.length * 5.1 +
-    sourceLines.length * 4.6 +
-    authorLines.length * 4.3 +
-    15 +
-    reasoningLines.length * 4.8 +
-    warningLines.length * 4.8 +
-    22
+    27 +
+    quoteLines.length * 4.7 +
+    sourceLines.length * 4.1 +
+    authorLines.length * 3.9 +
+    12 +
+    reasoningLines.length * 4.4 +
+    warningLines.length * 4.2 +
+    18
 
   y = ensurePage(doc, y, h, layout, fileName)
 
-  roundedCard(doc, mainX, y, mainW, h, COLORS.cardBg, info.color)
+  // Recalculate after page break, because ensurePage may have moved us to a new page.
+  const afterPageInfo = doc.internal.getCurrentPageInfo()
+  const afterPage = afterPageInfo?.pageNumber || 1
+  const finalCardX = afterPage === 1 ? layout.mainX : layout.margin + 16
+  const finalCardW = afterPage === 1 ? layout.mainW : layout.pageW - layout.margin * 2 - 32
+  const finalTextW = finalCardW - padX * 2 - 8
 
-  font(doc, 7.1, 'bold', COLORS.muted)
-  doc.text(`CLAIM ${index}`, mainX + padX, y + 12)
+  roundedCard(doc, finalCardX, y, finalCardW, h, COLORS.cardBg, info.color)
 
-  font(doc, 6.8, 'bold', info.color)
+  font(doc, 6.9, 'bold', COLORS.muted)
+  doc.text(`CLAIM ${index}`, finalCardX + padX, y + 11)
+
+  font(doc, 6.6, 'bold', info.color)
   const badgeW = Math.min(Math.max(34, doc.getTextWidth(info.label) + 12), 58)
-  const badgeX = mainX + mainW - badgeW - 8
+  const badgeX = finalCardX + finalCardW - badgeW - 8
   const badgeY = y + 7
-  const badgeH = 8.7
+  const badgeH = 8.3
 
   doc.setFillColor(...info.pale)
   doc.setDrawColor(...info.color)
   doc.setLineWidth(0.32)
-  doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 4.3, 4.3, 'FD')
+  doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 4.1, 4.1, 'FD')
 
   const badgeText = doc.splitTextToSize(info.label, badgeW - 6)
-  doc.text(badgeText.slice(0, 1), badgeX + badgeW / 2, badgeY + badgeH / 2 + 0.5, {
+  doc.text(badgeText.slice(0, 1), badgeX + badgeW / 2, badgeY + badgeH / 2 + 0.45, {
     align: 'center',
     baseline: 'middle',
   })
 
-  let yy = y + 24
+  let yy = y + 23
 
-  font(doc, 8.1, 'normal', COLORS.ink)
-  doc.text(quoteLines, mainX + padX, yy)
-  yy += quoteLines.length * 5.1 + 7
+  font(doc, 7.8, 'normal', COLORS.ink)
+  const safeQuoteLines = doc.splitTextToSize(`"${claim.text}"${citation}`, finalTextW)
+  doc.text(safeQuoteLines, finalCardX + padX, yy)
+  yy += safeQuoteLines.length * 4.7 + 6
 
   if (sourceLines.length) {
-    font(doc, 7.5, 'italic', COLORS.body)
-    doc.text(sourceLines, mainX + padX, yy)
-    yy += sourceLines.length * 4.6 + 2
+    font(doc, 7.1, 'italic', COLORS.body)
+    const safeSourceLines = claim.sourceTitle ? doc.splitTextToSize(claim.sourceTitle, finalTextW) : []
+    doc.text(safeSourceLines, finalCardX + padX, yy)
+    yy += safeSourceLines.length * 4.1 + 2
   }
 
   if (authorLines.length) {
-    font(doc, 6.9, 'normal', COLORS.muted)
-    doc.text(authorLines, mainX + padX, yy)
-    yy += authorLines.length * 4.3 + 4
+    font(doc, 6.5, 'normal', COLORS.muted)
+    const safeAuthorLines = claim.authorLine ? doc.splitTextToSize(claim.authorLine, finalTextW) : []
+    doc.text(safeAuthorLines, finalCardX + padX, yy)
+    yy += safeAuthorLines.length * 3.9 + 4
   }
 
   if (claim.doi) {
     doc.setFillColor(245, 247, 250)
-    doc.roundedRect(mainX + padX, yy - 4, 30, 6.5, 3, 3, 'F')
-    font(doc, 6.7, 'normal', COLORS.body)
-    doc.text('✓ DOI resolved', mainX + padX + 3, yy + 0.6)
-    yy += 8
+    doc.roundedRect(finalCardX + padX, yy - 4, 30, 6.2, 3, 3, 'F')
+    font(doc, 6.4, 'normal', COLORS.body)
+    doc.text('✓ DOI resolved', finalCardX + padX + 3, yy + 0.4)
+    yy += 7
   }
 
-  const reasoningH = 11 + reasoningLines.length * 4.8
+  font(doc, 7.2, 'normal', COLORS.body)
+  const safeReasoningLines = doc.splitTextToSize(claim.reasoning || 'No reasoning provided.', finalTextW - 10)
+  const reasoningH = 10 + safeReasoningLines.length * 4.4
+
   doc.setFillColor(...COLORS.reasoningBg)
-  doc.roundedRect(mainX + padX, yy, textW, reasoningH, 2.4, 2.4, 'F')
+  doc.roundedRect(finalCardX + padX, yy, finalTextW, reasoningH, 2.4, 2.4, 'F')
 
-  font(doc, 6.7, 'bold', COLORS.muted)
-  doc.text('AI REASONING', mainX + padX + 4, yy + 6)
+  font(doc, 6.4, 'bold', COLORS.muted)
+  doc.text('AI REASONING', finalCardX + padX + 4, yy + 5.7)
 
-  font(doc, 7.6, 'normal', COLORS.body)
-  doc.text(reasoningLines, mainX + padX + 4, yy + 13)
-  yy += reasoningH + 7
+  font(doc, 7.2, 'normal', COLORS.body)
+  doc.text(safeReasoningLines, finalCardX + padX + 4, yy + 12)
+  yy += reasoningH + 6
 
   if (warningLines.length) {
-    font(doc, 7.3, 'normal', COLORS.body)
-    doc.text(warningLines, mainX + padX, yy)
-    yy += warningLines.length * 4.8 + 6
+    font(doc, 6.9, 'normal', COLORS.body)
+    const safeWarningLines = warning ? doc.splitTextToSize(warning, finalTextW) : []
+    doc.text(safeWarningLines, finalCardX + padX, yy)
+    yy += safeWarningLines.length * 4.2 + 5
   }
 
-  font(doc, 7.3, 'normal', COLORS.muted)
-  doc.text('Confidence', mainX + padX, yy + 1)
+  font(doc, 6.9, 'normal', COLORS.muted)
+  doc.text('Confidence', finalCardX + padX, yy + 1)
 
-  const barX = mainX + padX + 25
+  const barX = finalCardX + padX + 25
   const barY = yy
   const barW = 40
 
   doc.setDrawColor(225, 229, 235)
-  doc.setLineWidth(1.7)
+  doc.setLineWidth(1.6)
   doc.line(barX, barY, barX + barW, barY)
 
   doc.setDrawColor(...info.color)
-  doc.setLineWidth(1.7)
+  doc.setLineWidth(1.6)
   doc.line(barX, barY, barX + (Math.max(0, Math.min(100, claim.confidence)) / 100) * barW, barY)
 
-  font(doc, 7.1, 'normal', COLORS.muted)
+  font(doc, 6.8, 'normal', COLORS.muted)
   doc.text(`${claim.confidence}.0%`, barX + barW + 5, yy + 1)
 
-  return y + h + 9
+  return y + h + 8
 }
 
 async function buildReport({
