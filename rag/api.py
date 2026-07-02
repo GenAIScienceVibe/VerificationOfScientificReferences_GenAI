@@ -19,6 +19,7 @@ then merged via Reciprocal Rank Fusion and reranked by FlashRank
 (hybrid_retriever.py). See retrieve_evidence()'s Step 5 for the wiring.
 """
 
+import hashlib
 import logging
 from enum import Enum
 
@@ -70,9 +71,11 @@ MAX_SECTION_WEIGHT = max(SECTION_WEIGHTS.values())
 
 # Per-DOI embedding cache for retrieve_evidence(). If a paper has multiple
 # claims all citing the same DOI, this avoids re-embedding identical source
-# chunks for every claim. In-memory only, scoped to this process's lifetime —
-# never persisted, since the backend owns all storage (CLAUDE.md).
-_embedding_cache: dict[str, EmbedderOutput] = {}
+# chunks for every claim. In-memory only, never persisted (CLAUDE.md).
+# Cache key: DOI. Cache value: (EmbedderOutput, md5-hash-of-source-text).
+# The hash ensures a re-uploaded PDF (different text) always gets a fresh
+# embedding rather than reusing the stale entry from a previous run.
+_embedding_cache: dict[str, tuple[EmbedderOutput, str]] = {}
 
 
 # ── Shared request/response models ───────────────────────────────────────────
@@ -454,13 +457,16 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
 
         # Step 3: embed every source chunk, reusing a cached embedding when
         # another claim earlier in this run already embedded the same DOI's
-        # source text (SCRUM-264).
-        cached_embedder_output = _embedding_cache.get(request.doi)
-        if cached_embedder_output is not None:
-            embedder_output = cached_embedder_output
+        # source text (SCRUM-264). The cache is keyed by (DOI, md5 of source
+        # text) so a re-uploaded PDF with different content always produces a
+        # fresh embedding rather than reusing a stale entry from a prior run.
+        source_hash = hashlib.md5(request.source_evidence.text.encode()).hexdigest()
+        cached = _embedding_cache.get(request.doi)
+        if cached is not None and cached[1] == source_hash:
+            embedder_output = cached[0]
         else:
             embedder_output = embed_chunks(EmbedderInput(chunks=chunker_output.chunks, doi=request.doi))
-            _embedding_cache[request.doi] = embedder_output
+            _embedding_cache[request.doi] = (embedder_output, source_hash)
 
         # Step 4: embed the claim with the same embedding model.
         # Prepend preceding_context when available so the embedding captures
