@@ -184,6 +184,8 @@ function ResultsPage() {
   const [expandedReasoning, setExpandedReasoning] = useState({})
   const [passageData, setPassageData] = useState({})
   const [flashUpload, setFlashUpload] = useState(false)
+  const [manualOverrides, setManualOverrides] = useState({})
+  const [overrideOpen, setOverrideOpen] = useState({})
   const claimsListRef = useRef(null)
 
   const loadResults = () => {
@@ -247,6 +249,12 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
     setIsLoading(true)
     loadResults().finally(() => setIsLoading(false))
   }, [documentId])
+
+  useEffect(() => {
+    const handler = () => setOverrideOpen({})
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const statusConfig = {
     supported: { label: "Supported", color: "#16a34a", bg: "#f0fdf4", border: "#86efac" },
@@ -317,7 +325,8 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
   const getConfidenceColor = (c) => c > 0.7 ? "#16a34a" : c > 0.4 ? "#d97706" : "#dc2626"
   const handleDownload = async () => {
     try {
-      await generateVerificationPdf({ claims, statusConfig, summaryItems, fileName, logo, credibilityScore, credibilityLabel, credibilityColor })
+      const claimsWithOverrides = claims.map(c => manualOverrides[c.id] ? { ...c, status: manualOverrides[c.id] } : c)
+      await generateVerificationPdf({ claims: claimsWithOverrides, statusConfig, summaryItems, fileName, logo, credibilityScore, credibilityLabel, credibilityColor })
     } catch (err) {
       console.error('PDF generation failed:', err)
       alert('PDF generation failed: ' + err.message)
@@ -532,33 +541,77 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                   {filteredClaims.map(claim => {
-                    const config = statusConfig[claim.status]
-                    const showManualUpload = !claim.doiResolved || claim.status === 'insufficient'
+                    const effectiveStatus = manualOverrides[claim.id] || claim.status
+                    const config = statusConfig[effectiveStatus]
+                    const isOverridden = !!manualOverrides[claim.id]
+                    const showManualUpload = !claim.doiResolved || effectiveStatus === 'insufficient'
                     const uploadState = refUploadStatus[claim.id]
-                    const similarityHint = claim.status === 'insufficient' ? getSimilarityHint(claim.similarityScore) : null
-                    const evidenceHint = getEvidenceAvailabilityHint(claim.evidenceAvailability, claim.status)
+                    const similarityHint = effectiveStatus === 'insufficient' ? getSimilarityHint(claim.similarityScore) : null
+                    const evidenceHint = getEvidenceAvailabilityHint(claim.evidenceAvailability, effectiveStatus)
                     const doiExplanation = getDoiStatusExplanation(claim.doiStatus, claim.evidenceAvailability)
                     const isPassageOpen = expandedPassages[claim.id]
                     const isReasoningExpanded = expandedReasoning[claim.id]
                     const reasoningIsLong = claim.reasoning.length > 120
+                    const isOverrideOpen = overrideOpen[claim.id]
 
                     return (
                       <div key={claim.id} className="verifai-claim-card" style={{ background: "white", borderRadius: "12px", padding: "24px", border: `1px solid ${config.border}` }}>
 
                         {/* Header */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                          <span style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px" }}>CLAIM {claim.displayId}</span>
-                          <div className="verifai-tooltip">
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}`, cursor: "default" }}>
-                              {config.label}
-                            </span>
-                            <span className="verifai-tooltip-text" style={{ textAlign: "left" }}>
-                              {STATUS_TOOLTIPS[claim.status]}
-                              {' '}
-<a href={`/how-it-works?tab=categories#category-${STATUS_ANCHOR[claim.status]}`} style={{ color: "#93c5fd", fontSize: "11px", display: "block", marginTop: "6px" }} onClick={e => e.stopPropagation()}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px" }}>CLAIM {claim.displayId}</span>
+                            {isOverridden && (
+                              <span style={{ fontSize: "10px", fontWeight: "600", color: "#d97706", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: "99px", padding: "2px 8px" }}>
+                                Manually changed
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", position: "relative" }}>
+                            <div className="verifai-tooltip">
+                              <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}`, cursor: "default" }}>
+                                {config.label}
+                              </span>
+                              <span className="verifai-tooltip-text" style={{ textAlign: "left" }}>
+                                {STATUS_TOOLTIPS[effectiveStatus] || STATUS_TOOLTIPS[claim.status]}
+                                {' '}
+<a href={`/how-it-works?tab=categories#category-${STATUS_ANCHOR[effectiveStatus]}`} style={{ color: "#93c5fd", fontSize: "11px", display: "block", marginTop: "6px" }} onClick={e => e.stopPropagation()}>
   Learn more
 </a>
-                            </span>
+                              </span>
+                            </div>
+                            {/* Override button */}
+                            <div style={{ position: "relative" }}>
+                              <button
+                                onClick={() => setOverrideOpen(prev => ({ ...prev, [claim.id]: !prev[claim.id] }))}
+                                title="Change verdict"
+                                style={{ background: "none", border: "1px solid #e0e0e0", borderRadius: "6px", padding: "3px 7px", cursor: "pointer", color: "#888", fontSize: "11px", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px" }}
+                              >
+                                ✏️ Override
+                              </button>
+                              {isOverrideOpen && (
+                                <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 100, background: "white", border: "1px solid #e0e4ea", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.10)", minWidth: "180px", overflow: "hidden" }}>
+                                  <div style={{ padding: "8px 12px", fontSize: "11px", color: "#888", fontWeight: "600", borderBottom: "1px solid #f0f0f0" }}>Change verdict to:</div>
+                                  {Object.entries(statusConfig).map(([key, cfg]) => (
+                                    <button key={key} onClick={() => {
+                                      if (key === claim.status) {
+                                        setManualOverrides(prev => { const n = {...prev}; delete n[claim.id]; return n })
+                                      } else {
+                                        setManualOverrides(prev => ({ ...prev, [claim.id]: key }))
+                                      }
+                                      setOverrideOpen(prev => ({ ...prev, [claim.id]: false }))
+                                    }}
+                                    style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "9px 12px", border: "none", background: effectiveStatus === key ? "#f5f8ff" : "white", cursor: "pointer", fontSize: "12px", fontWeight: effectiveStatus === key ? "600" : "400", color: cfg.color, textAlign: "left" }}
+                                    onMouseEnter={e => { if (effectiveStatus !== key) e.currentTarget.style.background = "#f9f9f9" }}
+                                    onMouseLeave={e => { if (effectiveStatus !== key) e.currentTarget.style.background = "white" }}>
+                                      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: cfg.color, flexShrink: 0 }} />
+                                      {cfg.label}
+                                      {key === claim.status && <span style={{ marginLeft: "auto", fontSize: "10px", color: "#aaa" }}>original</span>}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
 
