@@ -1,9 +1,8 @@
 import jsPDF from 'jspdf'
-import logoUrl from '../assets/Logo_VerifAI.png'
+import logoUrl from '../assets/Logo_VerifAi.png'
 
 const COLORS = {
   navy: [26, 58, 107],
-  navyDark: [18, 43, 84],
   ink: [24, 27, 32],
   body: [68, 72, 80],
   muted: [137, 141, 150],
@@ -56,6 +55,16 @@ const STATUS = {
   },
 }
 
+function font(doc, size, style = 'normal', color = COLORS.ink) {
+  doc.setFont('helvetica', style)
+  doc.setFontSize(size)
+  doc.setTextColor(...color)
+}
+
+function clean(value) {
+  if (value === null || value === undefined) return ''
+  return String(value).replace(/\s+/g, ' ').trim()
+}
 
 function loadImageDataUrl(url) {
   return new Promise(resolve => {
@@ -81,15 +90,13 @@ function loadImageDataUrl(url) {
   })
 }
 
-function font(doc, size, style = 'normal', color = COLORS.ink) {
-  doc.setFont('helvetica', style)
-  doc.setFontSize(size)
-  doc.setTextColor(...color)
-}
-
-function clean(value) {
-  if (value === null || value === undefined) return ''
-  return String(value).replace(/\s+/g, ' ').trim()
+function hexToRgb(hex, fallback = COLORS.orange) {
+  if (!hex) return fallback
+  const h = String(hex).replace('#', '').trim()
+  if (h.length !== 6) return fallback
+  const n = parseInt(h, 16)
+  if (Number.isNaN(n)) return fallback
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
 function normalizeStatus(value) {
@@ -107,28 +114,9 @@ function statusInfo(status) {
   return STATUS[normalizeStatus(status)] || STATUS.insufficient
 }
 
-function formatDate() {
-  const d = new Date()
-  return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`
-}
-
-function toArray(value) {
-  if (!value) return []
-  if (Array.isArray(value)) return value
-  if (typeof value === 'object') return Object.values(value)
-  return []
-}
-
-function writeWrapped(doc, text, x, y, width, lineHeight = 4.8) {
-  const lines = doc.splitTextToSize(clean(text), width)
-  doc.text(lines, x, y)
-  return y + lines.length * lineHeight
-}
-
 function roundedCard(doc, x, y, w, h, fill = COLORS.cardBg, stroke = COLORS.border) {
-  // subtle shadow, similar to the cards in the web UI
   doc.setFillColor(242, 244, 248)
-  doc.roundedRect(x + 0.9, y + 1.1, w, h, 4.5, 4.5, 'F')
+  doc.roundedRect(x + 0.8, y + 1, w, h, 4.5, 4.5, 'F')
 
   doc.setFillColor(...fill)
   doc.setDrawColor(...stroke)
@@ -136,10 +124,15 @@ function roundedCard(doc, x, y, w, h, fill = COLORS.cardBg, stroke = COLORS.bord
   doc.roundedRect(x, y, w, h, 4.5, 4.5, 'FD')
 }
 
-function line(doc, x1, y, x2, color = COLORS.border, width = 0.35) {
+function line(doc, x1, y, x2, color = COLORS.border, width = 0.3) {
   doc.setDrawColor(...color)
   doc.setLineWidth(width)
   doc.line(x1, y, x2, y)
+}
+
+function formatDate() {
+  const d = new Date()
+  return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`
 }
 
 function parseClaimText(value) {
@@ -169,38 +162,8 @@ function parseClaimText(value) {
   }
 }
 
-function getFileName(input, fallback) {
-  return clean(
-    input?.fileName ||
-    input?.filename ||
-    input?.documentName ||
-    input?.document_name ||
-    input?.originalFileName ||
-    input?.original_filename ||
-    input?.paperName ||
-    input?.paper_name ||
-    input?.upload?.filename ||
-    input?.document?.filename ||
-    fallback ||
-    'uploaded_document.pdf'
-  )
-}
-
-function getClaims(input) {
-  const possible =
-    input?.claims ||
-    input?.results ||
-    input?.verificationResults ||
-    input?.verification_results ||
-    input?.claimResults ||
-    input?.claim_results ||
-    input?.data?.claims ||
-    input?.data?.results ||
-    input?.workflow?.claims ||
-    input?.workflow?.results ||
-    []
-
-  return toArray(possible).map((claim, index) => {
+function normalizeClaims(claims = []) {
+  return (Array.isArray(claims) ? claims : []).map((claim, index) => {
     const parsed = parseClaimText(
       claim?.text ||
       claim?.claim ||
@@ -211,12 +174,7 @@ function getClaims(input) {
       ''
     )
 
-    const rawConfidence =
-      claim?.confidence ??
-      claim?.confidence_score ??
-      claim?.score ??
-      0
-
+    const rawConfidence = claim?.confidence ?? claim?.confidence_score ?? claim?.score ?? 0
     const n = Number(rawConfidence)
     const confidence = Number.isFinite(n)
       ? n <= 1
@@ -224,36 +182,12 @@ function getClaims(input) {
         : Math.round(n)
       : 0
 
-    const authorLine = clean(
-      claim?.authorLine ||
-      claim?.author_line ||
-      claim?.source ||
-      claim?.reference ||
-      ''
-    )
-
-    const sourceTitle = clean(
-      claim?.sourceTitle ||
-      claim?.source_title ||
-      claim?.title ||
-      claim?.paper_title ||
-      claim?.reference_title ||
-      ''
-    )
-
     return {
-      id: clean(
-        claim?.id ||
-        claim?.claim_id ||
-        claim?.claimId ||
-        claim?.result_id ||
-        claim?.resultId ||
-        `result_${String(index + 1).padStart(2, '0')}`
-      ),
+      id: clean(claim?.id || claim?.claim_id || claim?.claimId || `result_${index + 1}`),
       text: parsed.statement,
       citation: parsed.citation,
-      sourceTitle,
-      authorLine,
+      sourceTitle: clean(claim?.sourceTitle || claim?.source_title || claim?.title || claim?.paper_title || ''),
+      authorLine: clean(claim?.authorLine || claim?.author_line || claim?.source || claim?.reference || ''),
       reasoning: clean(
         claim?.reasoning ||
         claim?.ai_reasoning ||
@@ -264,68 +198,12 @@ function getClaims(input) {
         claim?.summary ||
         ''
       ),
-      warning: clean(
-        claim?.warning ||
-        claim?.human_review ||
-        claim?.review_note ||
-        claim?.note ||
-        ''
-      ),
+      warning: clean(claim?.warning || claim?.human_review || claim?.review_note || claim?.note || ''),
       doi: clean(claim?.doi || claim?.DOI || ''),
-      status: normalizeStatus(
-        claim?.status ||
-        claim?.verification_status ||
-        claim?.result ||
-        claim?.label ||
-        claim?.category ||
-        'insufficient'
-      ),
+      status: normalizeStatus(claim?.status || claim?.verification_status || claim?.result || claim?.label || claim?.category || ''),
       confidence,
     }
   })
-}
-
-function getScore(input, claims) {
-  const raw =
-    input?.credibilityScore ??
-    input?.credibility_score ??
-    input?.score ??
-    input?.overallScore ??
-    input?.overall_score ??
-    input?.summary?.credibilityScore ??
-    input?.summary?.credibility_score
-
-  const n = Number(raw)
-  if (Number.isFinite(n)) return n <= 1 ? Math.round(n * 100) : Math.round(n)
-
-  if (!claims.length) return 0
-
-  const points = claims.reduce((sum, claim) => {
-    if (claim.status === 'supported') return sum + 1
-    if (claim.status === 'partial' || claim.status === 'partially_supported') return sum + 0.5
-    return sum
-  }, 0)
-
-  return Math.round((points / claims.length) * 100)
-}
-
-function scoreLabel(score) {
-  if (score >= 85) return 'High Reliability'
-  if (score >= 60) return 'Partially Reliable'
-  if (score >= 35) return 'Low Reliability'
-  return 'Low Reliability'
-}
-
-function scoreColor(score) {
-  if (score >= 85) return COLORS.green
-  if (score >= 60) return COLORS.orange
-  return COLORS.red
-}
-
-function scoreDescription(score) {
-  if (score >= 85) return 'Most claims appear to be supported by their cited sources.'
-  if (score >= 60) return 'Some claims are inaccurate or unsupported by their cited sources.'
-  return 'A significant portion of claims could not be verified or are unsupported.'
 }
 
 function countClaims(claims) {
@@ -338,21 +216,32 @@ function countClaims(claims) {
   }
 }
 
-function inputFromArgs(args) {
-  const first = args[0] || {}
-  const second = args[1]
+function scoreColor(score, credibilityColor) {
+  if (credibilityColor) return hexToRgb(credibilityColor)
+  if (score >= 85) return COLORS.green
+  if (score >= 60) return COLORS.orange
+  return COLORS.red
+}
 
-  if (Array.isArray(first)) {
-    return {
-      raw: { claims: first, fileName: second },
-      fileName: clean(second || 'uploaded_document.pdf'),
-    }
-  }
+function scoreLabel(score, provided) {
+  if (provided) return provided
+  if (score >= 85) return 'High Reliability'
+  if (score >= 60) return 'Partially Reliable'
+  return 'Low Reliability'
+}
 
-  return {
-    raw: first,
-    fileName: getFileName(first, second),
-  }
+function scoreDescription(score) {
+  if (score >= 85) return 'Most claims appear to be supported by their cited sources.'
+  if (score >= 60) return 'Some claims are inaccurate or unsupported by their cited sources.'
+  return 'A significant portion of claims could not be verified or are unsupported.'
+}
+
+function ensurePage(doc, y, needed, layout, fileName) {
+  if (y + needed <= layout.pageH - 24) return y
+
+  doc.addPage()
+  drawHeader(doc, layout, fileName)
+  return 38
 }
 
 function drawLogo(doc, x, y, logoData = null) {
@@ -378,10 +267,7 @@ function drawHeader(doc, layout, fileName) {
 
   font(doc, 7.1, 'normal', COLORS.muted)
   const headerLines = doc.splitTextToSize(headerText, headerMaxW)
-
-  doc.text(headerLines.slice(0, 2), pageW - margin, 16, {
-    align: 'right',
-  })
+  doc.text(headerLines.slice(0, 2), pageW - margin, 16, { align: 'right' })
 
   line(doc, margin, 29, pageW - margin, [232, 235, 241], 0.3)
 }
@@ -403,17 +289,8 @@ function drawFooter(doc, layout, page, total) {
   doc.text(`Page ${page} / ${total}`, pageW - margin, pageH - 11, { align: 'right' })
 }
 
-function ensurePage(doc, y, needed, layout, fileName) {
-  if (y + needed <= layout.pageH - 24) return y
-
-  doc.addPage()
-  drawHeader(doc, layout, fileName)
-  return 38
-}
-
-function drawDonut(doc, cx, cy, radius, score) {
-  const color = scoreColor(score)
-  const safeScore = Math.max(0, Math.min(100, score))
+function drawScoreRing(doc, cx, cy, radius, score, color) {
+  const safeScore = Math.max(0, Math.min(100, Number(score) || 0))
 
   doc.setDrawColor(226, 226, 226)
   doc.setLineWidth(4.2)
@@ -448,19 +325,19 @@ function drawDonut(doc, cx, cy, radius, score) {
   }
 
   font(doc, 12.8, 'bold', COLORS.ink)
-  doc.text(`${score}.0%`, cx, cy + 1.8, { align: 'center' })
+  doc.text(`${safeScore.toFixed(1)}%`, cx, cy + 1.8, { align: 'center' })
 }
 
-function drawScorePanel(doc, x, y, w, score) {
+function drawScorePanel(doc, x, y, w, score, label, color) {
   roundedCard(doc, x, y, w, 62)
 
   font(doc, 7, 'bold', COLORS.navy)
   doc.text('CREDIBILITY SCORE', x + w / 2, y + 10, { align: 'center' })
 
-  drawDonut(doc, x + w / 2, y + 30, 13, score)
+  drawScoreRing(doc, x + w / 2, y + 30, 13, score, color)
 
-  font(doc, 8.5, 'bold', scoreColor(score))
-  doc.text(scoreLabel(score), x + w / 2, y + 50, { align: 'center' })
+  font(doc, 8.5, 'bold', color)
+  doc.text(label, x + w / 2, y + 50, { align: 'center' })
 
   font(doc, 6.7, 'normal', COLORS.muted)
   const desc = doc.splitTextToSize(scoreDescription(score), w - 14)
@@ -489,8 +366,7 @@ function drawSummaryPanel(doc, x, y, w, c) {
     doc.circle(x + 9, yy - 1.7, 1.15, 'F')
 
     font(doc, 6.9, 'normal', COLORS.body)
-    const labelLines = doc.splitTextToSize(row[0], w - 28)
-    doc.text(labelLines.slice(0, 1), x + 13, yy)
+    doc.text(row[0], x + 13, yy, { maxWidth: w - 28 })
 
     font(doc, 7.8, 'bold', COLORS.ink)
     doc.text(String(row[1]), x + w - 7, yy, { align: 'right' })
@@ -514,8 +390,6 @@ function drawSummaryPanel(doc, x, y, w, c) {
       bx += width
     }
   })
-
-  return h
 }
 
 function drawDocumentPanel(doc, x, y, w, fileName, claimsCount) {
@@ -530,6 +404,51 @@ function drawDocumentPanel(doc, x, y, w, fileName, claimsCount) {
 
   font(doc, 7.1, 'normal', COLORS.muted)
   doc.text(`${claimsCount} claims processed`, x + 25, y + 23)
+}
+
+function drawChip(doc, x, y, label, value, color, pale) {
+  const text = `${label} ${value}`
+  font(doc, 6.6, 'bold', color)
+  const w = doc.getTextWidth(text) + 10
+
+  doc.setFillColor(...pale)
+  doc.setDrawColor(...color)
+  doc.setLineWidth(0.3)
+  doc.roundedRect(x, y, w, 8.5, 4.2, 4.2, 'FD')
+
+  font(doc, 6.6, 'bold', color)
+  doc.text(text, x + w / 2, y + 5.8, { align: 'center' })
+
+  return w
+}
+
+function drawChips(doc, mainX, mainW, y, counts, totalClaims) {
+  const chips = [
+    ['All', totalClaims, COLORS.navy, [236, 242, 255]],
+    ['Supported', counts.supported, COLORS.green, [236, 253, 245]],
+    ['Partial', counts.partial, COLORS.orange, [255, 247, 237]],
+    ['Unsupported', counts.unsupported, COLORS.red, [254, 242, 242]],
+    ['Hallucinated', counts.hallucinated, COLORS.purple, [250, 245, 255]],
+    ['Insufficient Evidence', counts.insufficient, COLORS.gray, [248, 250, 252]],
+  ]
+
+  let chipX = mainX
+  let chipY = y
+
+  chips.forEach(([label, value, color, pale]) => {
+    font(doc, 6.6, 'bold', color)
+    const neededW = doc.getTextWidth(`${label} ${value}`) + 10
+
+    if (chipX + neededW > mainX + mainW) {
+      chipX = mainX
+      chipY += 10
+    }
+
+    const usedW = drawChip(doc, chipX, chipY, label, value, color, pale)
+    chipX += usedW + 3
+  })
+
+  return chipY + 12
 }
 
 function drawClaimCard(doc, y, claim, index, layout, fileName) {
@@ -576,7 +495,8 @@ function drawClaimCard(doc, y, claim, index, layout, fileName) {
   font(doc, 7.1, 'bold', COLORS.muted)
   doc.text(`CLAIM ${index}`, mainX + padX, y + 12)
 
-  const badgeW = Math.min(Math.max(32, doc.getTextWidth(info.label) + 12), 50)
+  font(doc, 6.8, 'bold', info.color)
+  const badgeW = Math.min(Math.max(34, doc.getTextWidth(info.label) + 12), 58)
   const badgeX = mainX + mainW - badgeW - 8
   const badgeY = y + 7
   const badgeH = 8.7
@@ -586,7 +506,6 @@ function drawClaimCard(doc, y, claim, index, layout, fileName) {
   doc.setLineWidth(0.32)
   doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 4.3, 4.3, 'FD')
 
-  font(doc, 6.8, 'bold', info.color)
   const badgeText = doc.splitTextToSize(info.label, badgeW - 6)
   doc.text(badgeText.slice(0, 1), badgeX + badgeW / 2, badgeY + 5.9, {
     align: 'center',
@@ -656,12 +575,21 @@ function drawClaimCard(doc, y, claim, index, layout, fileName) {
   return y + h + 9
 }
 
-async function buildReport(...args) {
-  const { raw, fileName } = inputFromArgs(args)
-  const claims = getClaims(raw)
-  const score = getScore(raw, claims)
-  const c = countClaims(claims)
-  const logoData = await loadImageDataUrl(logoUrl)
+async function buildReport({
+  claims = [],
+  fileName = 'uploaded_document.pdf',
+  logo = null,
+  credibilityScore = 0,
+  credibilityLabel = '',
+  credibilityColor = '',
+} = {}) {
+  const normalizedClaims = normalizeClaims(claims)
+  const counts = countClaims(normalizedClaims)
+  const score = Number(credibilityScore) || 0
+  const scoreRgb = scoreColor(score, credibilityColor)
+  const scoreText = scoreLabel(score, credibilityLabel)
+
+  const logoData = await loadImageDataUrl(logo || logoUrl)
 
   const doc = new jsPDF('p', 'mm', 'a4')
   const pageW = doc.internal.pageSize.getWidth()
@@ -689,61 +617,29 @@ async function buildReport(...args) {
 
   drawHeader(doc, layout, fileName)
 
-  drawScorePanel(doc, margin, 40, sidebarW, score)
-  drawSummaryPanel(doc, margin, 105, sidebarW, c)
-  drawDocumentPanel(doc, margin, 193, sidebarW, fileName, claims.length)
+  drawScorePanel(doc, margin, 40, sidebarW, score, scoreText, scoreRgb)
+  drawSummaryPanel(doc, margin, 107, sidebarW, counts)
+  drawDocumentPanel(doc, margin, 193, sidebarW, fileName, normalizedClaims.length)
 
   font(doc, 17, 'bold', COLORS.ink)
   doc.text('Verification Results', mainX, 45)
 
   font(doc, 8.8, 'normal', COLORS.muted)
   doc.text(
-    `${claims.length} claims checked · ${c.supported} supported · ${c.hallucinated + c.unsupported + c.insufficient} requiring review`,
+    `${normalizedClaims.length} claims checked · ${counts.supported} supported · ${counts.unsupported + counts.hallucinated + counts.insufficient} requiring review`,
     mainX,
     53
   )
 
-  const chips = [
-    ['All', claims.length, COLORS.navy, [236, 242, 255]],
-    ['Supported', c.supported, COLORS.green, [236, 253, 245]],
-    ['Partial', c.partial, COLORS.orange, [255, 247, 237]],
-    ['Unsupported', c.unsupported, COLORS.red, [254, 242, 242]],
-    ['Hallucinated', c.hallucinated, COLORS.purple, [250, 245, 255]],
-    ['Insufficient Evidence', c.insufficient, COLORS.gray, [248, 250, 252]],
-  ]
+  const yAfterChips = drawChips(doc, mainX, mainW, 61, counts, normalizedClaims.length)
+  let y = yAfterChips + 6
 
-  let chipX = mainX
-  let chipY = 61
-
-  chips.forEach(([label, value, color, pale]) => {
-    const text = `${label} ${value}`
-    font(doc, 6.6, 'bold', color)
-    const w = Math.max(18, doc.getTextWidth(text) + 10)
-
-    if (chipX + w > mainX + mainW) {
-      chipX = mainX
-      chipY += 10
-    }
-
-    doc.setFillColor(...pale)
-    doc.setDrawColor(...color)
-    doc.setLineWidth(0.3)
-    doc.roundedRect(chipX, chipY, w, 8.5, 4.2, 4.2, 'FD')
-
-    font(doc, 6.6, 'bold', color)
-    doc.text(text, chipX + w / 2, chipY + 5.8, { align: 'center' })
-
-    chipX += w + 3
-  })
-
-  let y = chipY + 18
-
-  if (!claims.length) {
+  if (!normalizedClaims.length) {
     roundedCard(doc, mainX, y, mainW, 28)
     font(doc, 8.5, 'normal', COLORS.muted)
     doc.text('No claims were available for this report.', mainX + 8, y + 15)
   } else {
-    claims.forEach((claim, index) => {
+    normalizedClaims.forEach((claim, index) => {
       y = drawClaimCard(doc, y, claim, index + 1, layout, fileName)
     })
   }
@@ -759,35 +655,35 @@ async function buildReport(...args) {
   return doc
 }
 
-export function generateVerificationPdf(...args) {
+export async function generateVerificationPdf(...args) {
   return buildReport(...args)
 }
 
-export function generateVerificationPDF(...args) {
+export async function generateVerificationPDF(...args) {
   return buildReport(...args)
 }
 
-export function generatePdfReport(...args) {
+export async function generatePdfReport(...args) {
   return buildReport(...args)
 }
 
-export function generatePDFReport(...args) {
+export async function generatePDFReport(...args) {
   return buildReport(...args)
 }
 
-export function generateReport(...args) {
+export async function generateReport(...args) {
   return buildReport(...args)
 }
 
-export function downloadPdfReport(...args) {
+export async function downloadPdfReport(...args) {
   return buildReport(...args)
 }
 
-export function downloadPDFReport(...args) {
+export async function downloadPDFReport(...args) {
   return buildReport(...args)
 }
 
-export function createPdfReport(...args) {
+export async function createPdfReport(...args) {
   return buildReport(...args)
 }
 
