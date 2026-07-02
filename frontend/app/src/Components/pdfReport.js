@@ -664,9 +664,12 @@ async function buildReport({
   font(doc, 17, 'bold', COLORS.ink)
   doc.text('Verification Results', mainX, 45)
 
+  const unresolvableCount = counts.hallucinated + counts.insufficient
+  const resolvedDoiCount = Math.max(0, normalizedClaims.length - unresolvableCount)
+
   font(doc, 8.8, 'normal', COLORS.muted)
   doc.text(
-    `${normalizedClaims.length} claims checked · ${counts.supported} supported · ${counts.unsupported + counts.hallucinated + counts.insufficient} requiring review`,
+    `${normalizedClaims.length} claims checked · ${resolvedDoiCount} DOIs resolved · ${unresolvableCount} unresolvable`,
     mainX,
     53
   )
