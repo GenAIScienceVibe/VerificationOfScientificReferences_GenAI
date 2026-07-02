@@ -349,6 +349,8 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
       await loadResults()
       setRefUploadedFilename(prev => ({ ...prev, [claim.id]: file.name }))
       setRefUploadStatus(prev => { const next = { ...prev }; delete next[claim.id]; return next })
+      setPassageData(prev => { const next = { ...prev }; delete next[claim.id]; return next })
+      setExpandedPassages(prev => ({ ...prev, [claim.id]: false }))
     } catch (err) {
       console.error('Reference upload failed:', err)
       setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'error' }))
