@@ -329,29 +329,26 @@ function inputFromArgs(args) {
   }
 }
 
-function drawLogo(doc, x, y) {
-  font(doc, 10.8, 'bold', COLORS.navy)
-  doc.text('verifAi', x, y)
-}
-
-function drawHeader(doc, layout, fileName) {
+function drawHeader(doc, layout, fileName, logoB64) {
   const { pageW, margin } = layout
 
-  doc.setFillColor(255, 255, 255)
+  // Navy top bar
+  doc.setFillColor(...COLORS.navy)
   doc.rect(0, 0, pageW, 31, 'F')
 
-  drawLogo(doc, margin, 18)
+  // Logo image or fallback text
+  if (logoB64) {
+    doc.addImage(logoB64, 'PNG', margin, 3, 22, 22)
+    font(doc, 11, 'bold', [255, 255, 255])
+    doc.text('verifAi', margin + 26, 18)
+  } else {
+    font(doc, 11, 'bold', [255, 255, 255])
+    doc.text('verifAi', margin, 18)
+  }
 
   const headerText = `Verification Report · ${fileName} · ${formatDate()}`
-  const headerMaxW = pageW - margin * 2 - 48
-
-  font(doc, 7.1, 'normal', COLORS.muted)
-  const headerLines = doc.splitTextToSize(headerText, headerMaxW)
-  doc.text(headerLines.slice(0, 2), pageW - margin, 16, {
-    align: 'right',
-  })
-
-  line(doc, margin, 29, pageW - margin, [232, 235, 241], 0.3)
+  font(doc, 7, 'normal', [180, 195, 220])
+  doc.text(doc.splitTextToSize(headerText, pageW - margin * 2 - 50).slice(0, 2), pageW - margin, 16, { align: 'right' })
 }
 
 function drawFooter(doc, layout, page, total) {
@@ -371,11 +368,13 @@ function drawFooter(doc, layout, page, total) {
   doc.text(`Page ${page} / ${total}`, pageW - margin, pageH - 11, { align: 'right' })
 }
 
-function ensurePage(doc, y, needed, layout, fileName) {
+function ensurePage(doc, y, needed, layout, fileName, logoB64) {
   if (y + needed <= layout.pageH - 24) return y
 
   doc.addPage()
-  drawHeader(doc, layout, fileName)
+  doc.setFillColor(...COLORS.softBg)
+  doc.rect(0, 0, layout.pageW, layout.pageH, 'F')
+  drawHeader(doc, layout, fileName, logoB64)
   return 38
 }
 
@@ -478,7 +477,7 @@ function drawDocumentPanel(doc, x, y, w, fileName, claimsCount) {
   doc.text(`${claimsCount} claims processed`, x + 25, y + 23)
 }
 
-function drawClaimCard(doc, y, claim, index, layout, fileName) {
+function drawClaimCard(doc, y, claim, index, layout, fileName, logoB64) {
   const { mainX, mainW } = layout
   const info = statusInfo(claim.status)
 
@@ -516,9 +515,15 @@ function drawClaimCard(doc, y, claim, index, layout, fileName) {
     warningLines.length * 4.8 +
     22
 
-  y = ensurePage(doc, y, h, layout, fileName)
+  y = ensurePage(doc, y, h, layout, fileName, logoB64)
 
-  roundedCard(doc, mainX, y, mainW, h, COLORS.cardBg, info.color)
+  roundedCard(doc, mainX, y, mainW, h, COLORS.cardBg, COLORS.border)
+
+  // Colored left accent bar
+  doc.setFillColor(...info.color)
+  doc.roundedRect(mainX, y, 4, h, 2, 2, 'F')
+  doc.setFillColor(...info.color)
+  doc.rect(mainX + 2, y, 2, h, 'F')
 
   font(doc, 7.1, 'bold', COLORS.muted)
   doc.text(`CLAIM ${index}`, mainX + padX, y + 12)
@@ -603,11 +608,31 @@ function drawClaimCard(doc, y, claim, index, layout, fileName) {
   return y + h + 9
 }
 
-function buildReport(...args) {
+function loadImg(url) {
+  return new Promise(res => {
+    if (!url) return res(null)
+    const img = new window.Image()
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas')
+        c.width = img.width; c.height = img.height
+        c.getContext('2d').drawImage(img, 0, 0)
+        res(c.toDataURL('image/png'))
+      } catch { res(null) }
+    }
+    img.onerror = () => res(null)
+    img.src = url
+  })
+}
+
+async function buildReport(...args) {
   const { raw, fileName } = inputFromArgs(args)
   const claims = getClaims(raw)
   const score = getScore(raw, claims)
   const c = countClaims(claims)
+
+  const logoSrc = raw?.logo || null
+  const logoB64 = logoSrc ? await loadImg(logoSrc) : null
 
   const doc = new jsPDF('p', 'mm', 'a4')
   const pageW = doc.internal.pageSize.getWidth()
@@ -632,7 +657,7 @@ function buildReport(...args) {
   doc.setFillColor(...COLORS.softBg)
   doc.rect(0, 0, pageW, pageH, 'F')
 
-  drawHeader(doc, layout, fileName)
+  drawHeader(doc, layout, fileName, logoB64)
 
   drawScorePanel(doc, margin, 40, sidebarW, score)
   drawSummaryPanel(doc, margin, 105, sidebarW, c)
@@ -678,7 +703,7 @@ function buildReport(...args) {
     doc.text('No claims were available for this report.', mainX + 8, y + 15)
   } else {
     claims.forEach((claim, index) => {
-      y = drawClaimCard(doc, y, claim, index + 1, layout, fileName)
+      y = drawClaimCard(doc, y, claim, index + 1, layout, fileName, logoB64)
     })
   }
 
