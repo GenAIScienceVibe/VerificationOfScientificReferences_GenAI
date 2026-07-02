@@ -246,11 +246,12 @@ function ensurePage(doc, y, needed, layout, fileName) {
 
 function drawLogo(doc, x, y, logoData = null) {
   if (logoData) {
-    doc.addImage(logoData, 'PNG', x, y - 7.5, 25, 9)
+    // Real VerifAI logo, smaller and balanced in the header
+    doc.addImage(logoData, 'PNG', x, y - 6.2, 18, 7.2)
     return
   }
 
-  font(doc, 10.8, 'bold', COLORS.navy)
+  font(doc, 10.2, 'bold', COLORS.navy)
   doc.text('verifAi', x, y)
 }
 
@@ -260,7 +261,7 @@ function drawHeader(doc, layout, fileName) {
   doc.setFillColor(255, 255, 255)
   doc.rect(0, 0, pageW, 31, 'F')
 
-  drawLogo(doc, margin, 18, logoData)
+  drawLogo(doc, margin, 17.5, logoData)
 
   const headerText = `Verification Report · ${fileName} · ${formatDate()}`
   const headerMaxW = pageW - margin * 2 - 52
@@ -410,14 +411,18 @@ function drawChip(doc, x, y, label, value, color, pale) {
   const text = `${label} ${value}`
   font(doc, 6.6, 'bold', color)
   const w = doc.getTextWidth(text) + 10
+  const h = 8.5
 
   doc.setFillColor(...pale)
   doc.setDrawColor(...color)
   doc.setLineWidth(0.3)
-  doc.roundedRect(x, y, w, 8.5, 4.2, 4.2, 'FD')
+  doc.roundedRect(x, y, w, h, 4.2, 4.2, 'FD')
 
   font(doc, 6.6, 'bold', color)
-  doc.text(text, x + w / 2, y + 5.8, { align: 'center' })
+  doc.text(text, x + w / 2, y + h / 2 + 0.6, {
+    align: 'center',
+    baseline: 'middle',
+  })
 
   return w
 }
@@ -507,8 +512,9 @@ function drawClaimCard(doc, y, claim, index, layout, fileName) {
   doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 4.3, 4.3, 'FD')
 
   const badgeText = doc.splitTextToSize(info.label, badgeW - 6)
-  doc.text(badgeText.slice(0, 1), badgeX + badgeW / 2, badgeY + 5.9, {
+  doc.text(badgeText.slice(0, 1), badgeX + badgeW / 2, badgeY + badgeH / 2 + 0.5, {
     align: 'center',
+    baseline: 'middle',
   })
 
   let yy = y + 24
