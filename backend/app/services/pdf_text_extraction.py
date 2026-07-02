@@ -31,7 +31,7 @@ def _extract_page_text(page: object) -> str:  # type: ignore[type-arg]
 
     page_width: float = page.rect.width
     if page_width <= 0:
-        return "\n".join(b[4] for b in sorted(text_blocks, key=lambda b: b[1]))
+        return "\n".join(b[4].rstrip("\n") for b in sorted(text_blocks, key=lambda b: b[1]))
 
     # Two-column heuristic: if the median block width is narrower than 55 % of
     # the page, the page most likely has two columns.  We require at least 4
@@ -44,17 +44,17 @@ def _extract_page_text(page: object) -> str:  # type: ignore[type-arg]
         # Use the horizontal centre of each block to assign it to a column.
         mid = page_width / 2
         left_col = sorted(
-            [(b[1], b[4]) for b in text_blocks if (b[0] + b[2]) / 2 < mid],
+            [(b[1], b[4].rstrip("\n")) for b in text_blocks if (b[0] + b[2]) / 2 < mid],
             key=lambda t: t[0],
         )
         right_col = sorted(
-            [(b[1], b[4]) for b in text_blocks if (b[0] + b[2]) / 2 >= mid],
+            [(b[1], b[4].rstrip("\n")) for b in text_blocks if (b[0] + b[2]) / 2 >= mid],
             key=lambda t: t[0],
         )
         return "\n".join(text for _, text in left_col + right_col)
 
     # Single column: sort all blocks top-to-bottom.
-    return "\n".join(b[4] for b in sorted(text_blocks, key=lambda b: b[1]))
+    return "\n".join(b[4].rstrip("\n") for b in sorted(text_blocks, key=lambda b: b[1]))
 
 
 class PdfTextExtractionService:
