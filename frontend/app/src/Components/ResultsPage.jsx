@@ -182,6 +182,7 @@ function ResultsPage() {
   const [refUploadedFilename, setRefUploadedFilename] = useState({})
   const [expandedPassages, setExpandedPassages] = useState({})
   const [expandedReasoning, setExpandedReasoning] = useState({})
+  const [manualOverrideNotice, setManualOverrideNotice] = useState(null)
   const [passageData, setPassageData] = useState({})
   const [flashUpload, setFlashUpload] = useState(false)
   const [manualOverrides, setManualOverrides] = useState({})
@@ -331,6 +332,35 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
       console.error('PDF generation failed:', err)
       alert('PDF generation failed: ' + err.message)
     }
+  }
+
+  const handleManualStatusChange = (claim, nextStatus) => {
+    if (!nextStatus || nextStatus === claim.status) return
+
+    const fromLabel = statusConfig[claim.status]?.label || claim.status
+    const toLabel = statusConfig[nextStatus]?.label || nextStatus
+
+    const confirmed = window.confirm(
+      `Are you sure you want to manually change this verdict from "${fromLabel}" to "${toLabel}"?`
+    )
+
+    if (!confirmed) return
+
+    setClaims(prevClaims =>
+      prevClaims.map(item =>
+        item.id === claim.id
+          ? {
+              ...item,
+              status: nextStatus,
+              manuallyChanged: true,
+              originalStatus: item.originalStatus || item.status,
+            }
+          : item
+      )
+    )
+
+    setManualOverrideNotice(`Claim ${claim.displayId} was manually changed to ${toLabel}.`)
+    setTimeout(() => setManualOverrideNotice(null), 2500)
   }
 
   const jumpToUnresolvedSources = () => {
@@ -526,6 +556,21 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
 
           {activeView === 'overview' && (
             <>
+              {manualOverrideNotice && (
+                <div style={{
+                  background: "#eff6ff",
+                  border: "1px solid #bfdbfe",
+                  color: "#1a3a6b",
+                  borderRadius: "10px",
+                  padding: "10px 14px",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  marginBottom: "14px",
+                }}>
+                  {manualOverrideNotice}
+                </div>
+              )}
+
               <div ref={claimsListRef} style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>
                 {filters.map((filter) => (
                   <button key={filter.label} onClick={() => setActiveFilter(filter.label)} className="verifai-filter-btn" style={{ padding: "8px 16px", borderRadius: "99px", fontSize: "13px", fontWeight: "600", cursor: "pointer", background: activeFilter === filter.label ? filter.color : "white", color: activeFilter === filter.label ? "white" : filter.color, border: `1px solid ${filter.border}` }}>
@@ -542,7 +587,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                   {filteredClaims.map(claim => {
                     const effectiveStatus = manualOverrides[claim.id] || claim.status
-                    const config = statusConfig[effectiveStatus]
+                    const config = statusConfig[effectiveStatus] || statusConfig.insufficient
                     const isOverridden = !!manualOverrides[claim.id]
                     const showManualUpload = !claim.doiResolved || effectiveStatus === 'insufficient'
                     const uploadState = refUploadStatus[claim.id]
@@ -559,27 +604,38 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
 
                         {/* Header */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                             <span style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px" }}>CLAIM {claim.displayId}</span>
-                            {isOverridden && (
-                              <span style={{ fontSize: "10px", fontWeight: "600", color: "#d97706", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: "99px", padding: "2px 8px" }}>
+                            {claim.manuallyChanged && (
+                              <span style={{ fontSize: "11px", fontWeight: "700", color: "#1a3a6b", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "999px", padding: "4px 8px" }}>
                                 Manually changed
                               </span>
                             )}
+                            <select
+                              value={effectiveStatus}
+                              onChange={(e) => handleManualStatusChange(claim, e.target.value)}
+                              title="Manually change verdict"
+                              style={{ fontSize: "12px", fontWeight: "600", color: "#1a3a6b", background: "white", border: "1px solid #d0d5dd", borderRadius: "999px", padding: "5px 9px", cursor: "pointer", outline: "none" }}
+                            >
+                              <option value="supported">Supported</option>
+                              <option value="partial">Partially Supported</option>
+                              <option value="unsupported">Unsupported</option>
+                              <option value="hallucinated">Hallucinated</option>
+                              <option value="insufficient">Insufficient Evidence</option>
+                            </select>
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", position: "relative" }}>
-                            <div className="verifai-tooltip">
-                              <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}`, cursor: "default" }}>
-                                {config.label}
-                              </span>
-                              <span className="verifai-tooltip-text" style={{ textAlign: "left" }}>
-                                {STATUS_TOOLTIPS[effectiveStatus] || STATUS_TOOLTIPS[claim.status]}
-                                {' '}
+                          <div className="verifai-tooltip">
+                            <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}`, cursor: "default" }}>
+                              {config.label}
+                            </span>
+                            <span className="verifai-tooltip-text" style={{ textAlign: "left" }}>
+                              {STATUS_TOOLTIPS[effectiveStatus] || STATUS_TOOLTIPS[claim.status]}
+                              {' '}
 <a href={`/how-it-works?tab=categories#category-${STATUS_ANCHOR[effectiveStatus]}`} style={{ color: "#93c5fd", fontSize: "11px", display: "block", marginTop: "6px" }} onClick={e => e.stopPropagation()}>
   Learn more
 </a>
-                              </span>
-                            </div>
+                            </span>
+                          </div>
                             {/* Override button */}
                             <div style={{ position: "relative" }}>
                               <button
