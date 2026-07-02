@@ -14,6 +14,49 @@ class PdfExtractionResult:
     warnings: list[str]
 
 
+def _extract_page_text(page: object) -> str:  # type: ignore[type-arg]
+    """Extract text from a single PDF page with two-column layout detection.
+
+    Uses block-level extraction so we can sort blocks by visual reading order.
+    For two-column layouts (median block width < 55 % of page width) we read
+    the left column top-to-bottom, then the right column top-to-bottom.
+    Single-column pages are sorted by y-position only.
+    """
+    blocks = page.get_text("blocks")  # (x0, y0, x1, y1, text, block_no, block_type)
+    # block_type 0 = text, 1 = image — keep only text blocks with content
+    text_blocks = [b for b in blocks if len(b) > 6 and b[6] == 0 and b[4].strip()]
+
+    if not text_blocks:
+        return ""
+
+    page_width: float = page.rect.width
+    if page_width <= 0:
+        return "\n".join(b[4] for b in sorted(text_blocks, key=lambda b: b[1]))
+
+    # Two-column heuristic: if the median block width is narrower than 55 % of
+    # the page, the page most likely has two columns.  We require at least 4
+    # blocks to avoid misclassifying sparse pages (e.g. chapter title pages).
+    widths = sorted(b[2] - b[0] for b in text_blocks)
+    median_width = widths[len(widths) // 2]
+    is_two_column = len(text_blocks) >= 4 and median_width < page_width * 0.55
+
+    if is_two_column:
+        # Use the horizontal centre of each block to assign it to a column.
+        mid = page_width / 2
+        left_col = sorted(
+            [(b[1], b[4]) for b in text_blocks if (b[0] + b[2]) / 2 < mid],
+            key=lambda t: t[0],
+        )
+        right_col = sorted(
+            [(b[1], b[4]) for b in text_blocks if (b[0] + b[2]) / 2 >= mid],
+            key=lambda t: t[0],
+        )
+        return "\n".join(text for _, text in left_col + right_col)
+
+    # Single column: sort all blocks top-to-bottom.
+    return "\n".join(b[4] for b in sorted(text_blocks, key=lambda b: b[1]))
+
+
 class PdfTextExtractionService:
     """Text-based PDF extraction for BE-3.
 
@@ -49,7 +92,7 @@ class PdfTextExtractionService:
             warnings: list[str] = []
             for page_index in range(document.page_count):
                 page = document.load_page(page_index)
-                text = page.get_text("text") or ""
+                text = _extract_page_text(page)
                 if not text.strip():
                     warnings.append(f"Page {page_index + 1} did not contain extractable text.")
                 page_texts.append({"page_number": page_index + 1, "text": text})

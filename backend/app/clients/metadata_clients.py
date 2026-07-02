@@ -570,10 +570,16 @@ class SemanticScholarClient:
         self.timeout = settings.metadata_service_timeout_seconds
         self._client = http_client
 
+    def _headers(self) -> dict[str, str]:
+        h = {"User-Agent": self.settings.metadata_user_agent}
+        if self.settings.semantic_scholar_api_key:
+            h["x-api-key"] = self.settings.semantic_scholar_api_key
+        return h
+
     def lookup_by_doi(self, doi: str) -> MetadataLookupResponse:
         url = f"{self.base_url}/graph/v1/paper/DOI:{doi}"
         params = {"fields": "title,authors,year,abstract,venue,openAccessPdf"}
-        headers = {"User-Agent": self.settings.metadata_user_agent}
+        headers = self._headers()
         try:
             if self._client is not None:
                 response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
@@ -627,7 +633,7 @@ class SemanticScholarClient:
         """Look up a paper by arXiv ID (e.g. '2109.05581') using the arXiv: prefix."""
         url = f"{self.base_url}/graph/v1/paper/arXiv:{arxiv_id}"
         params = {"fields": "title,authors,year,abstract,venue,openAccessPdf,externalIds"}
-        headers = {"User-Agent": self.settings.metadata_user_agent}
+        headers = self._headers()
         try:
             if self._client is not None:
                 response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
@@ -700,40 +706,42 @@ class SemanticScholarClient:
             "fields": "title,authors,year,externalIds,abstract,venue,openAccessPdf",
             "limit": "5",
         }
-        headers = {"User-Agent": self.settings.metadata_user_agent}
-        # SS /paper/search rate-limits unauthenticated callers at ~5-10 req/min —
-        # much stricter than the DOI-lookup endpoints. A 3-second pause keeps us
-        # at ~20 req/min; combined with the 5-second 429 retry this stays safe.
-        time.sleep(3)
+        headers = self._headers()
         response = None
-        for attempt in range(2):
-            try:
-                if self._client is not None:
-                    response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
-                else:
-                    with httpx.Client(timeout=self.timeout) as client:
-                        response = client.get(url, headers=headers, params=params)
-            except httpx.TimeoutException as exc:
-                return MetadataLookupResponse(
-                    success=False,
-                    lookup_source="SemanticScholar",
-                    lookup_status=MetadataStatus.LOOKUP_FAILED.value,
-                    error_code="METADATA_LOOKUP_TIMEOUT",
-                    error_message=str(exc),
-                )
-            except httpx.HTTPError as exc:
-                return MetadataLookupResponse(
-                    success=False,
-                    lookup_source="SemanticScholar",
-                    lookup_status=MetadataStatus.LOOKUP_FAILED.value,
-                    error_code="METADATA_SERVICE_UNAVAILABLE",
-                    error_message=str(exc),
-                )
-            if response.status_code == 429 and attempt == 0:
-                # Rate-limited: back off for 10 seconds and retry once
-                time.sleep(10)
-                continue
-            break
+        try:
+            if self._client is not None:
+                response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.get(url, headers=headers, params=params)
+        except httpx.TimeoutException as exc:
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="SemanticScholar",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_LOOKUP_TIMEOUT",
+                error_message=str(exc),
+            )
+        except httpx.HTTPError as exc:
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="SemanticScholar",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                error_code="METADATA_SERVICE_UNAVAILABLE",
+                error_message=str(exc),
+            )
+        # On 429 return immediately — no retry, no sleep.
+        # The caller falls through to the next API (DBLP/CORE/Google Books).
+        # Re-add the retry once a Semantic Scholar API key is configured.
+        if response.status_code == 429:
+            return MetadataLookupResponse(
+                success=False,
+                lookup_source="SemanticScholar",
+                lookup_status=MetadataStatus.LOOKUP_FAILED.value,
+                status_code=429,
+                error_code="DOI_LOOKUP_FAILED",
+                error_message="Semantic Scholar rate-limited (429); skipping without retry.",
+            )
 
         if response is None or response.status_code != 200:
             status_code = response.status_code if response is not None else None
@@ -959,7 +967,9 @@ class CoreClient:
         as accepted manuscripts but not formally indexed elsewhere.
         """
         params: dict[str, str] = {"q": title.strip(), "limit": "5"}
-        url = f"{self.base_url}/search/works"
+        # Trailing slash avoids a 301 redirect from /search/works → /search/works/
+        # which wastes one round-trip and can eat into the timeout budget.
+        url = f"{self.base_url}/search/works/"
         try:
             if self._client is not None:
                 response = self._client.get(url, headers=self._headers(), params=params, timeout=self.timeout)

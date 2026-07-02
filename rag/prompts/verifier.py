@@ -36,7 +36,9 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from openai import OpenAI
 
-from rag.prompts.config import GROQ_BASE_URL, LLM_MODEL, LLM_TEMPERATURE
+import openai
+
+from rag.prompts.config import GROQ_BASE_URL, LLM_MODEL, OPENROUTER_BASE_URL, LLM_TEMPERATURE
 from rag.verification.models import Verdict, VerificationInput
 
 logger = logging.getLogger(__name__)
@@ -52,6 +54,10 @@ TEMPLATE_NAME = "verify.j2"
 # (observed: Groq) that returns content normally for the same prompt.
 NULL_CONTENT_MAX_ATTEMPTS = 3
 NULL_CONTENT_RETRY_DELAY_SECONDS = 1
+
+# OpenRouter model name for the Groq→OpenRouter fallback.
+# OpenRouter uses the short form; Groq uses the full versioned name.
+LLM_MODEL_OPENROUTER = "meta-llama/llama-4-scout"
 
 SYSTEM_PROMPT = (
     "You are a precise, evidence-grounded citation verifier. Always respond "
@@ -76,23 +82,44 @@ _jinja_env = Environment(
 # ── Private helpers ───────────────────────────────────────────────────────────
 
 
-def _build_client() -> OpenAI:
-    """
-    Build and return an OpenAI-compatible client pointed at Groq.
-
-    We use Groq directly for lower latency and to avoid the null-content
-    issue observed with some OpenRouter backends (DeepInfra silently drops
-    message.content on large prompts). The retry loop below still guards
-    against any transient null-content responses.
-
-    Raises EnvironmentError if GROQ_API_KEY is not set.
-    """
+def _build_groq_client() -> OpenAI:
+    """Build an OpenAI-compatible client pointed at Groq (primary)."""
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        raise EnvironmentError(
-            "GROQ_API_KEY is not set. Add it to your .env file."
-        )
+        raise EnvironmentError("GROQ_API_KEY is not set. Add it to your .env file.")
     return OpenAI(api_key=api_key, base_url=GROQ_BASE_URL)
+
+
+def _build_openrouter_client() -> OpenAI:
+    """Build an OpenAI-compatible client pointed at OpenRouter (fallback)."""
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise EnvironmentError("OPENROUTER_API_KEY is not set. Add it to your .env file.")
+    return OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL)
+
+
+def _call_llm(client: OpenAI, model: str, prompt: str) -> str | None:
+    """Make one LLM chat-completion call, retrying on null content."""
+    content = None
+    for attempt in range(1, NULL_CONTENT_MAX_ATTEMPTS + 1):
+        response = client.chat.completions.create(
+            model=model,
+            temperature=LLM_TEMPERATURE,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        content = response.choices[0].message.content
+        if content is not None:
+            break
+        if attempt < NULL_CONTENT_MAX_ATTEMPTS:
+            logger.warning("LLM call %d/%d returned null content; retrying in %ds.",
+                           attempt, NULL_CONTENT_MAX_ATTEMPTS, NULL_CONTENT_RETRY_DELAY_SECONDS)
+            time.sleep(NULL_CONTENT_RETRY_DELAY_SECONDS)
+        else:
+            logger.error("LLM returned null content on all %d attempts.", NULL_CONTENT_MAX_ATTEMPTS)
+    return content
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -136,41 +163,33 @@ def generate_verdict(input_data: VerificationInput) -> str:
         EnvironmentError: if OPENROUTER_API_KEY is not set.
         openai.APIError:  on any non-retryable API error.
     """
-    client = _build_client()
     prompt = render_prompt(input_data)
 
-    logger.info(
-        "DOI %s — calling %s for verification (citation_type=%s, %d evidence chunks).",
-        input_data.doi, LLM_MODEL, input_data.citation_type, len(input_data.chunks),
-    )
-
-    content = None
-    for attempt in range(1, NULL_CONTENT_MAX_ATTEMPTS + 1):
-        response = client.chat.completions.create(
-            model=LLM_MODEL,
-            temperature=LLM_TEMPERATURE,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
+    # Primary: Groq (low latency). Fallback: OpenRouter (on 429 / any API error).
+    try:
+        client = _build_groq_client()
+        logger.info(
+            "DOI %s — calling %s via Groq for verification (citation_type=%s, %d evidence chunks).",
+            input_data.doi, LLM_MODEL, input_data.citation_type, len(input_data.chunks),
         )
-        content = response.choices[0].message.content
-        if content is not None:
-            break
+        return _call_llm(client, LLM_MODEL, prompt)
+    except openai.RateLimitError:
+        logger.warning(
+            "DOI %s — Groq rate-limited (429); falling back to OpenRouter.",
+            input_data.doi,
+        )
+    except openai.APIError as exc:
+        logger.warning(
+            "DOI %s — Groq API error (%s); falling back to OpenRouter.",
+            input_data.doi, exc,
+        )
 
-        if attempt < NULL_CONTENT_MAX_ATTEMPTS:
-            logger.warning(
-                "DOI %s — LLM call %d/%d returned null content; retrying in %ds.",
-                input_data.doi, attempt, NULL_CONTENT_MAX_ATTEMPTS, NULL_CONTENT_RETRY_DELAY_SECONDS,
-            )
-            time.sleep(NULL_CONTENT_RETRY_DELAY_SECONDS)
-        else:
-            logger.error(
-                "DOI %s — LLM call returned null content on all %d attempts.",
-                input_data.doi, NULL_CONTENT_MAX_ATTEMPTS,
-            )
-
-    return content
+    client = _build_openrouter_client()
+    logger.info(
+        "DOI %s — calling %s via OpenRouter (fallback) for verification.",
+        input_data.doi, LLM_MODEL_OPENROUTER,
+    )
+    return _call_llm(client, LLM_MODEL_OPENROUTER, prompt)
 
 
 def compute_human_review_required(

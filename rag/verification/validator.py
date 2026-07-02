@@ -69,6 +69,22 @@ def _extract_final_verdict_json(raw_text: str) -> str:
     return candidate
 
 
+def _normalize_verdict_label(data: dict) -> dict:
+    """
+    Normalize the verdict label to match the Verdict enum exactly.
+
+    The LLM occasionally returns labels with spaces instead of underscores
+    (e.g. "INSUFFICIENT EVIDENCE") or in mixed case ("Not_Supported").
+    Pydantic would reject these and trigger the NEEDS_HUMAN_REVIEW fallback
+    even though the LLM's intent was clear. This converts the raw string to
+    uppercase with spaces replaced by underscores before Pydantic sees it.
+    """
+    verdict = data.get("verdict")
+    if isinstance(verdict, str):
+        data["verdict"] = verdict.strip().upper().replace(" ", "_")
+    return data
+
+
 def _normalize_evidence_used(data: dict) -> dict:
     """
     Normalize evidence_used entries that are full dict objects (the LLM
@@ -140,6 +156,7 @@ def validate_output(raw_json: str, low_confidence: bool = False) -> Verification
         logger.error("LLM verification response is missing required field %s", exc)
         return _fallback_output(f"missing required field {exc}")
 
+    data = _normalize_verdict_label(data)
     data = _normalize_evidence_used(data)
 
     try:
