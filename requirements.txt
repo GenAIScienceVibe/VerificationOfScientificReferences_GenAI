@@ -1,0 +1,5 @@
+# Railway deployment manifest — installs all backend and RAG dependencies.
+# References the sub-group requirements files to stay in sync automatically.
+
+-r backend/requirements.txt
+-r rag/requirements.txt
