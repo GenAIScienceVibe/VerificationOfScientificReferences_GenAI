@@ -1,19 +1,19 @@
 import jsPDF from 'jspdf'
 
 const COLORS = {
-  navy: [24, 55, 103],
+  navy: [26, 58, 107],
   navyDark: [18, 43, 84],
-  ink: [25, 28, 34],
-  body: [65, 68, 76],
-  muted: [132, 136, 145],
-  border: [220, 224, 231],
-  softBg: [247, 248, 250],
+  ink: [24, 27, 32],
+  body: [68, 72, 80],
+  muted: [137, 141, 150],
+  border: [226, 230, 236],
+  softBg: [248, 249, 251],
   cardBg: [255, 255, 255],
   reasoningBg: [248, 249, 251],
-  green: [34, 197, 94],
-  orange: [245, 158, 11],
+  green: [22, 163, 74],
+  orange: [217, 119, 6],
   red: [239, 68, 68],
-  purple: [147, 51, 234],
+  purple: [126, 34, 206],
   gray: [107, 114, 128],
 }
 
@@ -100,10 +100,14 @@ function writeWrapped(doc, text, x, y, width, lineHeight = 4.8) {
 }
 
 function roundedCard(doc, x, y, w, h, fill = COLORS.cardBg, stroke = COLORS.border) {
+  // subtle shadow, similar to the cards in the web UI
+  doc.setFillColor(242, 244, 248)
+  doc.roundedRect(x + 0.9, y + 1.1, w, h, 4.5, 4.5, 'F')
+
   doc.setFillColor(...fill)
   doc.setDrawColor(...stroke)
-  doc.setLineWidth(0.45)
-  doc.roundedRect(x, y, w, h, 3.2, 3.2, 'FD')
+  doc.setLineWidth(0.32)
+  doc.roundedRect(x, y, w, h, 4.5, 4.5, 'FD')
 }
 
 function line(doc, x1, y, x2, color = COLORS.border, width = 0.35) {
@@ -349,22 +353,22 @@ function drawHeader(doc, layout, fileName) {
   const { pageW, margin } = layout
 
   doc.setFillColor(255, 255, 255)
-  doc.rect(0, 0, pageW, 28, 'F')
+  doc.rect(0, 0, pageW, 30, 'F')
 
-  drawLogo(doc, margin, 17)
+  drawLogo(doc, margin, 18)
 
-  font(doc, 7.5, 'normal', COLORS.muted)
-  doc.text(`Verification Report · ${fileName} · ${formatDate()}`, pageW - margin, 17, {
+  font(doc, 7.4, 'normal', COLORS.muted)
+  doc.text(`Verification Report · ${fileName} · ${formatDate()}`, pageW - margin, 18, {
     align: 'right',
   })
 
-  line(doc, margin, 27, pageW - margin)
+  line(doc, margin, 29, pageW - margin, [232, 235, 241], 0.3)
 }
 
 function drawFooter(doc, layout, page, total) {
   const { pageW, pageH, margin } = layout
 
-  line(doc, margin, pageH - 18, pageW - margin)
+  line(doc, margin, pageH - 18, pageW - margin, [232, 235, 241], 0.3)
 
   font(doc, 6.8, 'normal', COLORS.muted)
   doc.text(
