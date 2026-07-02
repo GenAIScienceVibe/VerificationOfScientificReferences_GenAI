@@ -141,17 +141,19 @@ function drawSummary(doc, { mg, cw, W, items, y }) {
 // and for drawing the card background. Must stay in sync.
 function claimHeight(doc, claim, textW) {
   const qLines = wrap(doc, `"${claim.text}"`, textW)
+  const aLines = claim.authorLine ? wrap(doc, `Source: ${claim.authorLine}`, textW) : []
+  const dLines = claim.doi ? wrap(doc, `DOI: ${claim.doi}`, textW) : []
   const rLines = wrap(doc, claim.reasoning || '', textW)
   const wLines = claim.warning ? wrap(doc, claim.warning, textW) : []
 
-  let h = 8                          // top padding (id row)
-  h += qLines.length * LH_BODY + 6  // quote block
-  if (claim.authorLine) h += LH_SMALL + 2
-  if (claim.doi)        h += LH_SMALL + 1
-  h += 4                             // gap before reasoning
+  let h = 8                                         // top padding (id row)
+  h += qLines.length * LH_BODY + 6                 // quote block
+  if (aLines.length) h += aLines.length * LH_SMALL + 2
+  if (dLines.length) h += dLines.length * LH_SMALL + 1
+  h += 4                                            // gap before reasoning
   h += rLines.length * LH_REASON + 4
   if (wLines.length) h += wLines.length * LH_SMALL + 4
-  h += 9                             // confidence row + bottom padding
+  h += 9                                            // confidence row + bottom padding
 
   return h
 }
@@ -190,14 +192,16 @@ function drawClaim(doc, { claim, idx, statusLabel, mg, cw, W, y }) {
 
   // ── Source / DOI
   if (claim.authorLine) {
+    const aLines = wrap(doc, `Source: ${claim.authorLine}`, textW)
     tf(doc, 8, 'normal', MUTED)
-    doc.text(`Source: ${claim.authorLine}`, mg + 12, iy, { maxWidth: textW })
-    iy += LH_SMALL + 2
+    doc.text(aLines, mg + 12, iy)
+    iy += aLines.length * LH_SMALL + 2
   }
   if (claim.doi) {
+    const dLines = wrap(doc, `DOI: ${claim.doi}`, textW)
     tf(doc, 8, 'normal', [45, 100, 215])
-    doc.text(`DOI: ${claim.doi}`, mg + 12, iy, { maxWidth: textW })
-    iy += LH_SMALL + 1
+    doc.text(dLines, mg + 12, iy)
+    iy += dLines.length * LH_SMALL + 1
   }
 
   iy += 4  // gap before reasoning
