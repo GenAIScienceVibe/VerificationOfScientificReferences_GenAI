@@ -179,6 +179,7 @@ function ResultsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [refUploadStatus, setRefUploadStatus] = useState({})
   const [refUploadError, setRefUploadError] = useState({})
+  const [refUploadedFilename, setRefUploadedFilename] = useState({})
   const [expandedPassages, setExpandedPassages] = useState({})
   const [expandedReasoning, setExpandedReasoning] = useState({})
   const [passageData, setPassageData] = useState({})
@@ -344,20 +345,9 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
     setRefUploadError(prev => ({ ...prev, [claim.id]: null }))
     try {
       await uploadReferenceSourcePdf(claim.referenceId, file)
-      await prepareEvidence(documentId)
-      setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'checking' }))
-      await startPipelineRun(documentId)
-      await new Promise((resolve, reject) => {
-        const poll = setInterval(async () => {
-          try {
-            const status = await getDocumentStatus(documentId)
-            const pct = status.progress_percentage ?? 0
-            if (TERMINAL_SUCCESS_STATUSES.includes(status.status) || pct >= 100) { clearInterval(poll); resolve() }
-            else if (TERMINAL_FAILURE_STATUSES.includes(status.status)) { clearInterval(poll); reject(new Error('Re-verification failed.')) }
-          } catch (err) { clearInterval(poll); reject(err) }
-        }, 2000)
-      })
+      setRefUploadStatus(prev => ({ ...prev, [claim.id]: 'verifying' }))
       await loadResults()
+      setRefUploadedFilename(prev => ({ ...prev, [claim.id]: file.name }))
       setRefUploadStatus(prev => { const next = { ...prev }; delete next[claim.id]; return next })
     } catch (err) {
       console.error('Reference upload failed:', err)
@@ -625,10 +615,29 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                             ) : (
                               <>
                                 <input type="file" accept=".pdf" id={`ref-upload-${claim.id}`} style={{ display: "none" }} onChange={(e) => { const file = e.target.files[0]; if (file) handleManualReferenceUpload(claim, file) }} />
-                                <button type="button" onClick={() => document.getElementById(`ref-upload-${claim.id}`).click()} disabled={uploadState === 'uploading'} style={{ fontSize: "13px", color: "#1a3a6b", background: "none", border: "none", cursor: "pointer", fontWeight: "600", padding: 0, display: "flex", alignItems: "center", gap: "6px" }}>
-                                  {uploadState === 'uploading' ? (<><span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #c5cfe0", borderTopColor: "#1a3a6b", animation: "verifai-step-spin 0.8s linear infinite", display: "inline-block" }} />Uploading...</>) : "Add the reference manually"}
-                                </button>
-                                <p style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>PDF only, max. 50 MB</p>
+                                {uploadState === 'uploading' || uploadState === 'verifying' ? (
+                                  <p style={{ fontSize: "13px", color: "#1a3a6b", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px", margin: 0 }}>
+                                    <span style={{ width: "13px", height: "13px", borderRadius: "50%", border: "2px solid #c5cfe0", borderTopColor: "#1a3a6b", animation: "verifai-step-spin 0.8s linear infinite", display: "inline-block", flexShrink: 0 }} />
+                                    {uploadState === 'uploading' ? 'Uploading PDF…' : 'Re-verifying claims…'}
+                                  </p>
+                                ) : refUploadedFilename[claim.id] || claim.evidenceAvailability === 'FULL_TEXT_AVAILABLE' ? (
+                                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                    <p style={{ fontSize: "13px", color: "#16a34a", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px", margin: 0 }}>
+                                      <span>✓</span>
+                                      {refUploadedFilename[claim.id] ? `PDF uploaded: ${refUploadedFilename[claim.id]}` : 'PDF uploaded'}
+                                    </p>
+                                    <button type="button" onClick={() => document.getElementById(`ref-upload-${claim.id}`).click()} style={{ fontSize: "11px", color: "#6b7280", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+                                      Replace
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <button type="button" onClick={() => document.getElementById(`ref-upload-${claim.id}`).click()} style={{ fontSize: "13px", color: "#1a3a6b", background: "none", border: "none", cursor: "pointer", fontWeight: "600", padding: 0, display: "flex", alignItems: "center", gap: "6px" }}>
+                                      Add the reference manually
+                                    </button>
+                                    <p style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>PDF only, max. 50 MB</p>
+                                  </>
+                                )}
                                 {uploadState === 'error' && <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "6px" }}>{refUploadError[claim.id] || "Upload failed, please try again."}</p>}
                                 {uploadState === 'no-reference' && <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "6px" }}>This claim has no linked reference ID - manual upload isn't possible here.</p>}
                               </>
