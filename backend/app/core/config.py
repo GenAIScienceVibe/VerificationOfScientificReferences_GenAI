@@ -47,6 +47,7 @@ class Settings(BaseModel):
     doi_resolver_base_url: str = Field(default="https://doi.org", alias="DOI_RESOLVER_BASE_URL")
     openalex_base_url: str = Field(default="https://api.openalex.org", alias="OPENALEX_BASE_URL")
     semantic_scholar_base_url: str = Field(default="https://api.semanticscholar.org", alias="SEMANTIC_SCHOLAR_BASE_URL")
+    semantic_scholar_api_key: str | None = Field(default=None, alias="SEMANTIC_SCHOLAR_API_KEY")
     unpaywall_base_url: str = Field(default="https://api.unpaywall.org", alias="UNPAYWALL_BASE_URL")
     unpaywall_email: str | None = Field(default=None, alias="UNPAYWALL_EMAIL")
     core_api_key: str | None = Field(default=None, alias="CORE_API_KEY")

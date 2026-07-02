@@ -570,10 +570,16 @@ class SemanticScholarClient:
         self.timeout = settings.metadata_service_timeout_seconds
         self._client = http_client
 
+    def _headers(self) -> dict[str, str]:
+        h = {"User-Agent": self.settings.metadata_user_agent}
+        if self.settings.semantic_scholar_api_key:
+            h["x-api-key"] = self.settings.semantic_scholar_api_key
+        return h
+
     def lookup_by_doi(self, doi: str) -> MetadataLookupResponse:
         url = f"{self.base_url}/graph/v1/paper/DOI:{doi}"
         params = {"fields": "title,authors,year,abstract,venue,openAccessPdf"}
-        headers = {"User-Agent": self.settings.metadata_user_agent}
+        headers = self._headers()
         try:
             if self._client is not None:
                 response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
@@ -627,7 +633,7 @@ class SemanticScholarClient:
         """Look up a paper by arXiv ID (e.g. '2109.05581') using the arXiv: prefix."""
         url = f"{self.base_url}/graph/v1/paper/arXiv:{arxiv_id}"
         params = {"fields": "title,authors,year,abstract,venue,openAccessPdf,externalIds"}
-        headers = {"User-Agent": self.settings.metadata_user_agent}
+        headers = self._headers()
         try:
             if self._client is not None:
                 response = self._client.get(url, headers=headers, params=params, timeout=self.timeout)
@@ -700,7 +706,7 @@ class SemanticScholarClient:
             "fields": "title,authors,year,externalIds,abstract,venue,openAccessPdf",
             "limit": "5",
         }
-        headers = {"User-Agent": self.settings.metadata_user_agent}
+        headers = self._headers()
         response = None
         try:
             if self._client is not None:
