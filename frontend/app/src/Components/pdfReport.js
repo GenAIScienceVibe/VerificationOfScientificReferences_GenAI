@@ -244,31 +244,49 @@ function ensurePage(doc, y, needed, layout, fileName) {
   return 38
 }
 
-function drawLogo(doc, x, y, logoData = null) {
-  if (logoData) {
-    // Real VerifAI logo, smaller and balanced in the header
-    doc.addImage(logoData, 'PNG', x, y - 6.2, 18, 7.2)
-    return
+function drawLogo(doc, x, y) {
+  // Drawn logo instead of image asset, because PNG has transparent padding in PDF export.
+  font(doc, 9.8, 'bold', COLORS.navy)
+  doc.text('verif', x, y)
+
+  const spinnerX = x + 18.5
+  const spinnerY = y - 2.4
+  const innerR = 1.8
+  const outerR = 5.2
+
+  doc.setDrawColor(37, 137, 255)
+  doc.setLineWidth(0.45)
+
+  for (let i = 0; i < 16; i += 1) {
+    const a = (Math.PI * 2 * i) / 16
+    const x1 = spinnerX + Math.cos(a) * innerR
+    const y1 = spinnerY + Math.sin(a) * innerR
+    const x2 = spinnerX + Math.cos(a) * outerR
+    const y2 = spinnerY + Math.sin(a) * outerR
+    doc.line(x1, y1, x2, y2)
   }
 
-  font(doc, 10.2, 'bold', COLORS.navy)
-  doc.text('verifAi', x, y)
+  font(doc, 9.8, 'bold', COLORS.navy)
+  doc.text('Ai', x + 25, y)
 }
 
 function drawHeader(doc, layout, fileName) {
-  const { pageW, margin, logoData } = layout
+  const { pageW, margin } = layout
 
   doc.setFillColor(255, 255, 255)
   doc.rect(0, 0, pageW, 31, 'F')
 
-  drawLogo(doc, margin, 17.5, logoData)
+  drawLogo(doc, margin, 18)
 
   const headerText = `Verification Report · ${fileName} · ${formatDate()}`
-  const headerMaxW = pageW - margin * 2 - 52
+  const headerMaxW = pageW - margin * 2 - 58
 
   font(doc, 7.1, 'normal', COLORS.muted)
   const headerLines = doc.splitTextToSize(headerText, headerMaxW)
-  doc.text(headerLines.slice(0, 2), pageW - margin, 16, { align: 'right' })
+
+  doc.text(headerLines.slice(0, 2), pageW - margin, 16, {
+    align: 'right',
+  })
 
   line(doc, margin, 29, pageW - margin, [232, 235, 241], 0.3)
 }
@@ -422,17 +440,18 @@ function drawDocumentPanel(doc, x, y, w, fileName, claimsCount) {
 
 function drawChip(doc, x, y, label, value, color, pale) {
   const text = `${label} ${value}`
-  font(doc, 6.6, 'bold', color)
-  const w = doc.getTextWidth(text) + 10
-  const h = 8.5
+  font(doc, 6.8, 'bold', color)
+
+  const h = 8.8
+  const w = Math.max(20, doc.getTextWidth(text) + 11)
 
   doc.setFillColor(...pale)
   doc.setDrawColor(...color)
-  doc.setLineWidth(0.3)
-  doc.roundedRect(x, y, w, h, 4.2, 4.2, 'FD')
+  doc.setLineWidth(0.35)
+  doc.roundedRect(x, y, w, h, h / 2, h / 2, 'FD')
 
-  font(doc, 6.6, 'bold', color)
-  doc.text(text, x + w / 2, y + h / 2 + 0.6, {
+  font(doc, 6.8, 'bold', color)
+  doc.text(text, x + w / 2, y + h / 2 + 0.45, {
     align: 'center',
     baseline: 'middle',
   })
@@ -539,10 +558,7 @@ function drawClaimCard(doc, y, claim, index, layout, fileName) {
   doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 4.1, 4.1, 'FD')
 
   const badgeText = doc.splitTextToSize(info.label, badgeW - 6)
-  doc.text(badgeText.slice(0, 1), badgeX + badgeW / 2, badgeY + badgeH / 2 + 0.45, {
-    align: 'center',
-    baseline: 'middle',
-  })
+  doc.text(badgeText.slice(0, 1), badgeX + badgeW / 2, badgeY + badgeH / 2 + 0.35, { align: 'center', baseline: 'middle' })
 
   let yy = y + 23
 
