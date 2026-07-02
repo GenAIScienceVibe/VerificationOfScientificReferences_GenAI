@@ -408,6 +408,7 @@ class VerificationOrchestrator:
             validated, genai_result = self.genai_service.verify(genai_request)
             self._store_prompt_run(run, claim, genai_request, validated, True, db, error=None, token_usage=genai_result.token_usage)
         except Exception as exc:
+            logger.exception("GENAI_VERIFICATION failed for claim %s: %s", claim.id, exc)
             self._store_prompt_run(run, claim, genai_request, {"error": str(exc)}, False, db, error=str(exc), token_usage=None)
             self._mark_step(steps["GENAI_VERIFICATION"], PipelineStepStatus.PARTIAL_FAILED.value, db, progress=100, error=str(exc))
             return self._fallback_result(package, run, db, issue="GenAI verification output was invalid or unavailable.", rule="GENAI_INVALID_OR_UNAVAILABLE", retrieval=retrieval)
