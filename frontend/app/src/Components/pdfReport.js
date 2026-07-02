@@ -396,15 +396,28 @@ function drawSummaryPanel(doc, x, y, w, c) {
 function drawDocumentPanel(doc, x, y, w, fileName, claimsCount) {
   roundedCard(doc, x, y, w, 29)
 
-  doc.setFillColor(238, 242, 255)
-  doc.roundedRect(x + 8, y + 7, 12, 12, 2, 2, 'F')
+  // Smaller document icon box
+  const iconX = x + 8
+  const iconY = y + 8
+  const iconSize = 10
 
-  font(doc, 8.2, 'bold', COLORS.ink)
-  const fileLines = doc.splitTextToSize(fileName, w - 32)
-  doc.text(fileLines.slice(0, 2), x + 25, y + 11)
+  doc.setFillColor(238, 242, 255)
+  doc.roundedRect(iconX, iconY, iconSize, iconSize, 2, 2, 'F')
+
+  font(doc, 7.5, 'normal', COLORS.muted)
+  doc.text('📄', iconX + iconSize / 2, iconY + 6.8, {
+    align: 'center',
+  })
+
+  // Clean filename so it does not break weirdly
+  const maxName = fileName.length > 32 ? `${fileName.slice(0, 29)}...` : fileName
+
+  font(doc, 7.6, 'bold', COLORS.ink)
+  const fileLines = doc.splitTextToSize(maxName, w - 28)
+  doc.text(fileLines.slice(0, 2), x + 23, y + 11)
 
   font(doc, 7.1, 'normal', COLORS.muted)
-  doc.text(`${claimsCount} claims processed`, x + 25, y + 23)
+  doc.text(`${claimsCount} claims processed`, x + 23, y + 23)
 }
 
 function drawChip(doc, x, y, label, value, color, pale) {
