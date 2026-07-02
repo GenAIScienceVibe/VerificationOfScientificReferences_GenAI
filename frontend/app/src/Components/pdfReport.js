@@ -458,7 +458,6 @@ function drawSummaryPanel(doc, x, y, w, c) {
       bx += width
     }
   })
->>>>>>> 6d663b75f664cfa4469889c2d54522c44dcf2712
 
   return h
 }
