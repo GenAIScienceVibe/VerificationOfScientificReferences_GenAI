@@ -244,30 +244,16 @@ function ensurePage(doc, y, needed, layout, fileName) {
   return 38
 }
 
-function drawLogo(doc, x, y) {
-  // Drawn logo instead of image asset, because PNG has transparent padding in PDF export.
-  font(doc, 9.8, 'bold', COLORS.navy)
-  doc.text('verif', x, y)
-
-  const spinnerX = x + 18.5
-  const spinnerY = y - 2.4
-  const innerR = 1.8
-  const outerR = 5.2
-
-  doc.setDrawColor(37, 137, 255)
-  doc.setLineWidth(0.45)
-
-  for (let i = 0; i < 16; i += 1) {
-    const a = (Math.PI * 2 * i) / 16
-    const x1 = spinnerX + Math.cos(a) * innerR
-    const y1 = spinnerY + Math.sin(a) * innerR
-    const x2 = spinnerX + Math.cos(a) * outerR
-    const y2 = spinnerY + Math.sin(a) * outerR
-    doc.line(x1, y1, x2, y2)
+function drawLogo(doc, x, y, logoData) {
+  if (logoData) {
+    // Cropped logo aspect ratio is wide, so use wide dimensions.
+    doc.addImage(logoData, 'PNG', x, y - 4.2, 24, 12.8)
+    return
   }
 
-  font(doc, 9.8, 'bold', COLORS.navy)
-  doc.text('Ai', x + 25, y)
+  // Fallback if image cannot load
+  font(doc, 10, 'bold', COLORS.navy)
+  doc.text('verifAi', x, y)
 }
 
 function drawHeader(doc, layout, fileName) {
@@ -414,21 +400,24 @@ function drawSummaryPanel(doc, x, y, w, c) {
 function drawDocumentPanel(doc, x, y, w, fileName, claimsCount) {
   roundedCard(doc, x, y, w, 29)
 
-  // Smaller document icon box
   const iconX = x + 8
   const iconY = y + 8
-  const iconSize = 10
+  const iconW = 10
+  const iconH = 12
 
+  // icon background
   doc.setFillColor(238, 242, 255)
-  doc.roundedRect(iconX, iconY, iconSize, iconSize, 2, 2, 'F')
+  doc.roundedRect(iconX - 2, iconY - 2, 14, 14, 3, 3, 'F')
 
-  font(doc, 7.5, 'normal', COLORS.muted)
-  doc.text('📄', iconX + iconSize / 2, iconY + 6.8, {
-    align: 'center',
-  })
+  // small document icon drawn with lines, not emoji
+  doc.setDrawColor(107, 114, 128)
+  doc.setLineWidth(0.35)
+  doc.roundedRect(iconX + 1.5, iconY, 6.5, 8.5, 0.8, 0.8, 'D')
+  doc.line(iconX + 3, iconY + 3, iconX + 6.8, iconY + 3)
+  doc.line(iconX + 3, iconY + 5, iconX + 6.8, iconY + 5)
 
-  // Clean filename so it does not break weirdly
-  const maxName = fileName.length > 32 ? `${fileName.slice(0, 29)}...` : fileName
+  const cleanName = fileName || 'Uploaded document'
+  const maxName = cleanName.length > 30 ? `${cleanName.slice(0, 27)}...` : cleanName
 
   font(doc, 7.6, 'bold', COLORS.ink)
   const fileLines = doc.splitTextToSize(maxName, w - 28)
@@ -438,20 +427,20 @@ function drawDocumentPanel(doc, x, y, w, fileName, claimsCount) {
   doc.text(`${claimsCount} claims processed`, x + 23, y + 23)
 }
 
-function drawChip(doc, x, y, label, value, color, pale) {
-  const text = `${label} ${value}`
-  font(doc, 6.8, 'bold', color)
+function drawChip(doc, x, y, label, count, color, pale, active = false) {
+  const text = `${label} ${count}`
+  font(doc, 6.6, 'bold', active ? [255, 255, 255] : color)
 
+  const w = Math.max(18, doc.getTextWidth(text) + 10)
   const h = 8.8
-  const w = Math.max(20, doc.getTextWidth(text) + 11)
 
-  doc.setFillColor(...pale)
+  doc.setFillColor(...(active ? color : pale))
   doc.setDrawColor(...color)
   doc.setLineWidth(0.35)
   doc.roundedRect(x, y, w, h, h / 2, h / 2, 'FD')
 
-  font(doc, 6.8, 'bold', color)
-  doc.text(text, x + w / 2, y + h / 2 + 0.45, {
+  font(doc, 6.6, 'bold', active ? [255, 255, 255] : color)
+  doc.text(text, x + w / 2, y + h / 2 + 0.35, {
     align: 'center',
     baseline: 'middle',
   })
@@ -645,7 +634,7 @@ async function buildReport({
   const scoreRgb = scoreColor(score, credibilityColor)
   const scoreText = scoreLabel(score, credibilityLabel)
 
-  const logoData = await loadImageDataUrl(logo || logoUrl)
+  const logoData = await loadImageDataUrl(logoUrl)
 
   const doc = new jsPDF('p', 'mm', 'a4')
   const pageW = doc.internal.pageSize.getWidth()
