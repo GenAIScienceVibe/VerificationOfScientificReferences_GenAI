@@ -1,312 +1,476 @@
 import jsPDF from 'jspdf'
 
-// ─── Tokens ───────────────────────────────────────────────────────────────────
-const NAVY  = [12,  36,  77]
-const INK   = [20,  22,  26]
-const BODY  = [52,  55,  62]
-const MUTED = [108, 112, 120]
-const RULE  = [212, 215, 222]
-const CARD  = [248, 249, 251]
-const WHITE = [255, 255, 255]
+const INK = [20, 22, 26]
+const BODY = [45, 48, 55]
+const MUTED = [95, 99, 108]
+const RULE = [215, 219, 226]
 
-const STATUS_MAP = {
-  supported:    { rgb: [22,  163,  74], label: 'Supported' },
-  partial:      { rgb: [180, 110,   4], label: 'Partially Supported' },
-  unsupported:  { rgb: [200,  35,  35], label: 'Unsupported' },
-  hallucinated: { rgb: [110,  45, 210], label: 'Hallucinated' },
-  insufficient: { rgb: [100, 105, 115], label: 'Insufficient Evidence' },
+const STATUS = {
+  supported: { label: 'Supported', color: [22, 130, 70] },
+  partial: { label: 'Partially supported', color: [180, 110, 4] },
+  partially_supported: { label: 'Partially supported', color: [180, 110, 4] },
+  unsupported: { label: 'Unsupported', color: [190, 35, 35] },
+  hallucinated: { label: 'Hallucinated', color: [110, 45, 190] },
+  insufficient: { label: 'Insufficient Evidence', color: [95, 100, 110] },
+  insufficient_evidence: { label: 'Insufficient Evidence', color: [95, 100, 110] },
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function hexRgb(hex) {
-  const h = (hex || '#888').replace('#', '')
-  const n = parseInt(h, 16)
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-}
-
-function loadImg(url) {
-  return new Promise(res => {
-    if (!url) return res(null)
-    const img = new window.Image()
-    img.onload = () => {
-      try {
-        const c = document.createElement('canvas')
-        c.width = img.width; c.height = img.height
-        c.getContext('2d').drawImage(img, 0, 0)
-        res(c.toDataURL('image/png'))
-      } catch { res(null) }
-    }
-    img.onerror = () => res(null)
-    img.src = url
-  })
-}
-
-// Set font, size and colour in one call (Times New Roman throughout)
-function tf(doc, size, style, color) {
-  doc.setFont('times', style || 'normal')
+function font(doc, size, style = 'normal', color = INK) {
+  doc.setFont('helvetica', style)
   doc.setFontSize(size)
-  doc.setTextColor(...(color || INK))
+  doc.setTextColor(...color)
 }
 
-// Draw a horizontal rule
-function hr(doc, x, y, x2, color, w) {
-  doc.setDrawColor(...(color || RULE))
-  doc.setLineWidth(w || 0.3)
-  doc.line(x, y, x2, y)
+function clean(value) {
+  if (value === null || value === undefined) return ''
+  return String(value).replace(/\s+/g, ' ').trim()
 }
 
-// Fill a rectangle
-function rect(doc, color, x, y, w, h) {
-  doc.setFillColor(...color)
-  doc.rect(x, y, w, h, 'F')
+function stripOuterQuotes(text) {
+  let t = clean(text)
+  while (
+    (t.startsWith('"') && t.endsWith('"')) ||
+    (t.startsWith('“') && t.endsWith('”'))
+  ) {
+    t = t.slice(1, -1).trim()
+  }
+  return t
 }
 
-// Wrap text and return line array — single source of truth
-function wrap(doc, text, width) {
-  return doc.splitTextToSize(text || '', width)
+function normalizeStatus(value) {
+  const s = clean(value).toLowerCase().replace(/[\s-]+/g, '_')
+  if (STATUS[s]) return s
+  if (s.includes('partial')) return 'partial'
+  if (s.includes('hallucinated')) return 'hallucinated'
+  if (s.includes('unsupported')) return 'unsupported'
+  if (s.includes('insufficient')) return 'insufficient'
+  if (s.includes('support')) return 'supported'
+  return 'insufficient'
 }
 
-// Line height constants (keep in sync everywhere)
-const LH_BODY    = 5.6  // body text
-const LH_SMALL   = 5.0  // small / meta text
-const LH_REASON  = 5.2  // reasoning text
-
-// ─── Header (all content pages) ───────────────────────────────────────────────
-
-function drawHeader(doc, { W, mg, logo }) {
-  rect(doc, WHITE, 0, 0, W, 26)
-  if (logo) doc.addImage(logo, 'PNG', mg, 3, 20, 20)   // 20×20 mm logo
-  const tx = logo ? mg + 24 : mg
-  tf(doc, 14, 'bold', NAVY);  doc.text('verifAi', tx, 15)
-  tf(doc, 7.5, 'normal', MUTED)
-  doc.text('AI-Powered Citation Verification Report', tx, 22)
-  hr(doc, 0, 26, W, RULE, 0.5)
+function statusInfo(status) {
+  return STATUS[normalizeStatus(status)] || STATUS.insufficient
 }
 
-// ─── Footer ───────────────────────────────────────────────────────────────────
+function formatDate() {
+  const d = new Date()
+  return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`
+}
 
-function drawFooter(doc, { W, H, mg, cw, pg, total }) {
-  hr(doc, 0, H - 16, W, RULE, 0.4)
-  tf(doc, 6.5, 'italic', MUTED)
-  doc.text(
-    'VerifAi uses AI-assisted analysis. Results may contain errors — verify critical claims against original sources.',
-    mg, H - 9, { maxWidth: cw - 28 }
+function writeWrapped(doc, text, x, y, width, lineHeight = 4.8) {
+  const lines = doc.splitTextToSize(clean(text), width)
+  doc.text(lines, x, y)
+  return y + lines.length * lineHeight
+}
+
+function rule(doc, x1, y, x2) {
+  doc.setDrawColor(...RULE)
+  doc.setLineWidth(0.35)
+  doc.line(x1, y, x2, y)
+}
+
+function getFileName(input, fallback) {
+  return clean(
+    input?.fileName ||
+    input?.filename ||
+    input?.documentName ||
+    input?.document_name ||
+    input?.originalFileName ||
+    input?.original_filename ||
+    input?.paperName ||
+    input?.paper_name ||
+    input?.upload?.filename ||
+    input?.document?.filename ||
+    fallback ||
+    'uploaded_document.pdf'
   )
-  tf(doc, 7.5, 'bold', MUTED)
-  doc.text(`Page ${pg} / ${total}`, W - mg, H - 9, { align: 'right' })
 }
 
-// ─── Claims summary section ───────────────────────────────────────────────────
+function toArray(value) {
+  if (!value) return []
+  if (Array.isArray(value)) return value
+  if (typeof value === 'object') return Object.values(value)
+  return []
+}
 
-function drawSummary(doc, { mg, cw, W, items, y }) {
-  const total = items.reduce((s, i) => s + i.count, 0)
+function getClaims(input) {
+  const possible =
+    input?.claims ||
+    input?.results ||
+    input?.verificationResults ||
+    input?.verification_results ||
+    input?.claimResults ||
+    input?.claim_results ||
+    input?.data?.claims ||
+    input?.data?.results ||
+    input?.workflow?.claims ||
+    input?.workflow?.results ||
+    []
 
-  // Section title
-  tf(doc, 11, 'bold', INK); doc.text('Claims Summary', mg, y); y += 5
-  hr(doc, mg, y, mg + cw, RULE); y += 8
+  return toArray(possible).map((claim, index) => {
+    const rawConfidence =
+      claim?.confidence ??
+      claim?.confidence_score ??
+      claim?.score ??
+      0
 
-  // Legend grid — 2 columns
-  const colW = cw / 2
-  items.forEach((item, i) => {
-    const col = i % 2, row = Math.floor(i / 2)
-    const ix = mg + col * colW
-    const iy = y + row * 9
+    const number = Number(rawConfidence)
+    const confidence = Number.isFinite(number)
+      ? number <= 1
+        ? Math.round(number * 100)
+        : Math.round(number)
+      : 0
 
-    doc.setFillColor(...hexRgb(item.color))
-    doc.circle(ix + 3, iy - 1.5, 2.5, 'F')
-    tf(doc, 9, 'normal', BODY);  doc.text(item.label, ix + 8, iy)
-    tf(doc, 9, 'bold',   INK);   doc.text(String(item.count), ix + colW - 8, iy, { align: 'right' })
+    return {
+      id: clean(
+        claim?.id ||
+        claim?.claim_id ||
+        claim?.claimId ||
+        claim?.result_id ||
+        claim?.resultId ||
+        `result_${String(index + 1).padStart(2, '0')}`
+      ),
+      text: stripOuterQuotes(
+        claim?.text ||
+        claim?.claim ||
+        claim?.claim_text ||
+        claim?.statement ||
+        claim?.content ||
+        claim?.sentence ||
+        ''
+      ),
+      reasoning: clean(
+        claim?.reasoning ||
+        claim?.ai_reasoning ||
+        claim?.aiReasoning ||
+        claim?.explanation ||
+        claim?.reason ||
+        claim?.evidence ||
+        claim?.summary ||
+        ''
+      ),
+      warning: clean(
+        claim?.warning ||
+        claim?.human_review ||
+        claim?.review_note ||
+        claim?.note ||
+        ''
+      ),
+      authorLine: clean(
+        claim?.authorLine ||
+        claim?.author_line ||
+        claim?.citation ||
+        claim?.source ||
+        claim?.reference ||
+        ''
+      ),
+      doi: clean(claim?.doi || claim?.DOI || ''),
+      status: normalizeStatus(
+        claim?.status ||
+        claim?.verification_status ||
+        claim?.result ||
+        claim?.label ||
+        claim?.category ||
+        'insufficient'
+      ),
+      confidence,
+    }
   })
-
-  const rows = Math.ceil(items.length / 2)
-  y += rows * 9 + 5
-
-  // Stacked bar
-  const barH = 5, barW = cw
-  rect(doc, [220, 222, 228], mg, y, barW, barH)
-  let bx = mg
-  items.forEach(item => {
-    const sw = total > 0 ? (item.count / total) * barW : 0
-    if (sw > 0.1) { rect(doc, hexRgb(item.color), bx, y, sw, barH); bx += sw }
-  })
-
-  y += barH + 12
-  return y
 }
 
-// ─── Single claim card ────────────────────────────────────────────────────────
+function getScore(input, claims) {
+  const raw =
+    input?.credibilityScore ??
+    input?.credibility_score ??
+    input?.score ??
+    input?.overallScore ??
+    input?.overall_score ??
+    input?.summary?.credibilityScore ??
+    input?.summary?.credibility_score
 
-// Returns the EXACT height this card will occupy — used both for page-break guard
-// and for drawing the card background. Must stay in sync.
-function claimHeight(doc, claim, textW) {
-  const qLines = wrap(doc, `"${claim.text}"`, textW)
-  const rLines = wrap(doc, claim.reasoning || '', textW)
-  const wLines = claim.warning ? wrap(doc, claim.warning, textW) : []
+  const n = Number(raw)
+  if (Number.isFinite(n)) return n <= 1 ? Math.round(n * 100) : Math.round(n)
 
-  let h = 8                          // top padding (id row)
-  h += qLines.length * LH_BODY + 6  // quote block
-  if (claim.authorLine) h += LH_SMALL + 2
-  if (claim.doi)        h += LH_SMALL + 1
-  h += 4                             // gap before reasoning
-  h += rLines.length * LH_REASON + 4
-  if (wLines.length) h += wLines.length * LH_SMALL + 4
-  h += 9                             // confidence row + bottom padding
+  if (!claims.length) return 0
 
-  return h
+  const points = claims.reduce((sum, claim) => {
+    if (claim.status === 'supported') return sum + 1
+    if (claim.status === 'partial' || claim.status === 'partially_supported') return sum + 0.5
+    return sum
+  }, 0)
+
+  return Math.round((points / claims.length) * 100)
 }
 
-function drawClaim(doc, { claim, idx, statusLabel, mg, cw, W, y }) {
-  const s = STATUS_MAP[claim.status] || { rgb: [100, 105, 115], label: statusLabel || claim.status }
-  const [cr, cg, cb] = s.rgb
-  const textW = cw - 18
-  const conf  = Math.round((claim.confidence || 0) * 100)
+function scoreLabel(score) {
+  if (score >= 85) return 'Reliable'
+  if (score >= 60) return 'Partially Reliable'
+  if (score >= 35) return 'Low Reliability'
+  return 'Not Reliable'
+}
 
-  const h = claimHeight(doc, claim, textW)
+function scoreExplanation(score) {
+  if (score >= 85) return 'Most claims appear to be supported by their cited sources.'
+  if (score >= 60) return 'Some claims are inaccurate or unsupported by their cited sources.'
+  if (score >= 35) return 'Several claims are unsupported or require manual verification.'
+  return 'Most claims require manual verification against the original sources.'
+}
 
-  // Card background + left accent bar
-  rect(doc, CARD, mg, y, cw, h)
-  rect(doc, [cr, cg, cb], mg, y, 4, h)
-
-  // ── Id row
-  tf(doc, 7.5, 'normal', MUTED)
-  doc.text(`Claim ${idx}`, mg + 12, y + 7)
-
-  // Status pill (outlined, right side)
-  const pillLabel = s.label
-  tf(doc, 7.5, 'bold', [cr, cg, cb])
-  const pillW = doc.getTextWidth(pillLabel) + 10
-  doc.setDrawColor(cr, cg, cb); doc.setLineWidth(0.4)
-  doc.roundedRect(W - mg - pillW - 1, y + 2, pillW, 7, 1.5, 1.5, 'D')
-  doc.text(pillLabel, W - mg - pillW / 2 - 1, y + 7.2, { align: 'center' })
-
-  let iy = y + 13
-
-  // ── Claim quote
-  const qLines = wrap(doc, `"${claim.text}"`, textW)
-  tf(doc, 10, 'italic', INK)
-  doc.text(qLines, mg + 12, iy)
-  iy += qLines.length * LH_BODY + 6
-
-  // ── Source / DOI
-  if (claim.authorLine) {
-    tf(doc, 8, 'normal', MUTED)
-    doc.text(`Source: ${claim.authorLine}`, mg + 12, iy, { maxWidth: textW })
-    iy += LH_SMALL + 2
+function countClaims(claims) {
+  return {
+    supported: claims.filter(c => c.status === 'supported').length,
+    partial: claims.filter(c => c.status === 'partial' || c.status === 'partially_supported').length,
+    unsupported: claims.filter(c => c.status === 'unsupported').length,
+    hallucinated: claims.filter(c => c.status === 'hallucinated').length,
+    insufficient: claims.filter(c => c.status === 'insufficient' || c.status === 'insufficient_evidence').length,
   }
+}
+
+function inputFromArgs(args) {
+  const first = args[0] || {}
+  const second = args[1]
+
+  if (Array.isArray(first)) {
+    return {
+      raw: { claims: first, fileName: second },
+      fileName: clean(second || 'uploaded_document.pdf'),
+    }
+  }
+
+  return {
+    raw: first,
+    fileName: getFileName(first, second),
+  }
+}
+
+function drawHeader(doc, layout, fileName) {
+  const { pageW, margin } = layout
+
+  font(doc, 18, 'bold', INK)
+  doc.text('verifAi', margin, 18)
+
+  font(doc, 9, 'normal', MUTED)
+  doc.text(`Verification Report · ${fileName} · ${formatDate()}`, margin, 28, {
+    maxWidth: pageW - margin * 2,
+  })
+
+  rule(doc, margin, 38, pageW - margin)
+}
+
+function drawFooter(doc, layout, page, total) {
+  const { pageW, pageH, margin } = layout
+
+  rule(doc, margin, pageH - 22, pageW - margin)
+
+  font(doc, 7.3, 'normal', MUTED)
+  doc.text(
+    'VerifAi uses AI-assisted analysis and automated source matching. Results may contain errors and accuracy is not guaranteed to be 100% — please verify critical claims against the original sources.',
+    margin,
+    pageH - 15,
+    { maxWidth: pageW - margin * 2 - 28 }
+  )
+
+  font(doc, 8, 'normal', MUTED)
+  doc.text(`Page ${page} / ${total}`, pageW - margin, pageH - 9, { align: 'right' })
+}
+
+function ensureSpace(doc, y, needed, layout, fileName) {
+  if (y + needed <= layout.pageH - 30) return y
+
+  doc.addPage()
+  drawHeader(doc, layout, fileName)
+  return 50
+}
+
+function estimateClaimHeight(doc, claim, layout) {
+  const w = layout.contentW
+  const citation = claim.authorLine ? ` (${claim.authorLine})` : ''
+  const quoteLines = doc.splitTextToSize(`"${claim.text}"${citation}`, w)
+  const reasoningLines = doc.splitTextToSize(`AI reasoning: ${claim.reasoning || 'No reasoning provided.'}`, w)
+  const warningText =
+    claim.warning ||
+    (claim.status === 'supported'
+      ? ''
+      : 'Human review recommended - this result may need manual verification.')
+  const warningLines = warningText ? doc.splitTextToSize(warningText, w) : []
+
+  return 15 + quoteLines.length * 4.8 + reasoningLines.length * 4.8 + warningLines.length * 4.8 + 14
+}
+
+function drawSummary(doc, y, counts, layout) {
+  const { margin, contentW } = layout
+
+  font(doc, 14, 'bold', INK)
+  doc.text('Fazit — Claims Summary', margin, y)
+  y += 9
+
+  font(doc, 10, 'normal', INK)
+
+  const leftX = margin
+  const rightX = margin + contentW / 2 + 8
+  const valueLeft = margin + contentW / 2 - 8
+  const valueRight = margin + contentW
+
+  doc.text('Supported', leftX, y)
+  doc.text(String(counts.supported), valueLeft, y, { align: 'right' })
+  doc.text('Partially supported', rightX, y)
+  doc.text(String(counts.partial), valueRight, y, { align: 'right' })
+
+  y += 7
+  doc.text('Unsupported', leftX, y)
+  doc.text(String(counts.unsupported), valueLeft, y, { align: 'right' })
+  doc.text('Hallucinated', rightX, y)
+  doc.text(String(counts.hallucinated), valueRight, y, { align: 'right' })
+
+  y += 7
+  doc.text('Insufficient evidence', leftX, y)
+  doc.text(String(counts.insufficient), valueLeft, y, { align: 'right' })
+
+  return y + 14
+}
+
+function drawClaim(doc, y, claim, index, layout, fileName) {
+  const { margin, contentW, pageW } = layout
+  const needed = estimateClaimHeight(doc, claim, layout)
+  y = ensureSpace(doc, y, needed, layout, fileName)
+
+  const info = statusInfo(claim.status)
+
+  font(doc, 8.8, 'bold', INK)
+  doc.text('CLAIM', margin, y)
+
+  font(doc, 8.8, 'bold', MUTED)
+  doc.text(claim.id || `result_${index}`, margin + 22, y, {
+    maxWidth: contentW - 70,
+  })
+
+  font(doc, 8.8, 'bold', info.color)
+  doc.text(info.label, pageW - margin, y, { align: 'right' })
+
+  y += 8
+
+  const citation = claim.authorLine ? ` (${claim.authorLine})` : ''
+
+  font(doc, 9.4, 'normal', INK)
+  y = writeWrapped(doc, `"${claim.text}"${citation}`, margin, y, contentW, 4.8)
+  y += 7
+
+  font(doc, 8.8, 'normal', BODY)
+  y = writeWrapped(
+    doc,
+    `AI reasoning: ${claim.reasoning || 'No reasoning provided.'}`,
+    margin,
+    y,
+    contentW,
+    4.8
+  )
+  y += 5
+
+  const warning =
+    claim.warning ||
+    (claim.status === 'supported'
+      ? ''
+      : 'Human review recommended - this result may need manual verification.')
+
+  if (warning) {
+    font(doc, 8.8, 'normal', BODY)
+    y = writeWrapped(doc, warning, margin, y, contentW, 4.8)
+    y += 5
+  }
+
   if (claim.doi) {
-    tf(doc, 8, 'normal', [45, 100, 215])
-    doc.text(`DOI: ${claim.doi}`, mg + 12, iy, { maxWidth: textW })
-    iy += LH_SMALL + 1
+    font(doc, 8, 'normal', MUTED)
+    y = writeWrapped(doc, `DOI: ${claim.doi}`, margin, y, contentW, 4.6)
+    y += 3
   }
 
-  iy += 4  // gap before reasoning
+  font(doc, 8.8, 'normal', INK)
+  doc.text(`Confidence ${claim.confidence}`, margin, y)
 
-  // ── AI reasoning
-  const rLines = wrap(doc, claim.reasoning || '', textW)
-  tf(doc, 8.5, 'italic', BODY)
-  doc.text(rLines, mg + 12, iy)
-  iy += rLines.length * LH_REASON + 4
-
-  // ── Warning
-  if (claim.warning) {
-    const wLines = wrap(doc, claim.warning, textW)
-    tf(doc, 8, 'italic', [165, 80, 10])
-    doc.text(wLines, mg + 12, iy)
-    iy += wLines.length * LH_SMALL + 4
-  }
-
-  // ── Confidence bar
-  const barX = mg + 12, barW = 50
-  tf(doc, 8, 'normal', MUTED); doc.text('Confidence', barX, iy + 3.5)
-  rect(doc, RULE, barX + 28, iy + 1, barW, 3)
-  const cRgb = conf > 70 ? [22, 163, 74] : conf > 40 ? [180, 110, 4] : [200, 35, 35]
-  rect(doc, cRgb, barX + 28, iy + 1, Math.max(barW * conf / 100, 1.5), 3)
-  tf(doc, 8, 'bold', MUTED); doc.text(`${conf}%`, barX + 28 + barW + 6, iy + 3.5)
-
-  return y + h + 6   // 6 mm gap between cards
+  return y + 12
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
+function buildReport(...args) {
+  const { raw, fileName } = inputFromArgs(args)
+  const claims = getClaims(raw)
+  const score = getScore(raw, claims)
+  const summary = countClaims(claims)
 
-export async function generateVerificationPdf({
-  claims, statusConfig, summaryItems, fileName, logo,
-  credibilityScore = 0, credibilityLabel = 'Unknown', credibilityColor = '#888888',
-}) {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const W  = doc.internal.pageSize.getWidth()
-  const H  = doc.internal.pageSize.getHeight()
-  const mg = 16
-  const cw = W - mg * 2
+  const doc = new jsPDF('p', 'mm', 'a4')
+  const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  const margin = 17
+  const contentW = pageW - margin * 2
+  const layout = { pageW, pageH, margin, contentW }
 
-  const logoB64   = logo ? await loadImg(logo) : null
-  const headerCtx = { W, mg, logo: logoB64 }
-  const footerCtx = { W, H, mg, cw }
+  drawHeader(doc, layout, fileName)
 
-  // ── Page 1: summary + first claims ──────────────────────────────────────────
+  let y = 52
 
-  drawHeader(doc, headerCtx)
+  font(doc, 13, 'bold', INK)
+  doc.text(`Credibility Score: ${score}% — ${scoreLabel(score)}`, margin, y)
+  y += 8
 
-  // Position content below header
-  let y = 34
+  font(doc, 9.5, 'normal', INK)
+  y = writeWrapped(doc, scoreExplanation(score), margin, y, contentW, 4.8)
+  y += 12
 
-  // Credibility score card
-  const scoreDesc = credibilityScore >= 80
-    ? 'The majority of claims are well-supported by their cited sources.'
-    : credibilityScore >= 50
-    ? 'Some claims are inaccurate or unsupported by their cited sources.'
-    : 'A significant portion of claims could not be verified or are unsupported.'
+  y = drawSummary(doc, y, summary, layout)
 
-  const [cr, cg, cb] = hexRgb(credibilityColor)
-  rect(doc, CARD, mg, y, cw, 30)
-  rect(doc, [cr, cg, cb], mg, y, 4, 30)
-  tf(doc, 20, 'bold', [cr, cg, cb])
-  doc.text(`${credibilityScore.toFixed(1)}%`, mg + 12, y + 13)
-  const scoreNumW = doc.getTextWidth(`${credibilityScore.toFixed(1)}%`)
-  tf(doc, 13, 'bold', [cr, cg, cb])
-  doc.text(`— ${credibilityLabel}`, mg + 12 + scoreNumW + 2, y + 13)
-  tf(doc, 9, 'italic', BODY)
-  doc.text(scoreDesc, mg + 12, y + 23)
-  y += 40
+  font(doc, 14, 'bold', INK)
+  doc.text('Claims Overview', margin, y)
+  y += 10
 
-  // Summary card
-  y = drawSummary(doc, { mg, cw, W, items: summaryItems, y })
-
-  // Claims overview heading
-  tf(doc, 11, 'bold', INK); doc.text('Claims Overview', mg, y); y += 5
-  hr(doc, mg, y, mg + cw, RULE); y += 10
-
-  // ── Render claims ────────────────────────────────────────────────────────────
-
-  const newPage = () => {
-    doc.addPage()
-    drawHeader(doc, headerCtx)
-    y = 34
-  }
-
-  const guard = (need) => {
-    if (y + need > H - 20) newPage()
-  }
-
-  claims.forEach((claim, i) => {
-    const textW = cw - 18
-    const h = claimHeight(doc, claim, textW)
-    guard(h + 6)
-    y = drawClaim(doc, {
-      claim,
-      idx: i + 1,
-      statusLabel: statusConfig[claim.status]?.label || claim.status,
-      mg, cw, W, y,
+  if (!claims.length) {
+    font(doc, 9.5, 'normal', MUTED)
+    doc.text('No claims were available for this report.', margin, y)
+  } else {
+    claims.forEach((claim, index) => {
+      y = drawClaim(doc, y, claim, index + 1, layout, fileName)
     })
-  })
-
-  // ── Footers on every page ────────────────────────────────────────────────────
+  }
 
   const totalPages = doc.internal.getNumberOfPages()
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i)
-    drawFooter(doc, { ...footerCtx, pg: i, total: totalPages })
+  for (let page = 1; page <= totalPages; page += 1) {
+    doc.setPage(page)
+    drawFooter(doc, layout, page, totalPages)
   }
 
-  doc.save(`verifai_report_${fileName.replace(/\.pdf$/i, '')}.pdf`)
+  const cleanName = fileName.replace(/\.pdf$/i, '').replace(/[^\w.-]+/g, '_')
+  doc.save(`verifai_report_${cleanName}.pdf`)
+  return doc
 }
+
+export function generateVerificationPdf(...args) {
+  return buildReport(...args)
+}
+
+export function generateVerificationPDF(...args) {
+  return buildReport(...args)
+}
+
+export function generatePdfReport(...args) {
+  return buildReport(...args)
+}
+
+export function generatePDFReport(...args) {
+  return buildReport(...args)
+}
+
+export function generateReport(...args) {
+  return buildReport(...args)
+}
+
+export function downloadPdfReport(...args) {
+  return buildReport(...args)
+}
+
+export function downloadPDFReport(...args) {
+  return buildReport(...args)
+}
+
+export function createPdfReport(...args) {
+  return buildReport(...args)
+}
+
+export default buildReport
