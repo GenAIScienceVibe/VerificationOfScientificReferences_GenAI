@@ -184,12 +184,13 @@ Respond in exactly this format — a free-form thought process block, followed
 by a strict JSON block. Do not put any text outside these two blocks.
 
 IMPORTANT — evidence_used field:
-List the chunk IDs (the bracketed labels shown before each chunk above, e.g.
-"chunk_3", "chunk_7") that you relied on to reach your verdict. This field
-MUST be a plain JSON array of strings — chunk ID strings only. Never include
-objects, dicts, or keys such as "id", "text", or "score" inside this array.
-Correct:   "evidence_used": ["chunk_3", "chunk_7"]
-Incorrect: "evidence_used": [{"id": "chunk_3", "text": "..."}]
+Copy the EXACT chunk ID strings shown in the bracketed labels before each
+chunk above (e.g. [10_48550_arxiv_1706_03762_chunk_000]) verbatim — do not
+abbreviate or shorten them. This field MUST be a plain JSON array of strings.
+Never include objects, dicts, or keys such as "id", "text", or "score".
+Correct:   "evidence_used": ["10_48550_arxiv_1706_03762_chunk_000", "10_48550_arxiv_1706_03762_chunk_002"]
+Incorrect: "evidence_used": ["chunk_000"]
+Incorrect: "evidence_used": [{"id": "chunk_000", "text": "..."}]
 
 [THOUGHT PROCESS]
 (Write your free-form reasoning here — compare the claim against the evidence,

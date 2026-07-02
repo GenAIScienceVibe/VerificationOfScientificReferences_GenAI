@@ -80,13 +80,12 @@ def _build_client() -> OpenAI:
     """
     Build and return an OpenAI-compatible client pointed at Groq.
 
-    The LLM call goes directly to Groq (not OpenRouter) because DeepInfra,
-    one of OpenRouter's backends for llama-4-scout, silently drops
-    message.content on large prompts. Groq never exhibited this behaviour
-    across 4 manual tests. The embedding call still uses OpenRouter.
+    We use Groq directly for lower latency and to avoid the null-content
+    issue observed with some OpenRouter backends (DeepInfra silently drops
+    message.content on large prompts). The retry loop below still guards
+    against any transient null-content responses.
 
-    Raises EnvironmentError if GROQ_API_KEY is not set, with a clear
-    message so developers know exactly what is missing.
+    Raises EnvironmentError if GROQ_API_KEY is not set.
     """
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:

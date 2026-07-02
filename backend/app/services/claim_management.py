@@ -129,6 +129,7 @@ class ClaimManagementService:
                 claim = Claim(
                     document_id=document.id,
                     claim_text=primary.claim_text,
+                    preceding_context=prepared.preceding_context or None,
                     claim_type=primary.claim_type if primary.claim_type in {item.value for item in ClaimType} else ClaimType.UNKNOWN.value,
                     section_name=prepared.section_name,
                     source_paragraph=prepared.source_paragraph,
