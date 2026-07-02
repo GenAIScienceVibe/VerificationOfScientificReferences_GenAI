@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf'
+import logoUrl from '../assets/Logo_VerifAI.png'
 
 const COLORS = {
   navy: [26, 58, 107],
@@ -53,6 +54,31 @@ const STATUS = {
     color: COLORS.gray,
     pale: [248, 250, 252],
   },
+}
+
+
+function loadImageDataUrl(url) {
+  return new Promise(resolve => {
+    if (!url || typeof window === 'undefined') return resolve(null)
+
+    const img = new window.Image()
+    img.crossOrigin = 'anonymous'
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth || img.width
+        canvas.height = img.naturalHeight || img.height
+        canvas.getContext('2d').drawImage(img, 0, 0)
+        resolve(canvas.toDataURL('image/png'))
+      } catch {
+        resolve(null)
+      }
+    }
+
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
 }
 
 function font(doc, size, style = 'normal', color = COLORS.ink) {
@@ -329,26 +355,35 @@ function inputFromArgs(args) {
   }
 }
 
-function drawHeader(doc, layout, fileName, logoB64) {
-  const { pageW, margin } = layout
-
-  // Navy top bar
-  doc.setFillColor(...COLORS.navy)
-  doc.rect(0, 0, pageW, 31, 'F')
-
-  // Logo image or fallback text
-  if (logoB64) {
-    doc.addImage(logoB64, 'PNG', margin, 3, 22, 22)
-    font(doc, 11, 'bold', [255, 255, 255])
-    doc.text('verifAi', margin + 26, 18)
-  } else {
-    font(doc, 11, 'bold', [255, 255, 255])
-    doc.text('verifAi', margin, 18)
+function drawLogo(doc, x, y, logoData = null) {
+  if (logoData) {
+    doc.addImage(logoData, 'PNG', x, y - 7.5, 25, 9)
+    return
   }
 
+  font(doc, 10.8, 'bold', COLORS.navy)
+  doc.text('verifAi', x, y)
+}
+
+function drawHeader(doc, layout, fileName) {
+  const { pageW, margin, logoData } = layout
+
+  doc.setFillColor(255, 255, 255)
+  doc.rect(0, 0, pageW, 31, 'F')
+
+  drawLogo(doc, margin, 18, logoData)
+
   const headerText = `Verification Report · ${fileName} · ${formatDate()}`
-  font(doc, 7, 'normal', [180, 195, 220])
-  doc.text(doc.splitTextToSize(headerText, pageW - margin * 2 - 50).slice(0, 2), pageW - margin, 16, { align: 'right' })
+  const headerMaxW = pageW - margin * 2 - 52
+
+  font(doc, 7.1, 'normal', COLORS.muted)
+  const headerLines = doc.splitTextToSize(headerText, headerMaxW)
+
+  doc.text(headerLines.slice(0, 2), pageW - margin, 16, {
+    align: 'right',
+  })
+
+  line(doc, margin, 29, pageW - margin, [232, 235, 241], 0.3)
 }
 
 function drawFooter(doc, layout, page, total) {
@@ -368,31 +403,52 @@ function drawFooter(doc, layout, page, total) {
   doc.text(`Page ${page} / ${total}`, pageW - margin, pageH - 11, { align: 'right' })
 }
 
-function ensurePage(doc, y, needed, layout, fileName, logoB64) {
+function ensurePage(doc, y, needed, layout, fileName) {
   if (y + needed <= layout.pageH - 24) return y
 
   doc.addPage()
-  doc.setFillColor(...COLORS.softBg)
-  doc.rect(0, 0, layout.pageW, layout.pageH, 'F')
-  drawHeader(doc, layout, fileName, logoB64)
+  drawHeader(doc, layout, fileName)
   return 38
 }
 
 function drawDonut(doc, cx, cy, radius, score) {
   const color = scoreColor(score)
+  const safeScore = Math.max(0, Math.min(100, score))
 
-  doc.setFillColor(255, 255, 255)
-  doc.setDrawColor(226, 230, 236)
-  doc.setLineWidth(0.7)
-  doc.circle(cx, cy, radius + 5, 'FD')
+  doc.setDrawColor(226, 226, 226)
+  doc.setLineWidth(4.2)
+  doc.circle(cx, cy, radius, 'S')
 
-  doc.setFillColor(250, 250, 252)
-  doc.setDrawColor(...color)
-  doc.setLineWidth(0.9)
-  doc.circle(cx, cy, radius + 1.5, 'FD')
+  if (safeScore > 0) {
+    const start = -90
+    const end = start + (360 * safeScore) / 100
+    const steps = Math.max(16, Math.round((end - start) / 4))
 
-  font(doc, 13.5, 'bold', COLORS.ink)
-  doc.text(`${score}%`, cx, cy + 1.8, { align: 'center' })
+    doc.setDrawColor(...color)
+    doc.setLineWidth(4.2)
+
+    let prev = null
+    for (let i = 0; i <= steps; i += 1) {
+      const angle = (Math.PI / 180) * (start + ((end - start) * i) / steps)
+      const point = {
+        x: cx + Math.cos(angle) * radius,
+        y: cy + Math.sin(angle) * radius,
+      }
+
+      if (prev) doc.line(prev.x, prev.y, point.x, point.y)
+      prev = point
+    }
+
+    const startAngle = (Math.PI / 180) * start
+    const endAngle = (Math.PI / 180) * end
+
+    doc.setFillColor(...color)
+    doc.circle(cx + Math.cos(startAngle) * radius, cy + Math.sin(startAngle) * radius, 2.1, 'F')
+    doc.circle(cx + Math.cos(endAngle) * radius, cy + Math.sin(endAngle) * radius, 2.1, 'F')
+  }
+
+  font(doc, 12.8, 'bold', COLORS.ink)
+  doc.text(`${score}.0%`, cx, cy + 1.8, { align: 'center' })
 }
 
 function drawScorePanel(doc, x, y, w, score) {
@@ -401,14 +457,14 @@ function drawScorePanel(doc, x, y, w, score) {
   font(doc, 7, 'bold', COLORS.navy)
   doc.text('CREDIBILITY SCORE', x + w / 2, y + 10, { align: 'center' })
 
-  drawDonut(doc, x + w / 2, y + 30, 10.5, score)
+  drawDonut(doc, x + w / 2, y + 30, 13, score)
 
   font(doc, 8.5, 'bold', scoreColor(score))
-  doc.text(scoreLabel(score), x + w / 2, y + 49, { align: 'center' })
+  doc.text(scoreLabel(score), x + w / 2, y + 50, { align: 'center' })
 
   font(doc, 6.7, 'normal', COLORS.muted)
   const desc = doc.splitTextToSize(scoreDescription(score), w - 14)
-  doc.text(desc, x + w / 2, y + 55, { align: 'center' })
+  doc.text(desc, x + w / 2, y + 56, { align: 'center' })
 }
 
 function drawSummaryPanel(doc, x, y, w, c) {
@@ -458,7 +514,6 @@ function drawSummaryPanel(doc, x, y, w, c) {
       bx += width
     }
   })
->>>>>>> 6d663b75f664cfa4469889c2d54522c44dcf2712
 
   return h
 }
@@ -477,89 +532,82 @@ function drawDocumentPanel(doc, x, y, w, fileName, claimsCount) {
   doc.text(`${claimsCount} claims processed`, x + 25, y + 23)
 }
 
-function drawClaimCard(doc, y, claim, index, layout, fileName, logoB64) {
+function drawClaimCard(doc, y, claim, index, layout, fileName) {
   const { mainX, mainW } = layout
   const info = statusInfo(claim.status)
 
   const padX = 8
-  const textW = mainW - padX * 2 - 4
+  const textW = mainW - padX * 2 - 8
   const citation = claim.citation ? ` ${claim.citation}` : ''
 
-  // Important: set font BEFORE splitTextToSize, otherwise jsPDF calculates wrapping incorrectly.
-  font(doc, 8.4, 'normal', COLORS.ink)
+  font(doc, 8.1, 'normal', COLORS.ink)
   const quoteLines = doc.splitTextToSize(`"${claim.text}"${citation}`, textW)
 
-  font(doc, 7.6, 'italic', COLORS.body)
+  font(doc, 7.5, 'italic', COLORS.body)
   const sourceLines = claim.sourceTitle ? doc.splitTextToSize(claim.sourceTitle, textW) : []
 
-  font(doc, 7.0, 'normal', COLORS.muted)
+  font(doc, 6.9, 'normal', COLORS.muted)
   const authorLines = claim.authorLine ? doc.splitTextToSize(claim.authorLine, textW) : []
 
-  font(doc, 7.7, 'normal', COLORS.body)
+  font(doc, 7.6, 'normal', COLORS.body)
   const reasoningLines = doc.splitTextToSize(claim.reasoning || 'No reasoning provided.', textW - 10)
 
   const warning =
     claim.warning ||
     (claim.status === 'supported' ? '' : 'Human review recommended - this result may need manual verification.')
 
-  font(doc, 7.4, 'normal', COLORS.body)
+  font(doc, 7.3, 'normal', COLORS.body)
   const warningLines = warning ? doc.splitTextToSize(warning, textW) : []
 
   const h =
     30 +
-    quoteLines.length * 5.2 +
+    quoteLines.length * 5.1 +
     sourceLines.length * 4.6 +
-    authorLines.length * 4.4 +
+    authorLines.length * 4.3 +
     15 +
-    reasoningLines.length * 4.9 +
+    reasoningLines.length * 4.8 +
     warningLines.length * 4.8 +
     22
 
-  y = ensurePage(doc, y, h, layout, fileName, logoB64)
+  y = ensurePage(doc, y, h, layout, fileName)
 
-  roundedCard(doc, mainX, y, mainW, h, COLORS.cardBg, COLORS.border)
-
-  // Colored left accent bar
-  doc.setFillColor(...info.color)
-  doc.roundedRect(mainX, y, 4, h, 2, 2, 'F')
-  doc.setFillColor(...info.color)
-  doc.rect(mainX + 2, y, 2, h, 'F')
+  roundedCard(doc, mainX, y, mainW, h, COLORS.cardBg, info.color)
 
   font(doc, 7.1, 'bold', COLORS.muted)
   doc.text(`CLAIM ${index}`, mainX + padX, y + 12)
 
-  const badgeW = Math.min(Math.max(30, doc.getTextWidth(info.label) + 11), 44)
+  const badgeW = Math.min(Math.max(32, doc.getTextWidth(info.label) + 12), 50)
   const badgeX = mainX + mainW - badgeW - 8
   const badgeY = y + 7
-  const badgeH = 8.5
+  const badgeH = 8.7
 
   doc.setFillColor(...info.pale)
   doc.setDrawColor(...info.color)
   doc.setLineWidth(0.32)
-  doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 4.2, 4.2, 'FD')
+  doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 4.3, 4.3, 'FD')
 
-  font(doc, 6.9, 'bold', info.color)
-  const badgeText = doc.splitTextToSize(info.label, badgeW - 5)
-  doc.text(badgeText.slice(0, 1), badgeX + badgeW / 2, badgeY + 5.7, {
+  font(doc, 6.8, 'bold', info.color)
+  const badgeText = doc.splitTextToSize(info.label, badgeW - 6)
+  doc.text(badgeText.slice(0, 1), badgeX + badgeW / 2, badgeY + 5.9, {
     align: 'center',
   })
 
   let yy = y + 24
 
-  font(doc, 8.4, 'normal', COLORS.ink)
+  font(doc, 8.1, 'normal', COLORS.ink)
   doc.text(quoteLines, mainX + padX, yy)
-  yy += quoteLines.length * 5.2 + 7
+  yy += quoteLines.length * 5.1 + 7
 
   if (sourceLines.length) {
-    font(doc, 7.6, 'italic', COLORS.body)
+    font(doc, 7.5, 'italic', COLORS.body)
     doc.text(sourceLines, mainX + padX, yy)
     yy += sourceLines.length * 4.6 + 2
   }
 
   if (authorLines.length) {
-    font(doc, 7.0, 'normal', COLORS.muted)
+    font(doc, 6.9, 'normal', COLORS.muted)
     doc.text(authorLines, mainX + padX, yy)
-    yy += authorLines.length * 4.4 + 4
+    yy += authorLines.length * 4.3 + 4
   }
 
   if (claim.doi) {
@@ -570,19 +618,19 @@ function drawClaimCard(doc, y, claim, index, layout, fileName, logoB64) {
     yy += 8
   }
 
-  const reasoningH = 11 + reasoningLines.length * 4.9
+  const reasoningH = 11 + reasoningLines.length * 4.8
   doc.setFillColor(...COLORS.reasoningBg)
   doc.roundedRect(mainX + padX, yy, textW, reasoningH, 2.4, 2.4, 'F')
 
   font(doc, 6.7, 'bold', COLORS.muted)
   doc.text('AI REASONING', mainX + padX + 4, yy + 6)
 
-  font(doc, 7.7, 'normal', COLORS.body)
+  font(doc, 7.6, 'normal', COLORS.body)
   doc.text(reasoningLines, mainX + padX + 4, yy + 13)
   yy += reasoningH + 7
 
   if (warningLines.length) {
-    font(doc, 7.4, 'normal', COLORS.body)
+    font(doc, 7.3, 'normal', COLORS.body)
     doc.text(warningLines, mainX + padX, yy)
     yy += warningLines.length * 4.8 + 6
   }
@@ -608,31 +656,12 @@ function drawClaimCard(doc, y, claim, index, layout, fileName, logoB64) {
   return y + h + 9
 }
 
-function loadImg(url) {
-  return new Promise(res => {
-    if (!url) return res(null)
-    const img = new window.Image()
-    img.onload = () => {
-      try {
-        const c = document.createElement('canvas')
-        c.width = img.width; c.height = img.height
-        c.getContext('2d').drawImage(img, 0, 0)
-        res(c.toDataURL('image/png'))
-      } catch { res(null) }
-    }
-    img.onerror = () => res(null)
-    img.src = url
-  })
-}
-
 async function buildReport(...args) {
   const { raw, fileName } = inputFromArgs(args)
   const claims = getClaims(raw)
   const score = getScore(raw, claims)
   const c = countClaims(claims)
-
-  const logoSrc = raw?.logo || null
-  const logoB64 = logoSrc ? await loadImg(logoSrc) : null
+  const logoData = await loadImageDataUrl(logoUrl)
 
   const doc = new jsPDF('p', 'mm', 'a4')
   const pageW = doc.internal.pageSize.getWidth()
@@ -652,12 +681,13 @@ async function buildReport(...args) {
     mainX,
     mainW,
     contentW: pageW - margin * 2,
+    logoData,
   }
 
   doc.setFillColor(...COLORS.softBg)
   doc.rect(0, 0, pageW, pageH, 'F')
 
-  drawHeader(doc, layout, fileName, logoB64)
+  drawHeader(doc, layout, fileName)
 
   drawScorePanel(doc, margin, 40, sidebarW, score)
   drawSummaryPanel(doc, margin, 105, sidebarW, c)
@@ -679,23 +709,34 @@ async function buildReport(...args) {
     ['Partial', c.partial, COLORS.orange, [255, 247, 237]],
     ['Unsupported', c.unsupported, COLORS.red, [254, 242, 242]],
     ['Hallucinated', c.hallucinated, COLORS.purple, [250, 245, 255]],
+    ['Insufficient Evidence', c.insufficient, COLORS.gray, [248, 250, 252]],
   ]
 
   let chipX = mainX
+  let chipY = 61
+
   chips.forEach(([label, value, color, pale]) => {
     const text = `${label} ${value}`
-    font(doc, 6.7, 'bold', color)
-    const w = doc.getTextWidth(text) + 10
+    font(doc, 6.6, 'bold', color)
+    const w = Math.max(18, doc.getTextWidth(text) + 10)
+
+    if (chipX + w > mainX + mainW) {
+      chipX = mainX
+      chipY += 10
+    }
+
     doc.setFillColor(...pale)
     doc.setDrawColor(...color)
     doc.setLineWidth(0.3)
-    doc.roundedRect(chipX, 61, w, 8.3, 4.1, 4.1, 'FD')
-    font(doc, 6.7, 'bold', color)
-    doc.text(text, chipX + w / 2, 66.6, { align: 'center' })
+    doc.roundedRect(chipX, chipY, w, 8.5, 4.2, 4.2, 'FD')
+
+    font(doc, 6.6, 'bold', color)
+    doc.text(text, chipX + w / 2, chipY + 5.8, { align: 'center' })
+
     chipX += w + 3
   })
 
-  let y = 80
+  let y = chipY + 18
 
   if (!claims.length) {
     roundedCard(doc, mainX, y, mainW, 28)
@@ -703,7 +744,7 @@ async function buildReport(...args) {
     doc.text('No claims were available for this report.', mainX + 8, y + 15)
   } else {
     claims.forEach((claim, index) => {
-      y = drawClaimCard(doc, y, claim, index + 1, layout, fileName, logoB64)
+      y = drawClaimCard(doc, y, claim, index + 1, layout, fileName)
     })
   }
 
