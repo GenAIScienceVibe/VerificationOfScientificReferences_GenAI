@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf'
-import logoUrl from '../assets/Logo_VerifAI_pdf.png'
+import logoUrl from '../assets/Logo_VerifAi_pdf.png'
 
 const COLORS = {
   navy: [26, 58, 107],
