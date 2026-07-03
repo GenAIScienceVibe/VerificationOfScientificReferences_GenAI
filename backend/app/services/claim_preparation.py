@@ -82,7 +82,6 @@ class CitationDetectionService:
             (APA_PARENTHETICAL_RE, "APA"),
             (APA_NARRATIVE_RE, "APA"),
             (BRACKET_NUMERIC_RE, "NUMBERED"),
-            (PAREN_NUMERIC_RE, "NUMBERED"),
             (SUPERSCRIPT_LIKE_RE, "NUMBERED"),
         ):
             for match in regex.finditer(text):
