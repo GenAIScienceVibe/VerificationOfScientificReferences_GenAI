@@ -489,6 +489,7 @@ class MetadataLookupService:
         # The disabled-mode guard must apply before title-based DOI resolution.
         # The local missing/malformed handling below remains available so mock
         # and offline pipelines persist safe statuses without provider calls.
+        search_title = ""
         if not doi and self.settings.metadata_lookup_enabled:
             # OpenReview lookup — NeurIPS, ICLR, ICML, and other ML-venue papers are
             # often cited with only an openreview.net URL and no DOI. Calling the API

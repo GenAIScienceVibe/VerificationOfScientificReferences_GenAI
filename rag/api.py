@@ -19,6 +19,7 @@ then merged via Reciprocal Rank Fusion and reranked by FlashRank
 (hybrid_retriever.py). See retrieve_evidence()'s Step 5 for the wiring.
 """
 
+import hashlib
 import logging
 from enum import Enum
 
@@ -33,7 +34,7 @@ from rag.ingestion.models import (
     SourceEvidence,
 )
 from rag.prompts.classifier import classify_citation_type
-from rag.prompts.config import LLM_TEMPERATURE
+from rag.prompts.config import ABSOLUTE_QUANTIFIERS, ADVERSARIAL_RETRIEVAL_ENABLED, LLM_TEMPERATURE
 from rag.prompts.verifier import generate_verdict
 from rag.retrieval.bm25_retriever import search as bm25_search
 from rag.retrieval.embedder import embed_chunks
@@ -70,9 +71,11 @@ MAX_SECTION_WEIGHT = max(SECTION_WEIGHTS.values())
 
 # Per-DOI embedding cache for retrieve_evidence(). If a paper has multiple
 # claims all citing the same DOI, this avoids re-embedding identical source
-# chunks for every claim. In-memory only, scoped to this process's lifetime —
-# never persisted, since the backend owns all storage (CLAUDE.md).
-_embedding_cache: dict[str, EmbedderOutput] = {}
+# chunks for every claim. In-memory only, never persisted (CLAUDE.md).
+# Cache key: DOI. Cache value: (EmbedderOutput, md5-hash-of-source-text).
+# The hash ensures a re-uploaded PDF (different text) always gets a fresh
+# embedding rather than reusing the stale entry from a previous run.
+_embedding_cache: dict[str, tuple[EmbedderOutput, str]] = {}
 
 
 # ── Shared request/response models ───────────────────────────────────────────
@@ -209,6 +212,86 @@ class VerifyClaimResponse(BaseModel):
 
 
 # ── Door 1 private helpers ───────────────────────────────────────────────────
+
+
+def _detect_absolute_claim(claim_text: str) -> bool:
+    """Return True if the claim contains an absolute quantifier word."""
+    words = set(claim_text.lower().split())
+    return bool(words & ABSOLUTE_QUANTIFIERS)
+
+
+# Words stripped when building the adversarial query — quantifiers, negations,
+# and high-frequency stop words that carry no retrieval signal.
+_ADVERSARIAL_STRIP: frozenset[str] = ABSOLUTE_QUANTIFIERS | frozenset({
+    "eliminated", "eliminates", "eliminate", "removed", "removes", "remove",
+    "replaced", "replaces", "replace", "abolished", "discarded", "need",
+    "the", "a", "an", "in", "of", "to", "and", "or", "that", "this",
+    "is", "are", "was", "were", "be", "been", "by", "with", "from",
+    "into", "some", "more", "most", "less", "least", "for", "on", "at",
+    "claiming", "claims", "claim", "secondary", "sources", "source",
+    "further", "introduced", "introduces", "introduce", "according",
+    "suggest", "suggests", "argued", "argues", "argue", "stated", "states",
+    "secondary", "suggest", "noted", "notes", "showed", "shows",
+})
+
+import re as _re
+_PUNCT = _re.compile(r"[^\w\s]")
+
+
+def _build_adversarial_query(claim_text: str) -> str:
+    """
+    Build a counter-evidence BM25 query for an absolute claim.
+
+    Strips punctuation, absolute quantifiers, negation verbs, attribution
+    verbs, and stop words so the query targets the key domain terms — the
+    things being claimed to be eliminated or replaced — rather than the
+    framing or citation context around them.
+
+    Example: "attention eliminated the need for any positional information
+    in sequence models entirely." → "attention positional information
+    sequence models"
+    """
+    clean = _PUNCT.sub(" ", claim_text)
+    words = [
+        w for w in clean.split()
+        if w.lower() not in _ADVERSARIAL_STRIP and len(w) > 3
+    ]
+    return " ".join(words)
+
+
+def _merge_bm25_outputs(
+    primary: "Bm25RetrieverOutput",
+    adversarial: "Bm25RetrieverOutput",
+) -> "Bm25RetrieverOutput":
+    """
+    Combine two BM25 outputs into one, deduplicating by chunk_id.
+
+    When both runs return the same chunk, keeps the higher weighted_score.
+    Re-ranks the merged list by weighted_score and rebuilds 1-based ranks.
+    """
+    from rag.retrieval.models import Bm25RetrievedChunk, Bm25RetrieverOutput
+
+    best: dict[str, Bm25RetrievedChunk] = {}
+    for chunk in primary.top_chunks + adversarial.top_chunks:
+        cid = chunk.chunk.chunk_id
+        if cid not in best or chunk.weighted_score > best[cid].weighted_score:
+            best[cid] = chunk
+
+    merged = sorted(best.values(), key=lambda c: c.weighted_score, reverse=True)
+    reranked = [
+        Bm25RetrievedChunk(
+            chunk=c.chunk,
+            raw_score=c.raw_score,
+            weighted_score=c.weighted_score,
+            rank=i + 1,
+        )
+        for i, c in enumerate(merged)
+    ]
+    return Bm25RetrieverOutput(
+        top_chunks=reranked,
+        total_indexed=max(primary.total_indexed, adversarial.total_indexed),
+        retrieved_k=len(reranked),
+    )
 
 
 def _embed_single_text(text: str, doi: str) -> list[float]:
@@ -374,13 +457,16 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
 
         # Step 3: embed every source chunk, reusing a cached embedding when
         # another claim earlier in this run already embedded the same DOI's
-        # source text (SCRUM-264).
-        cached_embedder_output = _embedding_cache.get(request.doi)
-        if cached_embedder_output is not None:
-            embedder_output = cached_embedder_output
+        # source text (SCRUM-264). The cache is keyed by (DOI, md5 of source
+        # text) so a re-uploaded PDF with different content always produces a
+        # fresh embedding rather than reusing a stale entry from a prior run.
+        source_hash = hashlib.md5(request.source_evidence.text.encode()).hexdigest()
+        cached = _embedding_cache.get(request.doi)
+        if cached is not None and cached[1] == source_hash:
+            embedder_output = cached[0]
         else:
             embedder_output = embed_chunks(EmbedderInput(chunks=chunker_output.chunks, doi=request.doi))
-            _embedding_cache[request.doi] = embedder_output
+            _embedding_cache[request.doi] = (embedder_output, source_hash)
 
         # Step 4: embed the claim with the same embedding model.
         # Prepend preceding_context when available so the embedding captures
@@ -411,6 +497,41 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
                 top_k=RETRIEVAL_CANDIDATE_K,
             )
         )
+
+        # Adversarial retrieval: when the claim contains an absolute quantifier
+        # ("entirely", "all", "any", ...), run a second BM25 pass with a
+        # stripped query that targets the object of the absolute assertion.
+        # This surfaces counter-evidence chunks (e.g. a Methods section that
+        # still uses the thing the claim says was "entirely eliminated") that
+        # would otherwise be outranked by chunks confirming the non-absolute
+        # part. Disable by setting ADVERSARIAL_RETRIEVAL_ENABLED=False in
+        # rag/prompts/config.py — no other code needs to change.
+        # Ordered list of adversarial BM25 chunk IDs (rank order preserved).
+        # The pin step injects the highest-ranked one that is not already in
+        # the final top-K, so order matters — a set would lose it.
+        adversarial_ranked_ids: list[str] = []
+        if ADVERSARIAL_RETRIEVAL_ENABLED and _detect_absolute_claim(request.claim_text):
+            adversarial_query = _build_adversarial_query(request.claim_text)
+            if adversarial_query:
+                adversarial_bm25_output = bm25_search(
+                    Bm25RetrieverInput(
+                        chunks=chunker_output.chunks,
+                        query=adversarial_query,
+                        top_k=RETRIEVAL_CANDIDATE_K,
+                    )
+                )
+                adversarial_ranked_ids = [
+                    ac.chunk.chunk_id for ac in adversarial_bm25_output.top_chunks
+                ]
+                logger.info(
+                    "claim_id=%s — adversarial BM25 query=%r  top chunks: %s",
+                    request.claim_id,
+                    adversarial_query,
+                    [(ac.chunk.chunk_id, ac.chunk.section, round(ac.weighted_score, 4))
+                     for ac in adversarial_bm25_output.top_chunks[:5]],
+                )
+                bm25_output = _merge_bm25_outputs(bm25_output, adversarial_bm25_output)
+
         hybrid_output = merge(
             HybridRetrieverInput(
                 dense_results=vector_output,
@@ -445,6 +566,50 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
             return hc.rerank_score
         return dense_weighted_by_id.get(hc.chunk.chunk_id, 0.0) / MAX_SECTION_WEIGHT
 
+    # Pin adversarial chunk: walk the adversarial BM25 results in rank order
+    # and inject the first one that FlashRank excluded from the top-K.
+    # This ensures counter-evidence is always visible to Door 2 even when
+    # FlashRank (which scores relevance to the claim, not contradiction of it)
+    # deprioritises it.  Only one chunk is pinned per call.
+    final_chunks = list(hybrid_output.top_chunks)
+    logger.info(
+        "claim_id=%s — final top-%d chunk IDs before pin: %s",
+        request.claim_id,
+        DOOR1_TOP_K,
+        [hc.chunk.chunk_id for hc in final_chunks],
+    )
+    if adversarial_ranked_ids:
+        present_ids = {hc.chunk.chunk_id for hc in final_chunks}
+        bm25_by_id = {c.chunk.chunk_id: c for c in bm25_output.top_chunks}
+        for pin_id in adversarial_ranked_ids:
+            if pin_id not in present_ids:
+                pin_chunk = bm25_by_id.get(pin_id)
+                if pin_chunk is not None:
+                    from rag.retrieval.models import HybridRetrievedChunk
+                    pinned = HybridRetrievedChunk(
+                        chunk=pin_chunk.chunk,
+                        rrf_score=0.0,
+                        dense_rank=None,
+                        bm25_rank=pin_chunk.rank,
+                        rerank_score=None,
+                        rank=DOOR1_TOP_K,
+                    )
+                    final_chunks[-1] = pinned
+                    logger.info(
+                        "claim_id=%s — pinned adversarial chunk %r (section=%s) into top-%d",
+                        request.claim_id,
+                        pin_id,
+                        pin_chunk.chunk.section,
+                        DOOR1_TOP_K,
+                    )
+                    break  # pin exactly one chunk
+                # chunk not in BM25 pool — try the next adversarial candidate
+        else:
+            logger.info(
+                "claim_id=%s — all adversarial chunks already in top-%d; no pin needed",
+                request.claim_id, DOOR1_TOP_K,
+            )
+
     top_chunks = [
         TopChunkResult(
             chunk_id=hc.chunk.chunk_id,
@@ -452,9 +617,9 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
             similarity_score=_similarity_score(hc),
             evidence_type=hc.chunk.evidence_type,
         )
-        for hc in hybrid_output.top_chunks
+        for hc in final_chunks
     ]
-    similarity_scores = [_similarity_score(hc) for hc in hybrid_output.top_chunks]
+    similarity_scores = [_similarity_score(hc) for hc in final_chunks]
 
     return RetrieveEvidenceResponse(
         claim_id=request.claim_id,
