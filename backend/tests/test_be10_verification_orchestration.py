@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.main import app
-from app.models import Citation, Claim, ClaimReferenceLink, Document, EvidencePackage, Reference, SafetyCheck, SourceMetadata, VerificationResult
+from app.models import Citation, Claim, ClaimReferenceLink, Document, EvidencePackage, PipelineRun, Reference, SafetyCheck, SourceMetadata, VerificationResult
 from app.models.enums import CacheSource, DocumentStatus, DoiStatus, EvidenceAvailability, MappingStatus, MetadataStatus, SupportStatus, UploadType
 from app.services.evidence_package_builder import EvidencePackageBuilder
 from app.services.genai_verification import GenAiVerificationResponseValidator
@@ -92,8 +92,9 @@ def test_pipeline_run_happy_path_creates_verification_result_and_steps() -> None
     assert_wrapper(payload)
     run = payload["data"]
     assert run["document_id"] == doc_id
-    assert run["status"] in {"SUCCEEDED", "PARTIAL_FAILED"}
-    assert run["progress_percentage"] == 100
+    # Endpoint returns immediately (background task); TestClient runs background tasks
+    # synchronously, so results are already available when we check below.
+    assert run["status"] == "PROCESSING"
 
     results = client.get(f"/api/v1/documents/{doc_id}/verification-results").json()["data"]
     assert results["summary"]["verification_results"] == 1
@@ -104,7 +105,9 @@ def test_pipeline_run_happy_path_creates_verification_result_and_steps() -> None
     assert result["verification_method"] in {"RAG_PLUS_GENAI", "FALLBACK_NEEDS_REVIEW"}
     assert result["cache_source"] == CacheSource.NEW_VERIFICATION.value
 
-    steps = client.get(f"/api/v1/pipeline-runs/{run['pipeline_run_id']}/steps")
+    with SessionLocal() as db:
+        pipeline_run = db.query(PipelineRun).filter(PipelineRun.document_id == doc_id).one()
+    steps = client.get(f"/api/v1/pipeline-runs/{pipeline_run.id}/steps")
     assert steps.status_code == 200
     step_names = {item["step_name"] for item in steps.json()["data"]["steps"]}
     assert {"CACHE_CHECK", "RAG_RETRIEVAL", "GENAI_VERIFICATION", "BASIC_SAFETY_CHECK", "RESULT_STORAGE"}.issubset(step_names)
