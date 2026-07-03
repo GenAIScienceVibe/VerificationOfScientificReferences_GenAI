@@ -184,7 +184,33 @@ function ResultsPage() {
   const [expandedReasoning, setExpandedReasoning] = useState({})
   const [passageData, setPassageData] = useState({})
   const [flashUpload, setFlashUpload] = useState(false)
+  const [manualOverrides, setManualOverrides] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`verifai-overrides-${documentId}`) || '{}') }
+    catch { return {} }
+  })
+  const [overrideOpen, setOverrideOpen] = useState(null)
   const claimsListRef = useRef(null)
+
+  const handleManualStatusChange = (claimId, newStatus) => {
+    const updated = { ...manualOverrides, [claimId]: newStatus }
+    setManualOverrides(updated)
+    localStorage.setItem(`verifai-overrides-${documentId}`, JSON.stringify(updated))
+    setOverrideOpen(null)
+  }
+
+  const clearOverride = (claimId) => {
+    const updated = { ...manualOverrides }
+    delete updated[claimId]
+    setManualOverrides(updated)
+    localStorage.setItem(`verifai-overrides-${documentId}`, JSON.stringify(updated))
+  }
+
+  useEffect(() => {
+    if (!overrideOpen) return
+    const handler = () => setOverrideOpen(null)
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [overrideOpen])
 
   const loadResults = () => {
     if (!documentId) {
@@ -256,12 +282,14 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
     insufficient: { label: "Insufficient Evidence", color: "#6b7280", bg: "#f9fafb", border: "#d1d5db" },
   }
 
+  const effectiveClaims = claims.map(c => ({ ...c, status: manualOverrides[c.id] || c.status }))
+
   const summaryItems = [
-    { label: "Supported", count: claims.filter(c => c.status === 'supported').length, color: "#16a34a" },
-    { label: "Partially supported", count: claims.filter(c => c.status === 'partial').length, color: "#d97706" },
-    { label: "Unsupported", count: claims.filter(c => c.status === 'unsupported').length, color: "#dc2626" },
-    { label: "Hallucinated", count: claims.filter(c => c.status === 'hallucinated').length, color: "#6b21a8" },
-    { label: "Insufficient evidence", count: claims.filter(c => c.status === 'insufficient').length, color: "#6b7280" },
+    { label: "Supported", count: effectiveClaims.filter(c => c.status === 'supported').length, color: "#16a34a" },
+    { label: "Partially supported", count: effectiveClaims.filter(c => c.status === 'partial').length, color: "#d97706" },
+    { label: "Unsupported", count: effectiveClaims.filter(c => c.status === 'unsupported').length, color: "#dc2626" },
+    { label: "Hallucinated", count: effectiveClaims.filter(c => c.status === 'hallucinated').length, color: "#6b21a8" },
+    { label: "Insufficient evidence", count: effectiveClaims.filter(c => c.status === 'insufficient').length, color: "#6b7280" },
   ]
 
   const totalClaims = claims.length
@@ -284,7 +312,7 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
   ]
 
   const sortOrder = { supported: 0, partial: 1, unsupported: 2, hallucinated: 3, insufficient: 4 }
-  const sortedClaims = [...claims].sort((a, b) => {
+  const sortedClaims = [...effectiveClaims].sort((a, b) => {
     if (sortBy === 'confidence') return b.confidence - a.confidence
     if (sortBy === 'status') return (sortOrder[a.status] ?? 5) - (sortOrder[b.status] ?? 5)
     if (sortBy === 'source') return (a.source || '').localeCompare(b.source || '')
@@ -532,11 +560,13 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                   {filteredClaims.map(claim => {
-                    const config = statusConfig[claim.status]
-                    const showManualUpload = !claim.doiResolved || claim.status === 'insufficient'
+                    const effectiveStatus = claim.status
+                    const isOverridden = !!manualOverrides[claim.id]
+                    const config = statusConfig[effectiveStatus]
+                    const showManualUpload = !claim.doiResolved || effectiveStatus === 'insufficient'
                     const uploadState = refUploadStatus[claim.id]
-                    const similarityHint = claim.status === 'insufficient' ? getSimilarityHint(claim.similarityScore) : null
-                    const evidenceHint = getEvidenceAvailabilityHint(claim.evidenceAvailability, claim.status)
+                    const similarityHint = effectiveStatus === 'insufficient' ? getSimilarityHint(claim.similarityScore) : null
+                    const evidenceHint = getEvidenceAvailabilityHint(claim.evidenceAvailability, effectiveStatus)
                     const doiExplanation = getDoiStatusExplanation(claim.doiStatus, claim.evidenceAvailability)
                     const isPassageOpen = expandedPassages[claim.id]
                     const isReasoningExpanded = expandedReasoning[claim.id]
@@ -548,17 +578,48 @@ doiUrl: r.doi ? `https://doi.org/${r.doi}` : null,
                         {/* Header */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                           <span style={{ fontSize: "12px", fontWeight: "700", color: "#888", letterSpacing: "1px" }}>CLAIM {claim.displayId}</span>
-                          <div className="verifai-tooltip">
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}`, cursor: "default" }}>
-                              {config.label}
-                            </span>
-                            <span className="verifai-tooltip-text" style={{ textAlign: "left" }}>
-                              {STATUS_TOOLTIPS[claim.status]}
-                              {' '}
-<a href={`/how-it-works?tab=categories#category-${STATUS_ANCHOR[claim.status]}`} style={{ color: "#93c5fd", fontSize: "11px", display: "block", marginTop: "6px" }} onClick={e => e.stopPropagation()}>
-  Learn more
-</a>
-                            </span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            {isOverridden && (
+                              <span style={{ fontSize: "11px", color: "#6b7280", fontStyle: "italic" }}>
+                                manually set ·{' '}
+                                <button onClick={() => clearOverride(claim.id)} style={{ fontSize: "11px", color: "#dc2626", background: "none", border: "none", cursor: "pointer", padding: 0, fontStyle: "normal", textDecoration: "underline" }}>reset</button>
+                              </span>
+                            )}
+                            <div style={{ position: "relative" }}>
+                              <div className="verifai-tooltip">
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: config.color, background: config.bg, padding: "4px 12px", borderRadius: "99px", border: `1px solid ${config.border}`, cursor: "default" }}>
+                                  {config.label}
+                                </span>
+                                <span className="verifai-tooltip-text" style={{ textAlign: "left" }}>
+                                  {STATUS_TOOLTIPS[effectiveStatus]}
+                                  {' '}
+                                  <a href={`/how-it-works?tab=categories#category-${STATUS_ANCHOR[effectiveStatus]}`} style={{ color: "#93c5fd", fontSize: "11px", display: "block", marginTop: "6px" }} onClick={e => e.stopPropagation()}>Learn more</a>
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => setOverrideOpen(overrideOpen === claim.id ? null : claim.id)}
+                                title="Override verdict"
+                                style={{ marginLeft: "6px", fontSize: "11px", color: "#6b7280", background: "none", border: "1px solid #d0d5dd", borderRadius: "6px", cursor: "pointer", padding: "2px 7px", verticalAlign: "middle" }}
+                              >✏️</button>
+                              {overrideOpen === claim.id && (
+                                <div onMouseDown={e => e.stopPropagation()} style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 100, background: "white", border: "1px solid #e0e4ea", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.10)", minWidth: "180px", overflow: "hidden" }}>
+                                  <p style={{ fontSize: "11px", color: "#888", fontWeight: "700", letterSpacing: "0.5px", padding: "8px 12px 4px", margin: 0 }}>SET VERDICT TO</p>
+                                  {Object.entries(statusConfig).map(([key, sc]) => (
+                                    <button
+                                      key={key}
+                                      onClick={() => handleManualStatusChange(claim.id, key)}
+                                      style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "9px 12px", border: "none", textAlign: "left", background: effectiveStatus === key ? "#eff6ff" : "white", color: "#333", fontSize: "13px", fontWeight: effectiveStatus === key ? "700" : "400", cursor: "pointer" }}
+                                      onMouseEnter={e => { if (effectiveStatus !== key) e.currentTarget.style.background = "#f5f8ff" }}
+                                      onMouseLeave={e => { if (effectiveStatus !== key) e.currentTarget.style.background = "white" }}
+                                    >
+                                      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: sc.color, flexShrink: 0 }} />
+                                      {sc.label}
+                                      {effectiveStatus === key && <span style={{ marginLeft: "auto", color: "#1a3a6b" }}>✓</span>}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
 
