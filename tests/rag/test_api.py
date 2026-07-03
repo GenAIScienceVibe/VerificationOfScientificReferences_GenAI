@@ -119,7 +119,11 @@ def make_door2_request(
         retrieved_evidence=[
             RetrievedEvidenceItem(
                 chunk_id="chunk_001",
-                chunk_text="participants showed a 28% reduction...",
+                chunk_text=(
+                    "Participants who performed regular aerobic exercise showed "
+                    "a significant reduction in cardiovascular disease risk "
+                    "compared to sedentary controls over the intervention period."
+                ),
                 similarity_score=0.84,
             )
         ],
@@ -541,6 +545,153 @@ def test_retrieve_evidence_empty_hybrid_results_returns_failed():
         response = retrieve_evidence(make_door1_request())
 
     assert response.retrieval_status == RetrievalStatus.FAILED
+
+
+# ── Claim query embedding ─────────────────────────────────────────────────────
+
+
+def test_retrieve_evidence_embeds_raw_claim_as_query():
+    """Step 4 of retrieve_evidence() embeds the raw claim text as the dense
+    search query vector — confirmed by capturing what text reaches embed_chunks."""
+    chunk1 = make_chunk(0)
+    hybrid_output = HybridRetrieverOutput(
+        top_chunks=[
+            HybridRetrievedChunk(
+                chunk=chunk1, rrf_score=0.02, dense_rank=1, bm25_rank=None, rerank_score=0.9, rank=1
+            ),
+        ],
+        total_unique=1,
+    )
+
+    embedded_texts: list[str] = []
+
+    def capturing_embed(input_data):
+        for c in input_data.chunks:
+            embedded_texts.append(c.chunk_text)
+        return fake_embed_chunks(input_data)
+
+    with (
+        patch("rag.api.clean_text") as mock_clean,
+        patch("rag.api.chunk_text") as mock_chunk,
+        patch("rag.api.embed_chunks", side_effect=capturing_embed),
+        patch("rag.api.search", return_value=VectorStoreOutput(
+            doi="10.1234/example.2019.001",
+            top_chunks=[RetrievedChunk(chunk=chunk1, raw_score=0.9, weighted_score=0.9, rank=1)],
+            total_indexed=1, retrieved_k=1,
+        )),
+        patch("rag.api.bm25_search", return_value=Bm25RetrieverOutput(
+            top_chunks=[], total_indexed=1, retrieved_k=0
+        )),
+        patch("rag.api.merge", return_value=hybrid_output),
+    ):
+        mock_clean.return_value = CleanerOutput(
+            clean_text="cleaned text", doi="10.1234/example.2019.001",
+            evidence_availability=EvidenceAvailability.ABSTRACT_AVAILABLE,
+            original_length=20, cleaned_length=12,
+        )
+        mock_chunk.return_value = ChunkerOutput(
+            doi="10.1234/example.2019.001", chunks=[chunk1], total_chunks=1,
+            sections_found=["results"], fallback_used=False,
+        )
+        retrieve_evidence(make_door1_request())
+
+    raw_claim = "Exercise reduces heart disease risk by 35%"
+    assert raw_claim in embedded_texts, "Raw claim was not embedded as the dense query text"
+
+
+def test_retrieve_evidence_query_embed_is_separate_from_source_embed():
+    """embed_chunks() is called twice per request — once for source chunks
+    (Step 3) and once for the claim query (Step 4, via _embed_single_text).
+    The query call uses a single placeholder chunk whose chunk_id ends with
+    '_claim_query', distinct from the source chunk IDs."""
+    chunk1 = make_chunk(0)
+    hybrid_output = HybridRetrieverOutput(
+        top_chunks=[
+            HybridRetrievedChunk(
+                chunk=chunk1, rrf_score=0.02, dense_rank=1, bm25_rank=None, rerank_score=0.9, rank=1
+            ),
+        ],
+        total_unique=1,
+    )
+
+    seen_chunk_ids: list[str] = []
+
+    def capturing_embed(input_data):
+        for c in input_data.chunks:
+            seen_chunk_ids.append(c.chunk_id)
+        return fake_embed_chunks(input_data)
+
+    with (
+        patch("rag.api.clean_text") as mock_clean,
+        patch("rag.api.chunk_text") as mock_chunk,
+        patch("rag.api.embed_chunks", side_effect=capturing_embed),
+        patch("rag.api.search", return_value=VectorStoreOutput(
+            doi="10.1234/example.2019.001",
+            top_chunks=[RetrievedChunk(chunk=chunk1, raw_score=0.9, weighted_score=0.9, rank=1)],
+            total_indexed=1, retrieved_k=1,
+        )),
+        patch("rag.api.bm25_search", return_value=Bm25RetrieverOutput(
+            top_chunks=[], total_indexed=1, retrieved_k=0
+        )),
+        patch("rag.api.merge", return_value=hybrid_output),
+    ):
+        mock_clean.return_value = CleanerOutput(
+            clean_text="cleaned text", doi="10.1234/example.2019.001",
+            evidence_availability=EvidenceAvailability.ABSTRACT_AVAILABLE,
+            original_length=20, cleaned_length=12,
+        )
+        mock_chunk.return_value = ChunkerOutput(
+            doi="10.1234/example.2019.001", chunks=[chunk1], total_chunks=1,
+            sections_found=["results"], fallback_used=False,
+        )
+        retrieve_evidence(make_door1_request())
+
+    # Source chunk was embedded under its real chunk_id.
+    assert chunk1.chunk_id in seen_chunk_ids
+    # Claim query was embedded under its placeholder chunk_id.
+    assert any(cid.endswith("_claim_query") for cid in seen_chunk_ids)
+
+
+def test_retrieve_evidence_bm25_queries_with_raw_claim_not_query_embedding():
+    """BM25 is a lexical retriever and always receives the raw claim string,
+    regardless of what text is used for the dense query embedding."""
+    chunk1 = make_chunk(0)
+    hybrid_output = HybridRetrieverOutput(
+        top_chunks=[
+            HybridRetrievedChunk(
+                chunk=chunk1, rrf_score=0.02, dense_rank=1, bm25_rank=None, rerank_score=0.9, rank=1
+            ),
+        ],
+        total_unique=1,
+    )
+
+    with (
+        patch("rag.api.clean_text") as mock_clean,
+        patch("rag.api.chunk_text") as mock_chunk,
+        patch("rag.api.embed_chunks", side_effect=fake_embed_chunks),
+        patch("rag.api.search", return_value=VectorStoreOutput(
+            doi="10.1234/example.2019.001",
+            top_chunks=[RetrievedChunk(chunk=chunk1, raw_score=0.9, weighted_score=0.9, rank=1)],
+            total_indexed=1, retrieved_k=1,
+        )),
+        patch("rag.api.bm25_search", return_value=Bm25RetrieverOutput(
+            top_chunks=[], total_indexed=1, retrieved_k=0
+        )) as mock_bm25,
+        patch("rag.api.merge", return_value=hybrid_output),
+    ):
+        mock_clean.return_value = CleanerOutput(
+            clean_text="cleaned text", doi="10.1234/example.2019.001",
+            evidence_availability=EvidenceAvailability.ABSTRACT_AVAILABLE,
+            original_length=20, cleaned_length=12,
+        )
+        mock_chunk.return_value = ChunkerOutput(
+            doi="10.1234/example.2019.001", chunks=[chunk1], total_chunks=1,
+            sections_found=["results"], fallback_used=False,
+        )
+        retrieve_evidence(make_door1_request())
+
+    bm25_query = mock_bm25.call_args[0][0].query
+    assert bm25_query == "Exercise reduces heart disease risk by 35%"
 
 
 # ── Door 2: verify_claim() ────────────────────────────────────────────────────

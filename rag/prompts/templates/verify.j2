@@ -50,7 +50,11 @@ because the language style differs — focus entirely on semantic facts.
 
 INSUFFICIENT_EVIDENCE: the retrieved chunks do not contain enough information to make
 a judgment. Use only when retrieval clearly failed or returned off-topic content — not
-as a fallback for difficult cases.
+as a fallback for difficult cases. IMPORTANT: if the retrieved chunks contain no
+recognisable scientific content (e.g. random characters, placeholder text, or
+unrelated gibberish), you MUST return INSUFFICIENT_EVIDENCE. Do NOT use your own
+prior knowledge to fill the gap — your verdict must be grounded in the retrieved
+evidence only.
 
 NEEDS_HUMAN_REVIEW: the evidence is genuinely ambiguous or contradictory and a human
 expert is needed to make the final call.

@@ -19,7 +19,9 @@ then merged via Reciprocal Rank Fusion and reranked by FlashRank
 (hybrid_retriever.py). See retrieve_evidence()'s Step 5 for the wiring.
 """
 
+import hashlib
 import logging
+import re
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -68,11 +70,44 @@ RETRIEVAL_CANDIDATE_K = DOOR1_TOP_K * 3
 # already a 0-1 relevance probability and is never divided by this.
 MAX_SECTION_WEIGHT = max(SECTION_WEIGHTS.values())
 
-# Per-DOI embedding cache for retrieve_evidence(). If a paper has multiple
-# claims all citing the same DOI, this avoids re-embedding identical source
-# chunks for every claim. In-memory only, scoped to this process's lifetime —
-# never persisted, since the backend owns all storage (CLAUDE.md).
+# Per-(DOI, source-text) embedding cache for retrieve_evidence(). If multiple
+# claims cite the same DOI *with the same source text*, this avoids re-embedding
+# identical chunks. The key is "<doi>:<sha256-of-source-text>" so that a
+# different source text for the same DOI (e.g. a test override) is never served
+# stale cached embeddings from a previous call. In-memory only, process-scoped.
 _embedding_cache: dict[str, EmbedderOutput] = {}
+
+
+def _cache_key(doi: str, source_text: str) -> str:
+    """Return the embedding-cache key for a (DOI, source text) pair."""
+    text_hash = hashlib.sha256(source_text.encode("utf-8", errors="replace")).hexdigest()[:16]
+    return f"{doi}:{text_hash}"
+
+# ── Content quality gate constants ────────────────────────────────────────────
+# Applied in verify_claim() before the LLM is called. Gibberish source text
+# produces chunks that embed and score plausibly (high-dimensional cosine
+# similarity is noisy on random vectors) but contain no real words — the LLM
+# then hallucinates a verdict from its prior knowledge instead of the evidence.
+#
+# A "meaningful word" is any token of 3+ characters composed entirely of
+# ASCII letters (a-z). This excludes punctuation fragments, single letters,
+# digits, and random character strings.
+#
+# MIN_MEANINGFUL_WORDS_PER_CHUNK: chunks with fewer real words than this are
+# considered low-quality. Typical real scientific sentences have 15-30 words.
+# Gibberish chunks produced from repeated short tokens have near-zero.
+MIN_MEANINGFUL_WORDS_PER_CHUNK: int = 10
+
+# MEANINGFUL_WORD_RATIO: the fraction of all whitespace-delimited tokens that
+# must be meaningful words. Real prose is ~85-95%. Gibberish ("asdfgh xyz 123")
+# is effectively 0%.
+MIN_MEANINGFUL_WORD_RATIO: float = 0.5
+
+# A meaningful word must be 3+ ASCII letters AND contain at least one vowel.
+# The vowel requirement filters out consonant-only keyboard-mash strings like
+# "asdfgh", "zxcvbn", "qwerty" that would otherwise pass a letters-only check.
+_MEANINGFUL_WORD_RE = re.compile(r"^[a-zA-Z]{3,}$")
+_VOWELS = frozenset("aeiouAEIOU")
 
 
 # ── Shared request/response models ───────────────────────────────────────────
@@ -260,6 +295,45 @@ def _needs_human_review(reason: str) -> VerifyClaimResponse:
     )
 
 
+def _chunks_are_gibberish(chunks: list[RetrievedEvidenceItem]) -> bool:
+    """
+    Return True if the retrieved chunks lack recognisable real-word content.
+
+    Checks two conditions across all chunks combined:
+      1. The total meaningful-word count is below MIN_MEANINGFUL_WORDS_PER_CHUNK
+         per chunk on average (catches near-empty or token-sparse chunks).
+      2. The ratio of meaningful words to all tokens is below
+         MIN_MEANINGFUL_WORD_RATIO (catches dense gibberish like 'asdfgh xyz').
+
+    A "meaningful word" is a token of 3+ ASCII letters that also contains at
+    least one vowel (a/e/i/o/u). The vowel requirement rejects consonant-only
+    keyboard-mash strings like "asdfgh" or "zxcvbn" that would otherwise pass
+    a letters-only filter. Returns False (not gibberish) when chunks is empty
+    so callers don't need to guard separately.
+    """
+    if not chunks:
+        return False
+
+    all_tokens: list[str] = []
+    for item in chunks:
+        all_tokens.extend(item.chunk_text.split())
+
+    if not all_tokens:
+        return True
+
+    meaningful = [
+        t for t in all_tokens
+        if _MEANINGFUL_WORD_RE.match(t) and any(c in _VOWELS for c in t)
+    ]
+    avg_meaningful_per_chunk = len(meaningful) / len(chunks)
+    meaningful_ratio = len(meaningful) / len(all_tokens)
+
+    return (
+        avg_meaningful_per_chunk < MIN_MEANINGFUL_WORDS_PER_CHUNK
+        or meaningful_ratio < MIN_MEANINGFUL_WORD_RATIO
+    )
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
@@ -351,13 +425,16 @@ def retrieve_evidence(request: RetrieveEvidenceRequest) -> RetrieveEvidenceRespo
 
         # Step 3: embed every source chunk, reusing a cached embedding when
         # another claim earlier in this run already embedded the same DOI's
-        # source text (SCRUM-264).
-        cached_embedder_output = _embedding_cache.get(request.doi)
+        # source text (SCRUM-264). The cache key includes a hash of the source
+        # text so that overridden/different texts for the same DOI are never
+        # served stale embeddings from a prior call.
+        cache_key = _cache_key(request.doi, request.source_evidence.text)
+        cached_embedder_output = _embedding_cache.get(cache_key)
         if cached_embedder_output is not None:
             embedder_output = cached_embedder_output
         else:
             embedder_output = embed_chunks(EmbedderInput(chunks=chunker_output.chunks, doi=request.doi))
-            _embedding_cache[request.doi] = embedder_output
+            _embedding_cache[cache_key] = embedder_output
 
         # Step 4: embed the claim with the same embedding model.
         claim_embedding = _embed_single_text(request.claim_text, request.doi)
@@ -492,12 +569,30 @@ def verify_claim(request: VerifyClaimRequest) -> VerifyClaimResponse:
           missing fields, bad verdict label) -> validate_output() already
           guarantees a NEEDS_HUMAN_REVIEW fallback; this path *does* reach the
           mapping step above, so it is returned as INSUFFICIENT_EVIDENCE.
+        - Retrieved chunks contain no recognisable real words (gibberish source
+          text) -> _chunks_are_gibberish() returns True and the pipeline short-
+          circuits to INSUFFICIENT_EVIDENCE with human_review_required=True
+          before the classifier or LLM are called. Prevents the LLM from
+          hallucinating a verdict from its own prior knowledge on junk evidence.
     """
     logger.debug("verify_claim invoked (LLM_TEMPERATURE=%s)", LLM_TEMPERATURE)
 
     if request.doi_status in UNUSABLE_DOI_STATUSES:
         return _insufficient_evidence(
             f"DOI status is {request.doi_status.value} — skipping verification."
+        )
+
+    # Content quality gate: if the retrieved chunks contain no recognisable
+    # real words the LLM cannot ground its verdict in the evidence and will
+    # hallucinate. Short-circuit before the classifier or LLM are called.
+    if _chunks_are_gibberish(request.retrieved_evidence):
+        logger.warning(
+            "verify_claim: retrieved chunks failed content quality check "
+            "(gibberish or near-empty text) — returning INSUFFICIENT_EVIDENCE."
+        )
+        return _insufficient_evidence(
+            "No evidence chunks contained recognisable content — "
+            "source text may be corrupted or unavailable."
         )
 
     # Step 1: classify the citation type to give the LLM the right context.

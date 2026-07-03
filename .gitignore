@@ -3,6 +3,12 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Benchmark data and results (generated at runtime — not source-controlled)
+data/evaluation/
+
+# Ad-hoc test / benchmark runner scripts (local dev tools, not part of the pipeline)
+run_*.py
+
 # C extensions
 *.so
 
