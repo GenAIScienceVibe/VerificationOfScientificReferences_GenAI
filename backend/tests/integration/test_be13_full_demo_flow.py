@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from testsupport.api_client import ApiTestClient as TestClient
 
+from app.db.session import SessionLocal
 from app.main import app
 from app.models.enums import SupportStatus
+from app.models.workflow import PipelineRun
 
 client = TestClient(app)
 
@@ -66,10 +68,12 @@ def test_be13_full_demo_pipeline_from_text_to_report_and_feedback() -> None:
         f"/api/v1/documents/{document_id}/pipeline-runs",
         {"mode": "FULL_VERIFICATION", "use_cache": True, "use_rag": True, "use_genai_safety_review": True, "generate_report": False},
     )
-    assert pipeline["status"] in {"SUCCEEDED", "PARTIAL_FAILED"}
-    assert pipeline["progress_percentage"] == 100
+    # Endpoint returns immediately; background task ran synchronously in TestClient.
+    assert pipeline["status"] == "PROCESSING"
 
-    steps = get(f"/api/v1/pipeline-runs/{pipeline['pipeline_run_id']}/steps")
+    with SessionLocal() as db:
+        pipeline_run = db.query(PipelineRun).filter(PipelineRun.document_id == document_id).one()
+    steps = get(f"/api/v1/pipeline-runs/{pipeline_run.id}/steps")
     assert len(steps["steps"]) == 10
 
     results = get(f"/api/v1/documents/{document_id}/verification-results")
