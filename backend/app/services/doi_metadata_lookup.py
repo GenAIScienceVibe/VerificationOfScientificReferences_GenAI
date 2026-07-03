@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import httpx
@@ -15,6 +16,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import AppException, ErrorCode
 from app.models import Document, Reference, SourceMetadata
 from app.models.enums import DocumentStatus, DoiStatus, MetadataStatus
+from app.db.session import session_scope
 from app.repositories import DocumentRepository, ReferenceRepository, SourceMetadataRepository
 from app.services.metadata_scoring import calculate_metadata_match
 from app.services.reference_extraction import reference_to_dict
@@ -383,6 +385,28 @@ class MetadataLookupService:
         metadata = self._verify_reference(reference, db, request_id=request_id, force_refresh=force_refresh)
         return self._reference_metadata_response(reference, metadata)
 
+    def _verify_reference_by_id(
+        self,
+        reference_id: str,
+        *,
+        request_id: str | None,
+        force_refresh: bool,
+    ) -> dict[str, str] | None:
+        """Look up one reference in its own DB session so threads don't share state.
+
+        Returns an error dict on AppException, or None on success.
+        SQLAlchemy sessions are not thread-safe — each thread must open its own.
+        """
+        with session_scope() as thread_db:
+            reference = thread_db.get(Reference, reference_id)
+            if reference is None:
+                return {"reference_id": reference_id, "code": "NOT_FOUND", "detail": "Reference disappeared during lookup."}
+            try:
+                self._verify_reference(reference, thread_db, request_id=request_id, force_refresh=force_refresh, raise_for_missing=False)
+                return None
+            except AppException as exc:
+                return {"reference_id": reference_id, "code": exc.error.code, "detail": exc.error.detail}
+
     def verify_document_dois(self, document_id: str, db: Session, *, request_id: str | None = None, force_refresh: bool = False) -> dict[str, Any]:
         document = DocumentRepository(db).get(document_id)
         if not document:
@@ -397,14 +421,28 @@ class MetadataLookupService:
         document.status = DocumentStatus.DOI_VERIFYING.value
         db.commit()
 
-        processed: list[Reference] = []
         errors: list[dict[str, str]] = []
-        for reference in references:
-            try:
-                self._verify_reference(reference, db, request_id=request_id, force_refresh=force_refresh, raise_for_missing=False)
-            except AppException as exc:
-                errors.append({"reference_id": reference.id, "code": exc.error.code, "detail": exc.error.detail})
-            processed.append(reference)
+        # Run up to 5 lookups in parallel — each thread gets its own DB session.
+        # max_workers=5 balances throughput against external API rate limits.
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {
+                executor.submit(
+                    self._verify_reference_by_id,
+                    ref.id,
+                    request_id=request_id,
+                    force_refresh=force_refresh,
+                ): ref.id
+                for ref in references
+            }
+            for future in as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    errors.append(result)
+
+        # Reload references in the main session — the parallel threads committed
+        # their changes in separate sessions, so we must expire and re-query.
+        db.expire_all()
+        processed = ReferenceRepository(db).list_for_document(document_id)
 
         db.flush()
         counts = Counter(reference.doi_status for reference in processed)
