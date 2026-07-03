@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf'
-import logoUrl from '../assets/Logo_VerifAi_pdf.png'
+import logoUrl from '../assets/Logo_VerifAI_pdf.png'
 
 const COLORS = {
   navy: [26, 58, 107],
@@ -24,12 +24,12 @@ const STATUS = {
     pale: [236, 253, 245],
   },
   partial: {
-    label: 'Partially supported',
+    label: 'Partially Supported',
     color: COLORS.orange,
     pale: [255, 247, 237],
   },
   partially_supported: {
-    label: 'Partially supported',
+    label: 'Partially Supported',
     color: COLORS.orange,
     pale: [255, 247, 237],
   },
@@ -246,33 +246,29 @@ function ensurePage(doc, y, needed, layout, fileName) {
 
 function drawLogo(doc, x, y, logoData) {
   if (logoData) {
-    // Cropped logo aspect ratio is wide, so use wide dimensions.
-    doc.addImage(logoData, 'PNG', x, y - 4.2, 24, 12.8)
+    // Cropped horizontal logo, small but visible
+    doc.addImage(logoData, 'PNG', x, y - 6.2, 19, 10.2)
     return
   }
 
-  // Fallback if image cannot load
-  font(doc, 10, 'bold', COLORS.navy)
-  doc.text('verifAi', x, y)
+  font(doc, 9, 'bold', COLORS.navy)
+  doc.text('VerifAI', x, y)
 }
 
 function drawHeader(doc, layout, fileName) {
-  const { pageW, margin } = layout
+  const { pageW, margin, logoData } = layout
 
   doc.setFillColor(255, 255, 255)
   doc.rect(0, 0, pageW, 31, 'F')
 
-  drawLogo(doc, margin, 18)
+  drawLogo(doc, margin, 18, logoData)
 
   const headerText = `Verification Report · ${fileName} · ${formatDate()}`
-  const headerMaxW = pageW - margin * 2 - 58
+  const headerMaxW = pageW - margin * 2 - 54
 
   font(doc, 7.1, 'normal', COLORS.muted)
   const headerLines = doc.splitTextToSize(headerText, headerMaxW)
-
-  doc.text(headerLines.slice(0, 2), pageW - margin, 16, {
-    align: 'right',
-  })
+  doc.text(headerLines.slice(0, 2), pageW - margin, 16, { align: 'right' })
 
   line(doc, margin, 29, pageW - margin, [232, 235, 241], 0.3)
 }
@@ -358,10 +354,10 @@ function drawSummaryPanel(doc, x, y, w, c) {
 
   const rows = [
     ['Supported', c.supported, COLORS.green],
-    ['Partially supported', c.partial, COLORS.orange],
+    ['Partially Supported', c.partial, COLORS.orange],
     ['Unsupported', c.unsupported, COLORS.red],
     ['Hallucinated', c.hallucinated, COLORS.purple],
-    ['Insufficient evidence', c.insufficient, COLORS.gray],
+    ['Insufficient Evidence', c.insufficient, COLORS.gray],
   ]
 
   rows.forEach((row, index) => {
@@ -427,19 +423,18 @@ function drawDocumentPanel(doc, x, y, w, fileName, claimsCount) {
   doc.text(`${claimsCount} claims processed`, x + 23, y + 23)
 }
 
-function drawChip(doc, x, y, label, count, color, pale, active = false) {
-  const text = `${label} ${count}`
-  font(doc, 6.6, 'bold', active ? [255, 255, 255] : color)
-
+function drawChip(doc, x, y, label, value, color, pale) {
+  const text = `${label} ${value}`
+  font(doc, 6.6, 'bold', color)
   const w = Math.max(18, doc.getTextWidth(text) + 10)
   const h = 8.8
 
-  doc.setFillColor(...(active ? color : pale))
+  doc.setFillColor(...pale)
   doc.setDrawColor(...color)
-  doc.setLineWidth(0.35)
+  doc.setLineWidth(0.3)
   doc.roundedRect(x, y, w, h, h / 2, h / 2, 'FD')
 
-  font(doc, 6.6, 'bold', active ? [255, 255, 255] : color)
+  font(doc, 6.6, 'bold', color)
   doc.text(text, x + w / 2, y + h / 2 + 0.35, {
     align: 'center',
     baseline: 'middle',
