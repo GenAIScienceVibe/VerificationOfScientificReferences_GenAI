@@ -119,4 +119,4 @@ export async function uploadReferenceSourcePdf(referenceId, file) {
 }
 
 export const TERMINAL_SUCCESS_STATUSES = ['SUCCEEDED', 'COMPLETED', 'VERIFIED']
-export const TERMINAL_FAILURE_STATUSES = ['FAILED', 'CANCELLED', 'ERROR']
+export const TERMINAL_FAILURE_STATUSES = ['FAILED', 'CANCELLED', 'ERROR', 'PARTIAL_FAILED']
