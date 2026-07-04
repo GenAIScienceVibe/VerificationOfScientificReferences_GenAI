@@ -92,19 +92,31 @@ function Footer() {
 
       {openModal === 'privacy' && (
         <Modal title="Privacy Policy" onClose={() => setOpenModal(null)}>
+          <p style={{ marginBottom: "16px", fontSize: "12px", color: "#888" }}>Last updated: July 2025</p>
+
           <p style={{ marginBottom: "16px", fontWeight: "600" }}>1. Data Controller</p>
-          <p style={{ marginBottom: "16px" }}>[First name Last name], TUM Campus Heilbronn, Bildungscampus 9, 74076 Heilbronn. Contact: [E-Mail]</p>
+          <p style={{ marginBottom: "16px" }}>The responsible party for data processing on this platform is the student project team of <em>verifAi</em>, developed at the Technical University of Munich, TUM Campus Heilbronn, Bildungscampus 9, 74076 Heilbronn, Germany. For data-related inquiries, please contact us at <a href="mailto:contact@tum.de" style={{ color: "#1a3a6b" }}>contact@tum.de</a>.</p>
 
-          <p style={{ marginBottom: "16px", fontWeight: "600" }}>2. Collection and Processing of Data</p>
-          <p style={{ marginBottom: "16px" }}>When uploading a document, the file is temporarily transmitted to our server and/or third-party APIs (e.g. AI models) for processing. Uploaded documents are stored for [Placeholder: insert retention period] and then deleted.</p>
+          <p style={{ marginBottom: "16px", fontWeight: "600" }}>2. Scope and Purpose of Data Processing</p>
+          <p style={{ marginBottom: "16px" }}>verifAi is an AI-assisted academic citation verification tool. When you upload a document, the file content is transmitted to our backend servers and to third-party AI APIs solely for the purpose of automated citation and evidence verification. No personal data beyond the uploaded document content is collected. Documents are processed transiently and are not retained after the verification session ends.</p>
 
-          <p style={{ marginBottom: "16px", fontWeight: "600" }}>3. Cookies and Tracking</p>
-          <p style={{ marginBottom: "16px" }}>This website currently does not use any third-party tracking cookies or analytics tools. [Placeholder, should this change]</p>
+          <p style={{ marginBottom: "16px", fontWeight: "600" }}>3. Third-Party Services</p>
+          <p style={{ marginBottom: "16px" }}>To provide its core functionality, verifAi uses third-party AI services (including large language model APIs) to analyze document content. Uploaded content may be transmitted to these services for processing in accordance with their respective privacy policies. We recommend not uploading documents containing sensitive personal or confidential information.</p>
 
-          <p style={{ marginBottom: "16px", fontWeight: "600" }}>4. Your Rights</p>
-          <p style={{ marginBottom: "16px" }}>You have the right to access, rectify, erase, and restrict the processing of your personal data under the GDPR. Please contact contact@verifai.com for any such requests.</p>
+          <p style={{ marginBottom: "16px", fontWeight: "600" }}>4. Cookies and Tracking</p>
+          <p style={{ marginBottom: "16px" }}>This platform does not use third-party tracking cookies or analytics services. Local browser storage (localStorage) is used solely to preserve your in-session preferences (such as manual verdict overrides) and is never transmitted to our servers.</p>
 
-          <p>This is a student project for demonstration purposes; this privacy policy is a placeholder and should be reviewed legally before any productive use.</p>
+          <p style={{ marginBottom: "16px", fontWeight: "600" }}>5. Legal Basis</p>
+          <p style={{ marginBottom: "16px" }}>Data processing is carried out on the basis of your explicit consent at the time of upload (Art. 6(1)(a) GDPR) and on the basis of legitimate interest in providing the requested service (Art. 6(1)(f) GDPR).</p>
+
+          <p style={{ marginBottom: "16px", fontWeight: "600" }}>6. Your Rights under GDPR</p>
+          <p style={{ marginBottom: "16px" }}>As a data subject, you have the right to access, rectification, erasure, restriction of processing, data portability, and the right to object to processing of your personal data. You also have the right to lodge a complaint with a supervisory authority. To exercise any of these rights, please contact us at <a href="mailto:contact@tum.de" style={{ color: "#1a3a6b" }}>contact@tum.de</a>.</p>
+
+          <p style={{ marginBottom: "16px", fontWeight: "600" }}>7. Data Retention</p>
+          <p style={{ marginBottom: "16px" }}>Uploaded documents and derived verification results are retained only for the duration of the active session and are deleted thereafter. No document data is stored permanently on our servers.</p>
+
+          <p style={{ marginBottom: "16px", fontWeight: "600" }}>8. Academic and Demonstration Context</p>
+          <p style={{ color: "#666", fontSize: "13px", lineHeight: "1.6" }}>verifAi was developed as part of the course <em>Foundations and Applications of Generative AI</em> at TUM Campus Heilbronn. It is intended for academic demonstration purposes. While we have made reasonable efforts to ensure GDPR compliance, this policy has not been formally reviewed by a legal professional and should not be relied upon for commercially deployed services.</p>
         </Modal>
       )}
     </>
