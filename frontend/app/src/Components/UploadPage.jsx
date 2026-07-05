@@ -63,15 +63,15 @@ function UploadPage() {
   marginTop: "-80px",
   paddingTop: "80px",
   position: "relative",
-  backgroundImage: `url(${backgroundImg})`,
-  backgroundSize: "60%",
-  backgroundPosition: "center 80%",
-  backgroundRepeat: "no-repeat"
 }}>
-  
   <div style={{
     position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    background: "rgba(245,245,245,0.55)"
+    backgroundImage: `url(${backgroundImg})`,
+    backgroundSize: "60%",
+    backgroundPosition: "center 80%",
+    backgroundRepeat: "no-repeat",
+    opacity: 0.08,
+    pointerEvents: "none",
   }} />
 
   <div style={{ maxWidth: "900px", width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
