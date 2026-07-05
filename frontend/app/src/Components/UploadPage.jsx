@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import Mascot from './Mascot'
 import { getRecentDocuments } from '../api'
+import backgroundImg from '../assets/background.png'
 
 function UploadPage() {
   const navigate = useNavigate()
@@ -62,7 +63,7 @@ function UploadPage() {
   marginTop: "-80px",
   paddingTop: "80px",
   position: "relative",
-  backgroundImage: `url('/src/assets/background.png')`,
+  backgroundImage: `url(${backgroundImg})`,
   backgroundSize: "60%",
   backgroundPosition: "center 80%",
   backgroundRepeat: "no-repeat"
