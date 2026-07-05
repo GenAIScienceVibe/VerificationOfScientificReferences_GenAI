@@ -68,7 +68,7 @@ function UploadPage() {
     position: "absolute", top: 0, left: 0, right: 0, height: "700px",
     backgroundImage: `url(${backgroundImg})`,
     backgroundSize: "800px auto",
-    backgroundPosition: "center 60px",
+    backgroundPosition: "center 200px",
     backgroundRepeat: "no-repeat",
     backgroundAttachment: "local",
     opacity: 0.12,
