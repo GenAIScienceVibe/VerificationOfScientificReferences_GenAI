@@ -5,11 +5,14 @@ function Header() {
   const location = useLocation()
   const navigate = useNavigate()
   const onHowItWorks = location.pathname === '/how-it-works'
+  const onResults = location.pathname === '/results'
+  const onLoading = location.pathname === '/loading'
+  const headerBg = (onResults || onLoading || onHowItWorks) ? "#f5f5f5" : "transparent"
 
   return (
     <header style={{
       display: "flex", justifyContent: "space-between", alignItems: "center",
-      padding: "0px 64px", background: "transparent",
+      padding: "0px 64px", background: headerBg,
       position: "relative", zIndex: 10
     }}>
       <Link to="/">
