@@ -20,16 +20,9 @@ function ErrorPage() {
   display: "flex", justifyContent: "center",
   padding: "20px 24px 80px",
   position: "relative",
-  backgroundImage: `url('/src/assets/background.png')`,
-  backgroundSize: "60%",
-  backgroundPosition: "center 350px",
-  backgroundRepeat: "no-repeat",
+  background: "#f5f5f5",
   minHeight: "600px"
 }}>
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-        background: "rgba(245,245,245,0.9)"
-      }} />
 
       <div style={{ background: "white", borderRadius: "16px", padding: "48px 56px", maxWidth: "600px", width: "100%", textAlign: "center", boxShadow: "0 2px 16px rgba(0,0,0,0.07)", position: "relative", zIndex: 1 }}>
 
