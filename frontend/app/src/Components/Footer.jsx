@@ -12,26 +12,31 @@ function Footer() {
           display: "flex", justifyContent: "space-between", alignItems: "center",
           maxWidth: "1200px", margin: "0 auto", gap: "48px", paddingBottom: "16px"
         }}>
+
+          
           {/* Brand column */}
           <div style={{ flex: "0 0 auto" }}>
             <img src={logo} alt="verifAi logo" style={{ height: "200px", width: "200px", objectFit: "contain", display: "block" }} />
           </div>
 
+          
           {/* VerifAi links */}
           <div style={{ textAlign: "left" }}>
             <p style={{ fontWeight: "700", marginBottom: "14px", color: "#111", fontSize: "13px", letterSpacing: "0.5px" }}>VERIFAI</p>
             <a onClick={() => setOpenModal('about')} style={{ display: "block", color: "#555", textDecoration: "none", marginBottom: "10px", fontSize: "14px", cursor: "pointer" }}>About</a>
             <a onClick={() => setOpenModal('contact')} style={{ display: "block", color: "#555", textDecoration: "none", fontSize: "14px", cursor: "pointer" }}>Contact Us</a>
           </div>
+          
 
-          {/* Legal links */}
+          {/* Other links */}
           <div style={{ textAlign: "left" }}>
             <p style={{ fontWeight: "700", marginBottom: "14px", color: "#111", fontSize: "13px", letterSpacing: "0.5px" }}>LEGAL</p>
             <a onClick={() => setOpenModal('imprint')} style={{ display: "block", color: "#555", textDecoration: "none", marginBottom: "10px", fontSize: "14px", cursor: "pointer" }}>Imprint</a>
             <a onClick={() => setOpenModal('privacy')} style={{ display: "block", color: "#555", textDecoration: "none", fontSize: "14px", cursor: "pointer" }}>Privacy Policy</a>
           </div>
 
-          {/* Socials */}
+          
+          {/* Social Links */}
           <div style={{ textAlign: "left" }}>
             <p style={{ fontWeight: "700", marginBottom: "14px", color: "#111", fontSize: "13px", letterSpacing: "0.5px" }}>FOLLOW US</p>
             <a href="https://www.linkedin.com/school/tum-campus-heilbronn/posts/?feedView=all" target="_blank" rel="noreferrer" style={{ color: "#555", textDecoration: "none", fontSize: "14px", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -44,7 +49,8 @@ function Footer() {
           </div>
         </div>
 
-        {/* Bottom bar */}
+        
+        {/* Bottom  */}
         <div style={{ borderTop: "1px solid #e0e4ea", maxWidth: "1200px", margin: "0 auto", padding: "16px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <p style={{ color: "#aaa", fontSize: "12px", margin: 0 }}>© 2026 verifAi · Powered by TUM Campus Heilbronn</p>
         </div>
