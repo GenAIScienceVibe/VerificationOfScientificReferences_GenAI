@@ -1,0 +1,78 @@
+================================================================================
+PDF: IRRDOLPUBLISHEDARTICLE.pdf
+document_id: doc_e6ef711b8ac3
+references_detected: 30
+doi_summary: {'found': 26, 'missing': 4, 'malformed': 0}
+claims_extracted: 34
+evidence_packages_created: 42
+pipeline_run_created: True
+pipeline_status: SUCCEEDED
+pipeline_steps_recorded: 10
+seeded_demo_cache_records: 1
+verification_results_produced: 42
+cache_hit_verifications: 1
+new_rag_genai_verifications: 37
+supported: 0
+partially_supported: 1
+not_supported: 0
+insufficient_evidence: 0
+needs_human_review: 41
+results_manually_checked: 5
+correct_evidence_used_links: 5
+confidence_explanation_observations: Mock GenAI produced deterministic explanations and confidence values; not final AI quality.
+safety_fallback_cases: 41
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['Validation used mock RAG and mock GenAI because no real services were provided in the sandbox.', 'BE-10 basic safety gates are intentionally limited; BE-11 will harden confidence/safety policy.', 'Seeded cache records are demo-only because BE-10 is the first phase that creates real verification results.']
+================================================================================
+PDF: Impact_of_Ease_of_Use_Usefulness_Attitude_and_Trus.pdf
+document_id: doc_40b3747d8524
+references_detected: 24
+doi_summary: {'found': 21, 'missing': 3, 'malformed': 0}
+claims_extracted: 56
+evidence_packages_created: 87
+pipeline_run_created: True
+pipeline_status: SUCCEEDED
+pipeline_steps_recorded: 10
+seeded_demo_cache_records: 1
+verification_results_produced: 86
+cache_hit_verifications: 1
+new_rag_genai_verifications: 77
+supported: 0
+partially_supported: 1
+not_supported: 0
+insufficient_evidence: 0
+needs_human_review: 85
+results_manually_checked: 5
+correct_evidence_used_links: 5
+confidence_explanation_observations: Mock GenAI produced deterministic explanations and confidence values; not final AI quality.
+safety_fallback_cases: 85
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['Validation used mock RAG and mock GenAI because no real services were provided in the sandbox.', 'BE-10 basic safety gates are intentionally limited; BE-11 will harden confidence/safety policy.', 'Seeded cache records are demo-only because BE-10 is the first phase that creates real verification results.']
+================================================================================
+PDF: SeminarPaper_20.01..pdf
+document_id: doc_e053e92d7321
+references_detected: 37
+doi_summary: {'found': 21, 'missing': 16, 'malformed': 0}
+claims_extracted: 9
+evidence_packages_created: 11
+pipeline_run_created: True
+pipeline_status: SUCCEEDED
+pipeline_steps_recorded: 10
+seeded_demo_cache_records: 1
+verification_results_produced: 11
+cache_hit_verifications: 1
+new_rag_genai_verifications: 8
+supported: 0
+partially_supported: 1
+not_supported: 0
+insufficient_evidence: 0
+needs_human_review: 10
+results_manually_checked: 5
+correct_evidence_used_links: 5
+confidence_explanation_observations: Mock GenAI produced deterministic explanations and confidence values; not final AI quality.
+safety_fallback_cases: 10
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['Validation used mock RAG and mock GenAI because no real services were provided in the sandbox.', 'BE-10 basic safety gates are intentionally limited; BE-11 will harden confidence/safety policy.', 'Seeded cache records are demo-only because BE-10 is the first phase that creates real verification results.']

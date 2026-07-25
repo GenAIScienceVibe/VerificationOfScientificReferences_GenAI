@@ -1,0 +1,168 @@
+{"timestamp": "2026-06-09T00:05:15.124027Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_800cfa7db5f34672", "method": "POST", "path": "/api/v1/documents/upload", "status_code": 200, "duration_ms": 501.58}
+{"timestamp": "2026-06-09T00:05:15.127757Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/upload \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:15.138480Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_start", "request_id": "req_7a707f40bed14c50"}
+{"timestamp": "2026-06-09T00:05:15.211579Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_completed", "request_id": "req_7a707f40bed14c50"}
+{"timestamp": "2026-06-09T00:05:15.212496Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_7a707f40bed14c50", "method": "POST", "path": "/api/v1/documents/doc_7a0015132661/extract-references", "status_code": 200, "duration_ms": 81.71}
+{"timestamp": "2026-06-09T00:05:15.215506Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_7a0015132661/extract-references \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:15.225016Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_start", "request_id": "req_d514f69a173449b9"}
+{"timestamp": "2026-06-09T00:05:15.374399Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_completed", "request_id": "req_d514f69a173449b9"}
+{"timestamp": "2026-06-09T00:05:15.376467Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_d514f69a173449b9", "method": "POST", "path": "/api/v1/documents/doc_7a0015132661/extract-claims", "status_code": 200, "duration_ms": 158.13}
+{"timestamp": "2026-06-09T00:05:15.380126Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_7a0015132661/extract-claims \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:15.403735Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_start", "request_id": "req_431a1542d9e84bcf"}
+{"timestamp": "2026-06-09T00:05:15.551025Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_completed", "request_id": "req_431a1542d9e84bcf"}
+{"timestamp": "2026-06-09T00:05:15.551718Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_431a1542d9e84bcf", "method": "POST", "path": "/api/v1/documents/doc_7a0015132661/prepare-evidence", "status_code": 200, "duration_ms": 169.75}
+{"timestamp": "2026-06-09T00:05:15.554475Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_7a0015132661/prepare-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:15.578590Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_c2e9f6effcd34b3d", "method": "GET", "path": "/api/v1/documents/doc_7a0015132661/evidence-packages", "status_code": 200, "duration_ms": 21.77}
+{"timestamp": "2026-06-09T00:05:15.581167Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_7a0015132661/evidence-packages?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:15.609048Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T00:05:15.620860Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_fd7466ab20ce42b8"}
+{"timestamp": "2026-06-09T00:05:15.628833Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "exact_cache_decision"}
+{"timestamp": "2026-06-09T00:05:15.629384Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_fd7466ab20ce42b8", "method": "POST", "path": "/api/v1/claims/claim_d3e45fbd5175/check-cache", "status_code": 200, "duration_ms": 17.74}
+{"timestamp": "2026-06-09T00:05:15.638976Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_d3e45fbd5175/check-cache \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:15.653516Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_4366376972ee467f"}
+{"timestamp": "2026-06-09T00:05:15.654942Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T00:05:15.655306Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_4366376972ee467f", "method": "POST", "path": "/api/v1/claims/claim_d3e45fbd5175/check-cache", "status_code": 200, "duration_ms": 7.33}
+{"timestamp": "2026-06-09T00:05:15.657561Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_d3e45fbd5175/check-cache \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:15.666867Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T00:05:15.673593Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_3fb980d1337e4c58"}
+{"timestamp": "2026-06-09T00:05:15.677010Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "exact_cache_decision"}
+{"timestamp": "2026-06-09T00:05:15.677567Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_3fb980d1337e4c58", "method": "POST", "path": "/api/v1/claims/claim_d53ce0c747d7/check-cache", "status_code": 200, "duration_ms": 8.18}
+{"timestamp": "2026-06-09T00:05:15.680385Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_d53ce0c747d7/check-cache \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:15.690109Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T00:05:15.697459Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_878ce63c424a4241"}
+{"timestamp": "2026-06-09T00:05:15.701608Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "exact_cache_decision"}
+{"timestamp": "2026-06-09T00:05:15.702087Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_878ce63c424a4241", "method": "POST", "path": "/api/v1/claims/claim_9e180f42c84d/check-cache", "status_code": 200, "duration_ms": 9.53}
+{"timestamp": "2026-06-09T00:05:15.704929Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_9e180f42c84d/check-cache \"HTTP/1.1 200 OK\""}
+================================================================================
+PDF: IRRDOLPUBLISHEDARTICLE.pdf
+document_id: doc_7a0015132661
+references_detected: 30
+doi_summary: {'found': 26, 'missing': 4, 'malformed': 0}
+metadata_summary: {'skipped': 'BE-8 validation does not call live external DOI metadata services.'}
+claims_extracted: 34
+evidence_packages_created: 42
+claims_checked_for_cache: 3
+exact_cache_hits: 1
+exact_cache_misses: 1
+semantic_cache_tested_with_mock: 0
+same_doi_reuse_decisions_correct: 1
+different_doi_reuse_correctly_blocked: 1
+low_confidence_reuse_correctly_blocked: 1
+human_review_cache_handled_safely: 1
+policy_mismatch_behavior_correct: 1
+cache_records_manually_checked: 3
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['BE-8 uses demo/seed verification results because BE-10 final verification does not exist yet.', 'Semantic cache is a mockable interface only; real embeddings/vector search are deferred to BE-9.', 'Live DOI metadata may fail safely in offline sandboxes and is not required for BE-8 cache behavior.']
+{"timestamp": "2026-06-09T00:05:15.894455Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_2dfeec23bb37431c", "method": "POST", "path": "/api/v1/documents/upload", "status_code": 200, "duration_ms": 186.67}
+{"timestamp": "2026-06-09T00:05:15.896887Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/upload \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:15.902758Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_start", "request_id": "req_171e6f0104aa41c1"}
+{"timestamp": "2026-06-09T00:05:15.959558Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_completed", "request_id": "req_171e6f0104aa41c1"}
+{"timestamp": "2026-06-09T00:05:15.960087Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_171e6f0104aa41c1", "method": "POST", "path": "/api/v1/documents/doc_fb67aa8f37ff/extract-references", "status_code": 200, "duration_ms": 61.01}
+{"timestamp": "2026-06-09T00:05:15.962904Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_fb67aa8f37ff/extract-references \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:15.968617Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_start", "request_id": "req_d3b4cd9656c144da"}
+{"timestamp": "2026-06-09T00:05:16.177679Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_completed", "request_id": "req_d3b4cd9656c144da"}
+{"timestamp": "2026-06-09T00:05:16.180170Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_d3b4cd9656c144da", "method": "POST", "path": "/api/v1/documents/doc_fb67aa8f37ff/extract-claims", "status_code": 200, "duration_ms": 215.16}
+{"timestamp": "2026-06-09T00:05:16.182608Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_fb67aa8f37ff/extract-claims \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:16.204094Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_start", "request_id": "req_c3762fe60f3f446b"}
+{"timestamp": "2026-06-09T00:05:16.414053Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_completed", "request_id": "req_c3762fe60f3f446b"}
+{"timestamp": "2026-06-09T00:05:16.415666Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_c3762fe60f3f446b", "method": "POST", "path": "/api/v1/documents/doc_fb67aa8f37ff/prepare-evidence", "status_code": 200, "duration_ms": 230.63}
+{"timestamp": "2026-06-09T00:05:16.419122Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_fb67aa8f37ff/prepare-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:16.441322Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_4353ad976f24402d", "method": "GET", "path": "/api/v1/documents/doc_fb67aa8f37ff/evidence-packages", "status_code": 200, "duration_ms": 19.91}
+{"timestamp": "2026-06-09T00:05:16.443990Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_fb67aa8f37ff/evidence-packages?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:16.454535Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T00:05:16.460052Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_c0635bfd105a4c45"}
+{"timestamp": "2026-06-09T00:05:16.462468Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "exact_cache_decision"}
+{"timestamp": "2026-06-09T00:05:16.462830Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_c0635bfd105a4c45", "method": "POST", "path": "/api/v1/claims/claim_3a32c8c0bdf9/check-cache", "status_code": 200, "duration_ms": 6.27}
+{"timestamp": "2026-06-09T00:05:16.464821Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_3a32c8c0bdf9/check-cache \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:16.482819Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_de20f2cc5a9c4a37"}
+{"timestamp": "2026-06-09T00:05:16.483901Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T00:05:16.484237Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_de20f2cc5a9c4a37", "method": "POST", "path": "/api/v1/claims/claim_3a32c8c0bdf9/check-cache", "status_code": 200, "duration_ms": 5.49}
+{"timestamp": "2026-06-09T00:05:16.486117Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_3a32c8c0bdf9/check-cache \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:16.493132Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T00:05:16.500554Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_9e4056c892fc459c"}
+{"timestamp": "2026-06-09T00:05:16.506836Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "exact_cache_decision"}
+{"timestamp": "2026-06-09T00:05:16.507184Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_9e4056c892fc459c", "method": "POST", "path": "/api/v1/claims/claim_7502e9b7d199/check-cache", "status_code": 200, "duration_ms": 11.55}
+{"timestamp": "2026-06-09T00:05:16.509332Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_7502e9b7d199/check-cache \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:16.518821Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T00:05:16.524497Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_3099d47bb33a4863"}
+{"timestamp": "2026-06-09T00:05:16.527117Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "exact_cache_decision"}
+{"timestamp": "2026-06-09T00:05:16.527468Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_3099d47bb33a4863", "method": "POST", "path": "/api/v1/claims/claim_9afa68b2facd/check-cache", "status_code": 200, "duration_ms": 6.41}
+{"timestamp": "2026-06-09T00:05:16.529882Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_9afa68b2facd/check-cache \"HTTP/1.1 200 OK\""}
+================================================================================
+PDF: Impact_of_Ease_of_Use_Usefulness_Attitude_and_Trus.pdf
+document_id: doc_fb67aa8f37ff
+references_detected: 24
+doi_summary: {'found': 21, 'missing': 3, 'malformed': 0}
+metadata_summary: {'skipped': 'BE-8 validation does not call live external DOI metadata services.'}
+claims_extracted: 56
+evidence_packages_created: 87
+claims_checked_for_cache: 3
+exact_cache_hits: 1
+exact_cache_misses: 1
+semantic_cache_tested_with_mock: 0
+same_doi_reuse_decisions_correct: 1
+different_doi_reuse_correctly_blocked: 1
+low_confidence_reuse_correctly_blocked: 1
+human_review_cache_handled_safely: 1
+policy_mismatch_behavior_correct: 1
+cache_records_manually_checked: 3
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['BE-8 uses demo/seed verification results because BE-10 final verification does not exist yet.', 'Semantic cache is a mockable interface only; real embeddings/vector search are deferred to BE-9.', 'Live DOI metadata may fail safely in offline sandboxes and is not required for BE-8 cache behavior.']
+{"timestamp": "2026-06-09T00:05:16.774977Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_87b279389ad94943", "method": "POST", "path": "/api/v1/documents/upload", "status_code": 200, "duration_ms": 242.33}
+{"timestamp": "2026-06-09T00:05:16.779034Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/upload \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:16.788639Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_start", "request_id": "req_5d267f6edef14025"}
+{"timestamp": "2026-06-09T00:05:16.870194Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_completed", "request_id": "req_5d267f6edef14025"}
+{"timestamp": "2026-06-09T00:05:16.871645Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_5d267f6edef14025", "method": "POST", "path": "/api/v1/documents/doc_0cc4765b6ee5/extract-references", "status_code": 200, "duration_ms": 89.47}
+{"timestamp": "2026-06-09T00:05:16.874985Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_0cc4765b6ee5/extract-references \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:16.882717Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_start", "request_id": "req_565cac594ef54c9b"}
+{"timestamp": "2026-06-09T00:05:16.968924Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_completed", "request_id": "req_565cac594ef54c9b"}
+{"timestamp": "2026-06-09T00:05:16.971942Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_565cac594ef54c9b", "method": "POST", "path": "/api/v1/documents/doc_0cc4765b6ee5/extract-claims", "status_code": 200, "duration_ms": 94.52}
+{"timestamp": "2026-06-09T00:05:16.974936Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_0cc4765b6ee5/extract-claims \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:16.988705Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_start", "request_id": "req_19078152cb4a4538"}
+{"timestamp": "2026-06-09T00:05:17.035589Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_completed", "request_id": "req_19078152cb4a4538"}
+{"timestamp": "2026-06-09T00:05:17.036225Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_19078152cb4a4538", "method": "POST", "path": "/api/v1/documents/doc_0cc4765b6ee5/prepare-evidence", "status_code": 200, "duration_ms": 58.52}
+{"timestamp": "2026-06-09T00:05:17.039249Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_0cc4765b6ee5/prepare-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:17.052940Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_fe323961224c46d6", "method": "GET", "path": "/api/v1/documents/doc_0cc4765b6ee5/evidence-packages", "status_code": 200, "duration_ms": 10.6}
+{"timestamp": "2026-06-09T00:05:17.055765Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_0cc4765b6ee5/evidence-packages?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:17.069734Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T00:05:17.078035Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_14f20556e8a64772"}
+{"timestamp": "2026-06-09T00:05:17.081290Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "exact_cache_decision"}
+{"timestamp": "2026-06-09T00:05:17.081830Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_14f20556e8a64772", "method": "POST", "path": "/api/v1/claims/claim_492de0dfb8dc/check-cache", "status_code": 200, "duration_ms": 9.14}
+{"timestamp": "2026-06-09T00:05:17.084183Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_492de0dfb8dc/check-cache \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:17.096042Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_731d5f0d8c6b4b72"}
+{"timestamp": "2026-06-09T00:05:17.097284Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "semantic_cache_skipped"}
+{"timestamp": "2026-06-09T00:05:17.097685Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_731d5f0d8c6b4b72", "method": "POST", "path": "/api/v1/claims/claim_492de0dfb8dc/check-cache", "status_code": 200, "duration_ms": 6.51}
+{"timestamp": "2026-06-09T00:05:17.100225Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_492de0dfb8dc/check-cache \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:17.109260Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T00:05:17.116332Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_c437738889de46c1"}
+{"timestamp": "2026-06-09T00:05:17.119113Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "exact_cache_decision"}
+{"timestamp": "2026-06-09T00:05:17.119592Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_c437738889de46c1", "method": "POST", "path": "/api/v1/claims/claim_492de0dfb8dc/check-cache", "status_code": 200, "duration_ms": 7.72}
+{"timestamp": "2026-06-09T00:05:17.122149Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_492de0dfb8dc/check-cache \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-09T00:05:17.132643Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_index_created"}
+{"timestamp": "2026-06-09T00:05:17.142130Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "cache_lookup_start", "request_id": "req_6e37ccaadd8c49ab"}
+{"timestamp": "2026-06-09T00:05:17.145292Z", "level": "INFO", "logger": "app.services.verification_cache", "message": "exact_cache_decision"}
+{"timestamp": "2026-06-09T00:05:17.145914Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_6e37ccaadd8c49ab", "method": "POST", "path": "/api/v1/claims/claim_e7d36f8af2f3/check-cache", "status_code": 200, "duration_ms": 8.78}
+{"timestamp": "2026-06-09T00:05:17.149527Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/claims/claim_e7d36f8af2f3/check-cache \"HTTP/1.1 200 OK\""}
+================================================================================
+PDF: SeminarPaper_20.01..pdf
+document_id: doc_0cc4765b6ee5
+references_detected: 37
+doi_summary: {'found': 21, 'missing': 16, 'malformed': 0}
+metadata_summary: {'skipped': 'BE-8 validation does not call live external DOI metadata services.'}
+claims_extracted: 9
+evidence_packages_created: 11
+claims_checked_for_cache: 3
+exact_cache_hits: 1
+exact_cache_misses: 1
+semantic_cache_tested_with_mock: 0
+same_doi_reuse_decisions_correct: 1
+different_doi_reuse_correctly_blocked: 1
+low_confidence_reuse_correctly_blocked: 1
+human_review_cache_handled_safely: 1
+policy_mismatch_behavior_correct: 1
+cache_records_manually_checked: 3
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['BE-8 uses demo/seed verification results because BE-10 final verification does not exist yet.', 'Semantic cache is a mockable interface only; real embeddings/vector search are deferred to BE-9.', 'Live DOI metadata may fail safely in offline sandboxes and is not required for BE-8 cache behavior.']

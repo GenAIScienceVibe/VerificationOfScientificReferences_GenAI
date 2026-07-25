@@ -1,0 +1,147 @@
+{"timestamp": "2026-06-08T23:52:17.544683Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_bbd87bb34e884b00", "method": "POST", "path": "/api/v1/documents/upload", "status_code": 200, "duration_ms": 467.41}
+{"timestamp": "2026-06-08T23:52:17.547866Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/upload \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:17.556685Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_start", "request_id": "req_be9f05a1e7c14ffb"}
+{"timestamp": "2026-06-08T23:52:17.622643Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_completed", "request_id": "req_be9f05a1e7c14ffb"}
+{"timestamp": "2026-06-08T23:52:17.623242Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_be9f05a1e7c14ffb", "method": "POST", "path": "/api/v1/documents/doc_c435c9fb801a/extract-references", "status_code": 200, "duration_ms": 73.1}
+{"timestamp": "2026-06-08T23:52:17.625643Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_c435c9fb801a/extract-references \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:17.635285Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_start", "request_id": "req_06c007c889894be2"}
+{"timestamp": "2026-06-08T23:52:17.781051Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_completed", "request_id": "req_06c007c889894be2"}
+{"timestamp": "2026-06-08T23:52:17.782656Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_06c007c889894be2", "method": "POST", "path": "/api/v1/documents/doc_c435c9fb801a/extract-claims", "status_code": 200, "duration_ms": 154.34}
+{"timestamp": "2026-06-08T23:52:17.784859Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_c435c9fb801a/extract-claims \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:17.806737Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_start", "request_id": "req_45193b4ba5124543"}
+{"timestamp": "2026-06-08T23:52:17.949439Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_completed", "request_id": "req_45193b4ba5124543"}
+{"timestamp": "2026-06-08T23:52:17.950622Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_45193b4ba5124543", "method": "POST", "path": "/api/v1/documents/doc_c435c9fb801a/prepare-evidence", "status_code": 200, "duration_ms": 163.49}
+{"timestamp": "2026-06-08T23:52:17.954030Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_c435c9fb801a/prepare-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:17.984958Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_6c4e7d27e69a441f", "method": "GET", "path": "/api/v1/documents/doc_c435c9fb801a/evidence-packages", "status_code": 200, "duration_ms": 28.18}
+{"timestamp": "2026-06-08T23:52:17.988500Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_c435c9fb801a/evidence-packages?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:18.006917Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_5a4fd59fa8ca4364", "method": "GET", "path": "/api/v1/documents/doc_c435c9fb801a/claim-reference-links", "status_code": 200, "duration_ms": 15.22}
+{"timestamp": "2026-06-08T23:52:18.009374Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_c435c9fb801a/claim-reference-links?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:18.025552Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_cc80a0e9437c4615", "method": "GET", "path": "/api/v1/documents/doc_c435c9fb801a/claims", "status_code": 200, "duration_ms": 13.47}
+{"timestamp": "2026-06-08T23:52:18.029637Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_c435c9fb801a/claims?page_size=200 \"HTTP/1.1 200 OK\""}
+================================================================================
+PDF: IRRDOLPUBLISHEDARTICLE.pdf
+document_id: doc_c435c9fb801a
+pages: 18
+sections: 8
+references_detected: 30
+doi_summary: {'found': 26, 'missing': 4, 'malformed': 0}
+metadata_summary: None
+claims_extracted: 34
+claim_reference_links: 45
+evidence_packages_created: 42
+availability_summary: {'abstract_available': 0, 'metadata_only': 42, 'full_text_available': 0, 'source_unavailable': 0}
+evidence_packages_manually_checked: 5
+correct_claim_text_in_package: 5
+correct_citation_text_in_package: 5
+correct_reference_doi_attached: 5
+correct_metadata_included: 5
+correct_evidence_availability: 5
+duplicate_package_issues: False
+packages_incorrectly_from_references_section: 0
+sample_packages:
+- Effective communication is essential for their academic success and professional growth. :: (Randolph, 2008) -> ref_694f7e23615e doi=10.19030/tlc.v5i8.1236 availability=METADATA_ONLY
+- These skills are crucial for delivering impactful presentations, negotiating successfully, and writing compelling professional documents. :: (DiBenedetto & Bembenutty, 2011) -> ref_6f03f9899f2d doi=None availability=METADATA_ONLY
+- The target learners often face challenges such as organizing and presenting arguments coherently, engaging and maintaining the interest of their audience, and effectively leading teams and managing projects. :: (McGraw & Tidwell, 2001) -> ref_15709a8a3133 doi=10.1108/eum0000000005461 availability=METADATA_ONLY
+- Inadequate communication skills can lead to lower academic performance, reduced participation, and hindered career progression. :: (Randolph, 2008) -> ref_694f7e23615e doi=10.19030/tlc.v5i8.1236 availability=METADATA_ONLY
+- Additionally, poor communication can exacerbate stress and anxiety, negatively impacting overall well-being and academic outcomes. :: (Francis, 2012) -> ref_9d5d93407177 doi=None availability=METADATA_ONLY
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['BE-7 does not call RAG/ML or GenAI verification.', 'Live external metadata lookup may be unavailable in offline sandbox validation; fallback reference metadata is packaged without inventing official fields.', 'Full text is not retrieved from publishers in BE-7.']
+{"timestamp": "2026-06-08T23:52:18.242836Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_7acd56b56ec242a4", "method": "POST", "path": "/api/v1/documents/upload", "status_code": 200, "duration_ms": 209.77}
+{"timestamp": "2026-06-08T23:52:18.245965Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/upload \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:18.252547Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_start", "request_id": "req_7a7ac8e1b88c4f46"}
+{"timestamp": "2026-06-08T23:52:18.319044Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_completed", "request_id": "req_7a7ac8e1b88c4f46"}
+{"timestamp": "2026-06-08T23:52:18.319751Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_7a7ac8e1b88c4f46", "method": "POST", "path": "/api/v1/documents/doc_3a9a535f66e3/extract-references", "status_code": 200, "duration_ms": 71.33}
+{"timestamp": "2026-06-08T23:52:18.323583Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_3a9a535f66e3/extract-references \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:18.331845Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_start", "request_id": "req_7241b084d3894b3c"}
+{"timestamp": "2026-06-08T23:52:18.640644Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_completed", "request_id": "req_7241b084d3894b3c"}
+{"timestamp": "2026-06-08T23:52:18.643732Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_7241b084d3894b3c", "method": "POST", "path": "/api/v1/documents/doc_3a9a535f66e3/extract-claims", "status_code": 200, "duration_ms": 317.1}
+{"timestamp": "2026-06-08T23:52:18.646681Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_3a9a535f66e3/extract-claims \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:18.666561Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_start", "request_id": "req_eea9ff8b695746a9"}
+{"timestamp": "2026-06-08T23:52:18.918069Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_completed", "request_id": "req_eea9ff8b695746a9"}
+{"timestamp": "2026-06-08T23:52:18.919440Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_eea9ff8b695746a9", "method": "POST", "path": "/api/v1/documents/doc_3a9a535f66e3/prepare-evidence", "status_code": 200, "duration_ms": 269.01}
+{"timestamp": "2026-06-08T23:52:18.923873Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_3a9a535f66e3/prepare-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:18.953338Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_9aaccf2b72d34e87", "method": "GET", "path": "/api/v1/documents/doc_3a9a535f66e3/evidence-packages", "status_code": 200, "duration_ms": 27.13}
+{"timestamp": "2026-06-08T23:52:18.957409Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_3a9a535f66e3/evidence-packages?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:18.985810Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_c43eb068f4804a32", "method": "GET", "path": "/api/v1/documents/doc_3a9a535f66e3/claim-reference-links", "status_code": 200, "duration_ms": 18.7}
+{"timestamp": "2026-06-08T23:52:18.989849Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_3a9a535f66e3/claim-reference-links?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:19.018031Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_386a00b6491a4fca", "method": "GET", "path": "/api/v1/documents/doc_3a9a535f66e3/claims", "status_code": 200, "duration_ms": 25.32}
+{"timestamp": "2026-06-08T23:52:19.023143Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_3a9a535f66e3/claims?page_size=200 \"HTTP/1.1 200 OK\""}
+================================================================================
+PDF: Impact_of_Ease_of_Use_Usefulness_Attitude_and_Trus.pdf
+document_id: doc_3a9a535f66e3
+pages: 10
+sections: 3
+references_detected: 24
+doi_summary: {'found': 21, 'missing': 3, 'malformed': 0}
+metadata_summary: None
+claims_extracted: 56
+claim_reference_links: 90
+evidence_packages_created: 87
+availability_summary: {'abstract_available': 0, 'metadata_only': 87, 'full_text_available': 0, 'source_unavailable': 0}
+evidence_packages_manually_checked: 5
+correct_claim_text_in_package: 5
+correct_citation_text_in_package: 5
+correct_reference_doi_attached: 5
+correct_metadata_included: 5
+correct_evidence_availability: 5
+duplicate_package_issues: False
+packages_incorrectly_from_references_section: 0
+sample_packages:
+- Generative AI tools, for example, have gained considerable attention for their ability to process natural language, generate content, and provide interactive responses, thereby supporting academic tasks such as summarization, translation, and instructional content creation. :: (Supianto et al., 2024) -> ref_43434972e3f0 doi=10.31893/multiscience.2024273 availability=METADATA_ONLY
+- In higher education, the adoption of AI tools is driven by their potential to improve efficiency, foster creativity, and support personalized learning pathways. :: (Bhaskar et al., 2024) -> ref_53fd67f01110 doi=10.1108/ijilt-11-2023-0220 availability=METADATA_ONLY
+- Despite these promising capabilities, successful integration of AI in educational contexts requires a comprehensive understanding of the factors that shape user acceptance and trust. :: (Nazaretsky et al., 2025) -> ref_68c4837c60ba doi=10.1016/j.caeai.2025.100368 availability=METADATA_ONLY
+- For instance, demonstrated that AI tools significantly enhance student engagement and academic performance when embedded into university learning environments. :: Afif et al. (2024) -> ref_0bccb301f331 doi=None availability=METADATA_ONLY
+- Similarly, reported that students perceived AI systems as beneficial for academic assignments, but cautioned against the risks of overdependence. :: Finanti et al. (2025) -> ref_287dbf2618f3 doi=10.62383/algoritma.v3i2.445 availability=METADATA_ONLY
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['BE-7 does not call RAG/ML or GenAI verification.', 'Live external metadata lookup may be unavailable in offline sandbox validation; fallback reference metadata is packaged without inventing official fields.', 'Full text is not retrieved from publishers in BE-7.']
+{"timestamp": "2026-06-08T23:52:19.330242Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_4b393f08269e44be", "method": "POST", "path": "/api/v1/documents/upload", "status_code": 200, "duration_ms": 301.62}
+{"timestamp": "2026-06-08T23:52:19.334871Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/upload \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:19.347672Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_start", "request_id": "req_0e4c18d772704e2a"}
+{"timestamp": "2026-06-08T23:52:19.423047Z", "level": "INFO", "logger": "app.services.reference_extraction", "message": "reference_extraction_completed", "request_id": "req_0e4c18d772704e2a"}
+{"timestamp": "2026-06-08T23:52:19.424719Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_0e4c18d772704e2a", "method": "POST", "path": "/api/v1/documents/doc_1bd26eb6edd0/extract-references", "status_code": 200, "duration_ms": 85.28}
+{"timestamp": "2026-06-08T23:52:19.428187Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_1bd26eb6edd0/extract-references \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:19.448855Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_start", "request_id": "req_1daa3c442cbb4f75"}
+{"timestamp": "2026-06-08T23:52:19.524226Z", "level": "INFO", "logger": "app.services.claim_management", "message": "claim_extraction_completed", "request_id": "req_1daa3c442cbb4f75"}
+{"timestamp": "2026-06-08T23:52:19.526141Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_1daa3c442cbb4f75", "method": "POST", "path": "/api/v1/documents/doc_1bd26eb6edd0/extract-claims", "status_code": 200, "duration_ms": 94.51}
+{"timestamp": "2026-06-08T23:52:19.528739Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_1bd26eb6edd0/extract-claims \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:19.546371Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_start", "request_id": "req_de030705e6644316"}
+{"timestamp": "2026-06-08T23:52:19.596470Z", "level": "INFO", "logger": "app.services.evidence_package_builder", "message": "evidence_preparation_completed", "request_id": "req_de030705e6644316"}
+{"timestamp": "2026-06-08T23:52:19.597646Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_de030705e6644316", "method": "POST", "path": "/api/v1/documents/doc_1bd26eb6edd0/prepare-evidence", "status_code": 200, "duration_ms": 65.68}
+{"timestamp": "2026-06-08T23:52:19.601153Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/documents/doc_1bd26eb6edd0/prepare-evidence \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:19.616663Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_f08f20aa4abb4bf8", "method": "GET", "path": "/api/v1/documents/doc_1bd26eb6edd0/evidence-packages", "status_code": 200, "duration_ms": 12.32}
+{"timestamp": "2026-06-08T23:52:19.620964Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_1bd26eb6edd0/evidence-packages?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:19.634129Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_b7f066111b3b4978", "method": "GET", "path": "/api/v1/documents/doc_1bd26eb6edd0/claim-reference-links", "status_code": 200, "duration_ms": 8.86}
+{"timestamp": "2026-06-08T23:52:19.636537Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_1bd26eb6edd0/claim-reference-links?page_size=200 \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-06-08T23:52:19.650383Z", "level": "INFO", "logger": "app.request", "message": "request_completed", "request_id": "req_2991649723084e47", "method": "GET", "path": "/api/v1/documents/doc_1bd26eb6edd0/claims", "status_code": 200, "duration_ms": 9.52}
+{"timestamp": "2026-06-08T23:52:19.654683Z", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/doc_1bd26eb6edd0/claims?page_size=200 \"HTTP/1.1 200 OK\""}
+================================================================================
+PDF: SeminarPaper_20.01..pdf
+document_id: doc_1bd26eb6edd0
+pages: 29
+sections: 6
+references_detected: 37
+doi_summary: {'found': 21, 'missing': 16, 'malformed': 0}
+metadata_summary: None
+claims_extracted: 9
+claim_reference_links: 11
+evidence_packages_created: 11
+availability_summary: {'abstract_available': 0, 'metadata_only': 11, 'full_text_available': 0, 'source_unavailable': 0}
+evidence_packages_manually_checked: 5
+correct_claim_text_in_package: 5
+correct_citation_text_in_package: 5
+correct_reference_doi_attached: 5
+correct_metadata_included: 5
+correct_evidence_availability: 5
+duplicate_package_issues: False
+packages_incorrectly_from_references_section: 0
+sample_packages:
+- Today, increasingly dynamic and knowledge-driven work environments require continuous learning , leading organizations to transform their workplaces into learning- oriented environments. :: (Mitschelen & Kauffeld, 2025) -> ref_bf93246daba8 doi=10.3389/forgp.2025.1569098 availability=METADATA_ONLY
+- Today, increasingly dynamic and knowledge-driven work environments require continuous learning , leading organizations to transform their workplaces into learning- oriented environments. :: (Bucher et al., 2024) -> ref_e40263e03874 doi=10.48550/arxiv.2405.15561 availability=METADATA_ONLY
+- In this context, effective onboarding represents a crucial phase of organizational entry, supporting early knowledge acquisition and contributing to improved performance. :: (Mitschelen & Kauffeld, 2025) -> ref_bf93246daba8 doi=10.3389/forgp.2025.1569098 availability=METADATA_ONLY
+- Generative AI, particularly conversational agents, offer a promising approach to supporting individualized learning in work environments. :: (Bucher et al., 2024) -> ref_e40263e03874 doi=10.48550/arxiv.2405.15561 availability=METADATA_ONLY
+- Because onboarding is a learning-intensive and often uncertain process, AI tools are expected to reduce cognitive overload by providing timely explanations and structured guidance. :: (Przegalinska et al., 2025) -> ref_407163e76449 doi=10.1016/j.ijinfomgt.2024.102853 availability=METADATA_ONLY
+problems_found: []
+fixes_applied: []
+remaining_limitations: ['BE-7 does not call RAG/ML or GenAI verification.', 'Live external metadata lookup may be unavailable in offline sandbox validation; fallback reference metadata is packaged without inventing official fields.', 'Full text is not retrieved from publishers in BE-7.']

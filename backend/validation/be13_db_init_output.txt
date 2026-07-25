@@ -1,0 +1,19 @@
+Initialized database with 18 tables:
+- citations
+- claim_cache_index
+- claim_reference_links
+- claims
+- document_sections
+- documents
+- evidence_packages
+- pipeline_runs
+- pipeline_steps
+- prompt_runs
+- rag_retrieval_results
+- references
+- reports
+- safety_checks
+- source_metadata
+- uat_surveys
+- user_feedback
+- verification_results
