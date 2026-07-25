@@ -35,7 +35,7 @@ function ErrorPage() {
         </h2>
 
         <p style={{ color: "#888", margin: "0 0 28px", fontSize: "15px", lineHeight: "1.6" }}>
-          We ran into a problem while verifying your document. This can happen if the file is too large, the backend timed out, or the document couldn't be parsed. You can try again or upload a different file.
+          We ran into a problem while verifying your document. This can happen if the file is too large or the document couldn't be parsed. You can try again or upload a different file.
         </p>
 
         <hr style={{ border: "none", borderTop: "1px solid #e0e0e0", marginBottom: "28px" }} />

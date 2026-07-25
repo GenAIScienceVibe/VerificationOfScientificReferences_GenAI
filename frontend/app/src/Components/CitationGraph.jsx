@@ -85,7 +85,7 @@ export default function CitationGraph({ claims, statusConfig, documentLabel = 'T
 
   const getConfidenceColor = (c) => c > 0.7 ? "#16a34a" : c > 0.4 ? "#d97706" : "#dc2626"
 
-  // Claims filtered by active source
+
   const sourceFilteredClaims = activeSourceId
     ? claimNodes.filter(c => c.sourceId === activeSourceId)
     : []

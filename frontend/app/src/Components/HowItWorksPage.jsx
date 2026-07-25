@@ -177,7 +177,8 @@ function HowItWorksPage() {
           verifAi uses a combination of document parsing, reference retrieval, and AI-powered reasoning to verify whether the claims in your paper are actually supported by their cited sources.
         </p>
 
-        {/* 3 Tabs */}
+
+        
         <div style={{ display: "inline-flex", border: "1px solid #1a3a6b", borderRadius: "8px", overflow: "hidden", marginBottom: "48px" }}>
           {[
             { key: 'general', label: 'General' },
@@ -200,7 +201,8 @@ function HowItWorksPage() {
           ))}
         </div>
 
-        {/* General Tab */}
+        
+        {/* General  */}
         {activeTab === 'general' && (
           <div style={{ display: "flex", flexDirection: "column", gap: "24px", textAlign: "left" }}>
             {generalSteps.map((item) => (
@@ -220,7 +222,7 @@ function HowItWorksPage() {
           </div>
         )}
 
-        {/* Technical Tab */}
+        {/* Tech Tab */}
         {activeTab === 'technical' && (
           <div style={{ textAlign: "left" }}>
             <div style={{ textAlign: "center", marginBottom: "28px" }}>
@@ -248,7 +250,7 @@ function HowItWorksPage() {
           </div>
         )}
 
-        {/* Categories Tab */}
+        {/* Categories  */}
         {activeTab === 'categories' && (
           <div style={{ textAlign: "left" }}>
             <div style={{ textAlign: "center", marginBottom: "28px" }}>
@@ -282,7 +284,7 @@ function HowItWorksPage() {
           </div>
         )}
 
-        {/* NOTE */}
+        {/* Note part */}
         <div style={{ marginTop: "48px", background: "white", borderRadius: "16px", padding: "32px 40px", boxShadow: "0 2px 16px rgba(0,0,0,0.07)", textAlign: "center" }}>
           <p style={{ fontSize: "13px", fontWeight: "600", color: "#1a3a6b", letterSpacing: "1px", marginBottom: "12px" }}>NOTE</p>
           <p style={{ color: "#666", fontSize: "15px", lineHeight: "1.7" }}>
