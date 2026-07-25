@@ -47,21 +47,21 @@ export default function Mascot({ mood = 'idle', size = 72 }) {
     >
       <g transform={`translate(0, ${bobY})`}>
 
-        {/* Antenna */}
+        {/* Design of upper antena part */}
         <line x1="54" y1="16" x2="54" y2="6" stroke="#c7cbe8" strokeWidth="3" strokeLinecap="round" />
         <circle cx="54" cy="5" r="4.5" fill={antennaColor}>
           <animate attributeName="opacity" values="1;0.4;1" dur="1.4s" repeatCount="indefinite" />
         </circle>
 
-        {/* Round chubby head/body as one blob */}
+        {/* structure of the mascot */}
         <ellipse cx="54" cy="62" rx="42" ry="40" fill="#60a5fa" />
         <ellipse cx="54" cy="64" rx="34" ry="32" fill="#eaf3ff" />
 
-        {/* Cheeks */}
+        {/* face */}
         <circle cx="26" cy="68" r="6" fill="#93c5fd" opacity="0.6" />
         <circle cx="82" cy="68" r="6" fill="#93c5fd" opacity="0.6" />
 
-        {/* Ear bobbles */}
+        {/* Ear  */}
         <circle cx="14" cy="58" r="6" fill="#60a5fa" />
         <circle cx="94" cy="58" r="6" fill="#60a5fa" />
 
@@ -78,7 +78,7 @@ export default function Mascot({ mood = 'idle', size = 72 }) {
         {/* Mouth */}
         <path d={mouthPath} stroke="#1e3a8a" strokeWidth="2.5" strokeLinecap="round" fill="none" />
 
-        {/* Tiny feet peeking out */}
+        {/* body */}
         <ellipse cx="38" cy="100" rx="9" ry="6" fill="#2563eb" />
         <ellipse cx="70" cy="100" rx="9" ry="6" fill="#2563eb" />
       </g>
