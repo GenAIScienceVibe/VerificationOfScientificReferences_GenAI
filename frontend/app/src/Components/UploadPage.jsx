@@ -221,7 +221,7 @@ function UploadPage() {
           )}
         </div>
 
-        {/* Optional: upload additional reference documents */}
+        {/* Upload additional reference documents */}
         <div style={{
           background: "white", borderRadius: "16px", padding: "24px 32px",
           maxWidth: "600px", margin: "20px auto 0", boxShadow: "0 2px 16px rgba(0,0,0,0.07)",
