@@ -414,11 +414,10 @@ function drawDocumentPanel(doc, x, y, w, fileName, claimsCount) {
   const iconBgY = y + 8
   const iconBgSize = 11
 
-  // Small clean icon background
+ 
   doc.setFillColor(238, 242, 255)
   doc.roundedRect(iconBgX, iconBgY, iconBgSize, iconBgSize, 2.2, 2.2, 'F')
 
-  // Draw document symbol manually, not emoji
   const iconX = iconBgX + 3
   const iconY = iconBgY + 2.4
 
@@ -495,7 +494,7 @@ function drawClaimCard(doc, y, claim, index, layout, fileName) {
   const currentPage = pageInfo?.pageNumber || 1
   const info = statusInfo(claim.status)
 
-  // Page 1 keeps the two-column layout. From page 2 onward, cards use the full page width and are centered.
+  // Page 1 
   const cardX = currentPage === 1 ? layout.mainX : layout.margin + 16
   const cardW = currentPage === 1 ? layout.mainW : layout.pageW - layout.margin * 2 - 32
 
@@ -503,7 +502,6 @@ function drawClaimCard(doc, y, claim, index, layout, fileName) {
   const textW = cardW - padX * 2 - 8
   const citation = claim.citation ? ` ${claim.citation}` : ''
 
-  // Set font before wrapping — otherwise jsPDF calculates line breaks badly.
   font(doc, 7.8, 'normal', COLORS.ink)
   const quoteLines = doc.splitTextToSize(`"${claim.text}"${citation}`, textW)
 
@@ -536,7 +534,7 @@ function drawClaimCard(doc, y, claim, index, layout, fileName) {
 
   y = ensurePage(doc, y, h, layout, fileName)
 
-  // Recalculate after page break, because ensurePage may have moved us to a new page.
+  // Page break
   const afterPageInfo = doc.internal.getCurrentPageInfo()
   const afterPage = afterPageInfo?.pageNumber || 1
   const finalCardX = afterPage === 1 ? layout.mainX : layout.margin + 16
