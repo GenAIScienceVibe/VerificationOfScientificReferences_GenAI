@@ -218,7 +218,20 @@ def normalize_pdf_line_breaks(text: str) -> str:
             and re.search(r"[a-z,;:]$", prev)
             and re.match(r"^[a-z(]", current)
         )
-        if should_join:
+        # Hyphenated word split across a line break: join without adding a space.
+        is_hyphenated = (
+            bool(prev)
+            and bool(current)
+            and prev_key not in HEADING_WORDS
+            and curr_key not in HEADING_WORDS
+            and not is_toc_heading_line(prev)
+            and not is_toc_heading_line(current)
+            and bool(re.search(r"[a-z]-$", prev))
+            and bool(re.match(r"^[a-z]", current))
+        )
+        if is_hyphenated:
+            output[-1] = f"{prev}{current.strip()}"
+        elif should_join:
             output[-1] = f"{prev} {current.strip()}"
         else:
             output.append(current)

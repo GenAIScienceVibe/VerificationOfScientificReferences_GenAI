@@ -1,14 +1,20 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, Request
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.errors import AppException, ErrorCode
 from app.core.responses import success_response
-from app.db.session import get_db
+from app.db.session import get_db, session_scope
+from app.models import Document
 from app.models.enums import SupportStatus
 from app.services.verification_orchestrator import VerificationOrchestrator
 from app.services.safety_policy import SafetyPolicyService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["verification-orchestration"])
 
@@ -22,26 +28,75 @@ class PipelineRunRequest(BaseModel):
     claim_ids: list[str] | None = None
 
 
+def _run_pipeline_in_background(
+    document_id: str,
+    mode: str,
+    use_cache: bool,
+    use_rag: bool,
+    use_genai_safety_review: bool,
+    generate_report: bool,
+    claim_ids: list[str] | None,
+    request_id: str | None,
+) -> None:
+    """Run the full verification pipeline with its own DB session.
+
+    BackgroundTasks execute after the HTTP response is sent, so we cannot
+    reuse the request-scoped session from Depends(get_db) — it is already
+    closed by then.  session_scope() opens a fresh session and commits or
+    rolls back automatically.
+    """
+    with session_scope() as db:
+        try:
+            VerificationOrchestrator().run_document_verification(
+                document_id,
+                db,
+                mode=mode,
+                use_cache=use_cache,
+                use_rag=use_rag,
+                use_genai_safety_review=use_genai_safety_review,
+                generate_report=generate_report,
+                claim_ids=claim_ids,
+                request_id=request_id,
+            )
+        except Exception:
+            logger.exception("Background pipeline run failed for document %s", document_id)
+            raise
+
+
 @router.post("/documents/{document_id}/pipeline-runs")
 async def create_document_pipeline_run(
     request: Request,
     document_id: str,
+    background_tasks: BackgroundTasks,
     payload: PipelineRunRequest | None = None,
     db: Session = Depends(get_db),
 ):
+    """Start the verification pipeline and return immediately (202).
+
+    The pipeline runs as a FastAPI BackgroundTask so Railway's proxy timeout
+    cannot abort it mid-run.  The frontend polls /documents/{id}/status every
+    2 s and navigates to /results once the status reaches a terminal state.
+    """
+    if db.get(Document, document_id) is None:
+        raise AppException(status_code=404, code=ErrorCode.DOCUMENT_NOT_FOUND, field="document_id", detail="Document not found.", message="Document not found")
+
     payload = payload or PipelineRunRequest()
-    data = VerificationOrchestrator().run_document_verification(
+    background_tasks.add_task(
+        _run_pipeline_in_background,
         document_id,
-        db,
-        mode=payload.mode,
-        use_cache=payload.use_cache,
-        use_rag=payload.use_rag,
-        use_genai_safety_review=payload.use_genai_safety_review,
-        generate_report=payload.generate_report,
-        claim_ids=payload.claim_ids,
-        request_id=getattr(request.state, "request_id", None),
+        payload.mode or "FULL_VERIFICATION",
+        payload.use_cache,
+        payload.use_rag,
+        payload.use_genai_safety_review,
+        payload.generate_report,
+        payload.claim_ids,
+        getattr(request.state, "request_id", None),
     )
-    return success_response(request=request, data=data, message="Verification pipeline run completed")
+    return success_response(
+        request=request,
+        data={"document_id": document_id, "status": "PROCESSING"},
+        message="Verification pipeline started",
+    )
 
 
 @router.post("/documents/{document_id}/run-verification")

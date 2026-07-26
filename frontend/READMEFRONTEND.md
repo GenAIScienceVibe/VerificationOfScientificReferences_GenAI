@@ -1,5 +1,4 @@
 # verifAi — Frontend
-
 React + Vite frontend for the verifAi citation verification platform.
 
 ## Requirements
@@ -30,7 +29,7 @@ ENV
 npm run dev
 ```
 
-Then open [http://localhost:5173](http://localhost:5173) in your browser.
+Then open [http://localhost:5173](http://localhost:5173) in browser.
 
 ## Build for production
 
