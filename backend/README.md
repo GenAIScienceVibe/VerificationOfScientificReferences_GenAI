@@ -1,561 +1,544 @@
 # verifAI / RefCheck AI Backend
 
-FastAPI backend for the verifAI / RefCheck AI Generative AI course project.
+Backend service for **verifAI**, an AI-assisted scientific citation and evidence verification system. The backend is the source of truth for document processing, DOI/reference handling, claim-citation management, evidence packaging, RAG retrieval orchestration, GenAI verification orchestration, deterministic safety rules, report generation, and feedback capture.
 
-Current implementation status:
+The current backend is integrated with the repository-level `rag/` package through a direct Python adapter (`RagDirectClient`). There is no separate RAG HTTP service required for the standard integrated setup.
 
-- BE-1 — Backend Foundation: implemented
-- BE-2 — Database Design: implemented
-- BE-3 — Document Upload and Text Processing: implemented
-- BE-4 — Reference and DOI Extraction: implemented
-- BE-4.2 — DOI Attachment, Reference Continuation, and Extraction Quality Hardening: implemented
-- BE-5 — DOI Metadata Lookup: implemented
-- BE-6 — Claim and Citation Management: implemented
-- BE-7 — Evidence Package Builder: implemented
-- BE-8 — Verification Cache Layer: implemented
-- BE-9 — RAG/ML Integration: implemented
-- BE-10 — GenAI Verification Orchestration: implemented
-- BE-11 — Safety and Confidence Rules: implemented
-- BE-12 — Report Generation and Feedback: implemented
-- BE-13 — Testing, Logging, and Demo Hardening: implemented
+---
 
-External metadata, RAG, and GenAI behavior can run in disabled, mock, or demo mode depending on environment configuration. Mock/demo mode validates backend orchestration and contracts, not final AI/RAG answer quality.
+## 1. What the backend does
 
-## Backend scope
+The backend exposes a FastAPI API under `/api/v1` and coordinates the full verification workflow:
 
-The backend is the central orchestrator:
+1. Upload or submit a scientific document.
+2. Extract text, sections, references, DOIs, citations, and claims.
+3. Resolve DOI metadata and retrieve available source evidence.
+4. Build evidence packages for claim-reference pairs.
+5. Check verification cache for safe reuse.
+6. Call the internal RAG/ML layer for evidence retrieval.
+7. Run GenAI-assisted verification in mock or live mode.
+8. Apply backend safety and confidence rules.
+9. Store verification results, reports, feedback, and audit information.
+10. Return structured responses to the frontend.
+
+Important architectural rule:
+
+> The frontend must not call RAG, GenAI, external academic providers, storage, or the database directly. All critical verification logic is mediated by the backend.
+
+---
+
+## 2. Repository context
+
+This README is for the backend, but the backend depends on the root-level `rag/` package when real RAG mode is enabled.
+
+Relevant directories:
 
 ```text
-Frontend → Backend → AI/ML/RAG → Backend → Frontend
-AI/ML/RAG → Backend → External Academic Sources
+backend/
+  app/
+    api/v1/              FastAPI route modules
+    core/                configuration, errors, middleware, responses
+    db/                  database session and initialization
+    models/              SQLAlchemy workflow models and enums
+    repositories/        persistence access layer
+    schemas/             API schemas
+    services/            backend business workflow services
+  scripts/               setup, validation, demo, and packaging scripts
+  tests/                 backend regression and integration tests
+  .env.example           local backend configuration template
+  requirements.txt       backend-only dependency manifest
+
+rag/
+  api.py                 RAG subgroup integration entry point
+  ingestion/             text cleaning and chunking
+  retrieval/             embeddings, BM25, FAISS/vector search, hybrid retrieval
+  prompts/               classifier and verifier prompt modules
+  verification/          GenAI output validation models
+  requirements.txt       RAG dependency manifest
+
+requirements.txt         root combined dependency manifest for backend + RAG
+requirements-integrated.txt legacy combined manifest
 ```
 
-Frontend, RAG, GenAI, and external academic services must not write directly to the database. In BE-3, raw uploaded documents are processed only by the backend and are not sent to AI/RAG services.
+Use the **root-level dependency manifest** for integrated backend + RAG work. Backend-only dependencies are not enough when `RagDirectClient` is used.
 
-## Implemented in BE-1
+---
 
-- FastAPI app
-- `/api/v1` router
-- health/readiness endpoints
-- response/error wrapper
-- request ID middleware
-- structured logging foundation
-- environment configuration
-- SQLite local database connection foundation
-- initial document stub endpoints
+## 3. Prerequisites
 
-## Implemented in BE-2
+Recommended local environment:
 
-- SQLAlchemy model set for the full backend verification workflow
-- 18 database tables
-- required enums/status constants
-- relationships and indexes
-- thin repository/data-access layer
-- local/demo database initialization script
-- seed/demo data script
-- database-backed document records
-- database/model/repository tests
+- Python 3.12
+- pip
+- Git
+- Linux/macOS shell or equivalent Windows terminal
 
-## Implemented in BE-3
+Optional external keys for live modes:
 
-- PDF upload validation
-- safe local file storage using internal document IDs
-- PyMuPDF text extraction for text-based PDFs
-- plain text submission processing
-- raw and cleaned text persistence
-- rule-based broad section detection
-- `DocumentSection` persistence
-- document details/status/sections/raw-text endpoints
-- BE-3 document-processing tests
+- `OPENROUTER_API_KEY` for live RAG embeddings and OpenRouter-backed classification/fallbacks
+- `GROQ_API_KEY` for live GenAI verification through Groq
+- `UNPAYWALL_EMAIL` for Unpaywall metadata/full-text lookup
+- `CORE_API_KEY` for CORE full-text/title-search fallback
+- Optional provider keys such as Semantic Scholar, IEEE Xplore, and Google Books where configured
 
+For normal local development and demo validation, external keys are **not required** if mock modes are enabled.
 
-## Implemented in BE-4
+---
 
-- deterministic references-section detection from BE-3 `DocumentSection` records and `cleaned_text` fallback
-- rule-based individual reference splitting for APA-style, numbered, bracketed, blank-line separated, and multi-line references
-- DOI extraction using regex with support for `doi:`, `DOI:`, `https://doi.org/`, and `http://dx.doi.org/` formats
-- DOI normalization to lowercase DOI values without URL/prefix or obvious trailing punctuation
-- BE-4 DOI statuses: `FOUND`, `MISSING`, and `MALFORMED`
-- `Reference` database persistence with `metadata_status = NOT_LOOKED_UP`
-- idempotent re-run behavior by replacing existing extracted references for the document
-- document `references_count` and status update to `REFERENCES_EXTRACTED`
-- reference APIs:
-  - `POST /api/v1/documents/{document_id}/extract-references`
-  - `GET /api/v1/documents/{document_id}/references`
-  - `GET /api/v1/references/{reference_id}`
-- BE-4 reference/DOI tests and fixtures
+## 4. Quick start: local backend with integrated RAG dependencies
 
-## Implemented in BE-4.2
+Run the following commands from the repository root.
 
-- hardened references-section boundary detection
-- conservative repeated header/footer/page-artifact cleanup
-- DOI line-continuation repair before extraction
-- stricter malformed DOI detection
-- improved APA/numbered/bracketed/multi-line reference splitting
-- false-positive filtering for URL-only, page-only, footer, and survey artifacts
-- enum validation for `doi_status` and `metadata_status` filters
-- `/raw-text` debug endpoint disabled by default via `ENABLE_RAW_TEXT_DEBUG_ENDPOINT`
-- failed PDF audit visibility by returning failed `document_id` in error detail
-- destructive reference re-extraction blocked when downstream rows already exist
-- sanitized real-PDF regression fixtures and `scripts/qa_real_pdf_api_test.py`
+```bash
+python3.12 -m venv backend/.venv
+source backend/.venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
 
-## Setup
+Create the local environment file:
 
-Backend-only mock setup:
+```bash
+cp backend/.env.example backend/.env
+```
+
+Initialize the database:
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-```
-
-For the current direct-Python Backend + RAG integration, install the combined
-manifest from the repository root instead:
-
-```bash
-python -m venv backend/.venv
-backend/.venv/bin/python -m pip install -r requirements-integrated.txt
-```
-
-This installs both backend and `rag/requirements.txt` dependencies into
-`backend/.venv`. Importing `rag.api` does not require `OPENROUTER_API_KEY`; a key
-is required only when live embeddings or real Door 2 calls execute.
-
-## Configuration
-
-Edit `.env`:
-
-```env
-APP_NAME="verifAI / RefCheck AI Backend"
-APP_VERSION="1.0.0"
-ENVIRONMENT="local"
-API_PREFIX="/api/v1"
-DATABASE_URL="sqlite:///./data/refcheck_be4_2.db"
-ENABLE_RAW_TEXT_DEBUG_ENDPOINT="false"
-FILE_STORAGE_DIR="./data/uploads"
-MAX_UPLOAD_SIZE_BYTES="10485760"
-GROQ_MODEL="meta-llama/llama-4-scout-17b-16e-instruct"
-```
-
-Do not commit real secrets such as `GROQ_API_KEY`.
-
-## Initialize the database
-
-```bash
 python scripts/init_db.py
 ```
 
-Optional BE-2 demo data:
+Run the backend:
 
 ```bash
-python scripts/seed_demo_data.py
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-## Run backend
-
-```bash
-uvicorn app.main:app --reload
-```
-
-Swagger docs:
+Open the API documentation:
 
 ```text
 http://127.0.0.1:8000/docs
+http://127.0.0.1:8000/redoc
 ```
 
-## Test APIs
-
-Health:
+Health checks:
 
 ```bash
 curl http://127.0.0.1:8000/api/v1/health
 curl http://127.0.0.1:8000/api/v1/health/readiness
 ```
 
-Submit text:
+---
 
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/documents/text \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Demo Scientific Text","text":"Demo Paper\n\nAbstract\nGenerative AI tools can improve writing (Smith, 2023).\n\nReferences\nSmith, J. (2023). Demo paper. doi:10.1234/demo"}'
+## 5. Recommended local `.env` for deterministic demo mode
+
+For local development without external API keys, keep the backend in deterministic/offline mode:
+
+```env
+APP_NAME="verifAI / RefCheck AI Backend"
+APP_VERSION="1.0.0"
+ENVIRONMENT="local"
+API_PREFIX="/api/v1"
+LOG_LEVEL="INFO"
+
+DATABASE_URL="sqlite:///./data/refcheck_local.db"
+FILE_STORAGE_DIR="./data/uploads"
+MAX_UPLOAD_SIZE_BYTES="26214400"
+CORS_ORIGINS="http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173"
+
+DEMO_MODE=true
+ENABLE_RAW_TEXT_DEBUG_ENDPOINT=false
+
+METADATA_LOOKUP_ENABLED=false
+METADATA_MOCK_MODE=true
+
+RAG_SERVICE_ENABLED=true
+RAG_MOCK_MODE=true
+GENAI_MOCK_MODE=true
+GENAI_VERIFICATION_MODE=mock
+
+CACHE_ENABLED=true
+CACHE_EXACT_ENABLED=true
+CACHE_SEMANTIC_ENABLED=false
 ```
 
-Upload PDF:
+This mode is best for first-time setup, frontend integration, demos, and CI-style validation because it avoids live provider calls.
+
+---
+
+## 6. Enabling real RAG and live GenAI modes
+
+### 6.1 Mock RAG + Mock GenAI
+
+Default safe mode for local demos:
+
+```env
+RAG_MOCK_MODE=true
+GENAI_MOCK_MODE=true
+METADATA_LOOKUP_ENABLED=false
+METADATA_MOCK_MODE=true
+```
+
+### 6.2 Real RAG adapter + Mock GenAI
+
+This mode exercises the real backend-to-RAG adapter path while keeping GenAI deterministic:
+
+```env
+RAG_SERVICE_ENABLED=true
+RAG_MOCK_MODE=false
+GENAI_MOCK_MODE=true
+METADATA_LOOKUP_ENABLED=false
+```
+
+For fully live RAG embeddings, also configure:
+
+```env
+OPENROUTER_API_KEY=your_openrouter_key_here
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+```
+
+### 6.3 Real GenAI verification
+
+Live GenAI verification requires configured provider keys:
+
+```env
+GENAI_MOCK_MODE=false
+GENAI_VERIFICATION_MODE=live
+GROQ_API_KEY=your_groq_key_here
+OPENROUTER_API_KEY=your_openrouter_key_here
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+```
+
+Groq is used as the primary live verification provider. OpenRouter is used by the RAG embedding path and as a fallback for some RAG/GenAI routines.
+
+### 6.4 Live academic metadata/full-text lookup
+
+```env
+METADATA_LOOKUP_ENABLED=true
+METADATA_MOCK_MODE=false
+CROSSREF_MAILTO=your_email@example.com
+UNPAYWALL_EMAIL=your_email@example.com
+CORE_API_KEY=your_core_api_key_here
+```
+
+Keep `METADATA_LOOKUP_ENABLED=false` for deterministic offline validation.
+
+---
+
+## 7. Common API workflow
+
+### 7.1 Upload a PDF
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/documents/upload \
   -F "file=@sample.pdf" \
-  -F "document_title=Demo PDF"
+  -F "document_title=Demo Scientific Paper"
 ```
 
-Inspect document:
+### 7.2 Submit plain text
 
 ```bash
-curl http://127.0.0.1:8000/api/v1/documents/{document_id}
+curl -X POST http://127.0.0.1:8000/api/v1/documents/text \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Demo Scientific Text",
+    "text": "Demo Paper\n\nAbstract\nGenerative AI tools can support writing (Smith, 2023).\n\nReferences\nSmith, J. (2023). Demo paper. doi:10.1234/demo"
+  }'
+```
+
+### 7.3 Start the full verification pipeline asynchronously
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/pipeline-runs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode": "FULL_VERIFICATION",
+    "use_cache": true,
+    "use_rag": true,
+    "use_genai_safety_review": true,
+    "generate_report": true
+  }'
+```
+
+The frontend can poll document status:
+
+```bash
 curl http://127.0.0.1:8000/api/v1/documents/{document_id}/status
-curl http://127.0.0.1:8000/api/v1/documents/{document_id}/sections
-curl http://127.0.0.1:8000/api/v1/documents/{document_id}/raw-text
 ```
 
-Extract and inspect references:
+### 7.4 Run verification synchronously
+
+Useful for local testing:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/extract-references
-curl http://127.0.0.1:8000/api/v1/documents/{document_id}/references
-curl "http://127.0.0.1:8000/api/v1/documents/{document_id}/references?doi_status=FOUND"
-curl http://127.0.0.1:8000/api/v1/references/{reference_id}
-```
-
-Run real-PDF QA locally:
-
-```bash
-python scripts/qa_real_pdf_api_test.py /path/to/pdf1.pdf /path/to/pdf2.pdf
-```
-
-## Run validation
-
-```bash
-python -m compileall app
-python -c "from app.main import app; print(app.title, app.version, len(app.openapi()['paths']))"
-python scripts/init_db.py
-pytest -q
-```
-
-## Documentation
-
-See:
-
-```text
-docs/BE2_DATABASE_DESIGN.md
-docs/BE3_DOCUMENT_UPLOAD_AND_TEXT_PROCESSING.md
-docs/BE4_REFERENCE_AND_DOI_EXTRACTION.md
-docs/BE4_2_REFERENCE_HARDENING.md
-```
-
-
-## BE-4.2 DOI quality endpoints/diagnostics
-
-`POST /api/v1/documents/{document_id}/extract-references` now returns `doi_coverage` and `quality_warnings`. DOI existence validation is still BE-5 and no external metadata service is called in BE-4.2.
-
-Run real-PDF QA:
-
-```bash
-python scripts/qa_real_pdf_api_test.py /path/to/pdf1.pdf /path/to/pdf2.pdf
-```
-
-## BE-5 - DOI Metadata Lookup
-
-BE-5 builds on the stable BE4.2 baseline and adds backend-controlled DOI metadata lookup.
-
-### New endpoints
-
-```text
-POST /api/v1/references/{reference_id}/verify-doi
-POST /api/v1/documents/{document_id}/verify-dois
-GET  /api/v1/references/{reference_id}/metadata
-```
-
-### Metadata configuration
-
-```env
-METADATA_LOOKUP_ENABLED=true
-CROSSREF_BASE_URL=https://api.crossref.org
-DOI_RESOLVER_BASE_URL=https://doi.org
-OPENALEX_BASE_URL=https://api.openalex.org
-METADATA_SERVICE_TIMEOUT_SECONDS=10
-METADATA_MAX_RETRIES=2
-CROSSREF_MAILTO=
-METADATA_USER_AGENT=verifai-refcheck-backend/1.0.0
-```
-
-### Typical BE-5 flow
-
-```bash
-python scripts/init_db.py
-uvicorn app.main:app --reload
-```
-
-1. Upload PDF or submit text.
-2. Extract references.
-3. Verify one reference DOI or all document DOIs.
-4. Retrieve stored metadata.
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/references/{reference_id}/verify-doi
-curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/verify-dois
-curl http://127.0.0.1:8000/api/v1/references/{reference_id}/metadata
-```
-
-BE-5 does not perform claim extraction, citation mapping, RAG retrieval, GenAI verification, full-text retrieval, report generation, or final support scoring.
-
-### Uploaded PDF validation helper
-
-```bash
-python scripts/validate_uploaded_pdfs_be5.py --reset-db --attempt-live-metadata /path/to/paper1.pdf /path/to/paper2.pdf
-```
-
-Live metadata lookup requires internet/DNS access. In restricted environments, unit tests use mocked CrossRef responses.
-
-## BE-6 — Claim and Citation Management
-
-This package includes BE-6 claim/citation management. After BE-3 document processing, BE4.2 reference/DOI extraction, and optional BE-5 DOI metadata lookup, run:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/extract-claims \
+curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/run-verification \
   -H "Content-Type: application/json" \
-  -d '{"mode":"citation_linked_only"}'
+  -d '{"generate_report": true}'
 ```
 
-Then inspect:
+### 7.5 Retrieve results and report
+
+```bash
+curl http://127.0.0.1:8000/api/v1/documents/{document_id}/verification-results
+curl http://127.0.0.1:8000/api/v1/documents/{document_id}/summary
+curl http://127.0.0.1:8000/api/v1/documents/{document_id}/report
+```
+
+---
+
+## 8. Main API groups
+
+| Area | Endpoint examples |
+|---|---|
+| Health | `GET /api/v1/health`, `GET /api/v1/health/readiness` |
+| Documents | `POST /api/v1/documents/upload`, `POST /api/v1/documents/text`, `GET /api/v1/documents/{document_id}` |
+| References and DOI metadata | `POST /api/v1/documents/{document_id}/extract-references`, `POST /api/v1/documents/{document_id}/verify-dois`, `POST /api/v1/references/{reference_id}/upload-source-pdf` |
+| Claims and citations | `POST /api/v1/documents/{document_id}/extract-claims`, `GET /api/v1/documents/{document_id}/claims`, `GET /api/v1/documents/{document_id}/claim-reference-links` |
+| Evidence packages | `POST /api/v1/documents/{document_id}/prepare-evidence`, `GET /api/v1/documents/{document_id}/evidence-packages` |
+| Cache | `POST /api/v1/claims/{claim_id}/check-cache`, `GET /api/v1/claims/{claim_id}/cache-result` |
+| RAG retrieval | `POST /api/v1/claims/{claim_id}/retrieve-evidence`, `GET /api/v1/claims/{claim_id}/retrieval-results` |
+| Verification orchestration | `POST /api/v1/documents/{document_id}/pipeline-runs`, `POST /api/v1/documents/{document_id}/run-verification` |
+| Reports and feedback | `POST /api/v1/documents/{document_id}/reports`, `GET /api/v1/reports/{report_id}/download`, `POST /api/v1/verification-results/{result_id}/feedback` |
+
+All application responses use the backend standard success/error wrapper.
+
+---
+
+## 9. Final support statuses
+
+The backend only exposes the following final support statuses:
 
 ```text
-GET /api/v1/documents/{document_id}/claims
-GET /api/v1/documents/{document_id}/citations
-GET /api/v1/documents/{document_id}/claim-reference-links
-GET /api/v1/claims/{claim_id}
-GET /api/v1/claim-reference-links/{link_id}
+SUPPORTED
+PARTIALLY_SUPPORTED
+NOT_SUPPORTED
+INSUFFICIENT_EVIDENCE
+NEEDS_HUMAN_REVIEW
 ```
 
-BE-6 does not verify claim support. Evidence building, RAG, GenAI verification, safety scoring, and reports remain later phases.
+The RAG retrieval layer must not return final support labels. Final support decisions are made by backend verification orchestration and safety/confidence rules.
 
-## BE-7 — Evidence Package Builder
+---
 
-BE-7 is now implemented. It prepares structured evidence packages from BE-6 claim-reference links. It does **not** call RAG/ML, generate embeddings, run GenAI verification, retrieve publisher full text, or create final support labels.
+## 10. Validation and testing
 
-### BE-7 endpoints
+### 10.1 Backend test suite
 
-```text
-POST /api/v1/documents/{document_id}/prepare-evidence
-GET  /api/v1/claims/{claim_id}/evidence-package
-GET  /api/v1/documents/{document_id}/evidence-packages
-```
-
-### BE-7 run flow
+From `backend/`:
 
 ```bash
-python scripts/init_db.py
-uvicorn app.main:app --reload
+.venv/bin/python -m compileall app scripts
+.venv/bin/pytest -q
+.venv/bin/python scripts/validate_openapi.py
+.venv/bin/python scripts/run_backend_checks.py
+.venv/bin/python scripts/run_demo_pipeline.py
 ```
 
-Then run the available pipeline up to BE-7:
+### 10.2 Integrated Backend + RAG validation
 
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/extract-references
-curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/verify-dois
-curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/extract-claims -H "Content-Type: application/json" -d '{"mode":"citation_linked_only"}'
-curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/prepare-evidence
-```
-
-### BE-7 validation
-
-```bash
-python -m compileall app
-python scripts/init_db.py
-pytest -q
-python scripts/validate_uploaded_pdfs_be7.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf /path/to/paper3.pdf
-```
-
-See `docs/BE7_EVIDENCE_PACKAGE_BUILDER.md` and `validation/BE7_VALIDATION_REPORT.md`.
-
-## BE-8 — Verification Cache Layer
-
-BE-8 adds backend-controlled verification-cache lookup and cache indexing. It is separate from BE-5 DOI metadata caching.
-
-### Endpoints
-
-```text
-POST /api/v1/claims/{claim_id}/check-cache
-GET  /api/v1/claims/{claim_id}/cache-result
-```
-
-### Cache behavior
-
-- Reuse requires the same normalized claim and same normalized DOI.
-- Different DOI values are never reused.
-- Low-confidence or expired cache rows are not reused.
-- `NEEDS_HUMAN_REVIEW` cache entries are returned safely and are not treated as confident verification.
-- Semantic cache is prepared as a mockable interface only; real vector search is deferred to BE-9.
-
-### Validation
-
-```bash
-python -m compileall app
-python scripts/init_db.py
-pytest -q
-python scripts/validate_uploaded_pdfs_be8.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf /path/to/paper3.pdf
-```
-
-## BE-9 — RAG/ML Integration
-
-BE-9 adds backend-controlled integration with the AI/ML/RAG service while preserving BE4.2, BE-5, BE-6, BE-7, and BE-8 behavior.
-
-### Configuration
-
-```env
-RAG_SERVICE_ENABLED=true
-RAG_SERVICE_URL=http://localhost:9000
-RAG_SERVICE_TIMEOUT_SECONDS=30
-RAG_SERVICE_MAX_RETRIES=1
-RAG_TOP_K=5
-RAG_MIN_SIMILARITY_THRESHOLD=0.60
-RAG_MOCK_MODE=true
-RAG_REQUEST_VERSION=rag-request-v1
-```
-
-### Run flow
-
-```bash
-python scripts/init_db.py
-uvicorn app.main:app --reload
-```
-
-Then run the existing flow up to BE-7 and retrieve evidence:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/claims/{claim_id}/retrieve-evidence \
-  -H "Content-Type: application/json" \
-  -d '{"evidence_package_id":"evidence_001","top_k":5,"use_mock":true}'
-
-curl http://127.0.0.1:8000/api/v1/claims/{claim_id}/retrieval-results
-```
-
-### Validate
-
-```bash
-python -m compileall app scripts/validate_uploaded_pdfs_be9.py
-python scripts/init_db.py
-pytest -q
-python scripts/validate_uploaded_pdfs_be9.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf
-```
-
-The current real path is an in-process import through `RagDirectClient`, so a
-backend-only environment cannot run it. After installing
-`requirements-integrated.txt`, validate the complete backend and RAG unit surface:
+From `backend/`:
 
 ```bash
 .venv/bin/python scripts/run_integrated_rag_checks.py
 ```
 
-The command prints `INTEGRATED_VALIDATION_RESULT=PASS`, `FAIL`, or `BLOCKED` and
-returns exit code 0, 1, or 2 respectively. Missing RAG dependencies are `BLOCKED`,
-never a silent pass. Live API-key calls are not part of this unit/integration
-runner. A clean environment may download tiktoken's `cl100k_base` asset during
-the first tokenization test; it is cached for later runs.
+This validates backend compile/import, backend tests, OpenAPI, backend checks, demo pipeline, RAG import readiness, and `tests/rag`.
 
-BE-9 is integration-only. It does not implement RAG/ML internals, embeddings, vector DB, GenAI verification, final support labels, safety scoring, report generation, or frontend UI.
+### 10.3 RAG test suite
 
-## BE-10 — GenAI Verification Orchestration
+From the repository root:
 
-BE-10 adds the backend-controlled verification orchestration layer. It coordinates previous backend phases, checks BE-8 cache decisions, retrieves evidence through BE-9, validates GenAI-style verification output, applies basic safety gates, stores `VerificationResult` and `SafetyCheck` records, and exposes pipeline/result APIs.
+```bash
+backend/.venv/bin/python -m pytest tests/rag -q --tb=short
+```
 
-### Important scope
+### 10.4 Uploaded PDF validation
 
-BE-10 uses mockable/local GenAI verification by default. This validates orchestration, result validation, persistence, and safety fallback behavior without requiring a live Groq call. A real configured Groq client can be added behind the same service boundary later.
+Mock RAG + Mock GenAI mode:
 
-BE-10 does not implement BE-11 advanced safety/confidence policy, BE-12 reports/feedback, frontend UI, direct frontend-to-RAG calls, direct frontend-to-GenAI calls, or publisher full-text retrieval.
+```bash
+cd backend
+.venv/bin/python scripts/validate_uploaded_pdfs_be13.py \
+  --mock-rag \
+  --mock-genai \
+  --metadata-disabled \
+  --pdf-dir tests/fixtures/private_pdfs \
+  --reset-db \
+  --report-output /tmp/verifai_mock_validation.md
+```
 
-### New endpoints
+Real RAG adapter + Mock GenAI mode:
+
+```bash
+cd backend
+.venv/bin/python scripts/validate_uploaded_pdfs_be13.py \
+  --real-rag \
+  --mock-genai \
+  --metadata-disabled \
+  --pdf-dir tests/fixtures/private_pdfs \
+  --reset-db \
+  --report-output /tmp/verifai_real_rag_mock_genai_validation.md
+```
+
+If local private PDFs are not present, the validator should report the run as blocked rather than silently passing.
+
+---
+
+## 11. Database and file storage
+
+By default, the backend uses SQLite and local file storage:
+
+```env
+DATABASE_URL="sqlite:///./data/refcheck_local.db"
+FILE_STORAGE_DIR="./data/uploads"
+```
+
+The database tables are initialized automatically at application startup. You can also initialize them manually:
+
+```bash
+cd backend
+python scripts/init_db.py
+```
+
+For production-style deployments, use a persistent volume for SQLite and uploads, or migrate the database configuration to a managed database service after adding the required database driver and migration strategy.
+
+Do not commit runtime databases, uploaded PDFs, `.env` files, virtual environments, cache folders, or private research papers.
+
+---
+
+## 12. Railway deployment notes
+
+For Railway backend deployment from the monorepo, use the repository root as the service root because the backend imports the root-level `rag/` package.
+
+Recommended backend service settings:
 
 ```text
-POST /api/v1/documents/{document_id}/pipeline-runs
-POST /api/v1/documents/{document_id}/run-verification
-GET  /api/v1/pipeline-runs/{pipeline_run_id}
-GET  /api/v1/pipeline-runs/{pipeline_run_id}/steps
-GET  /api/v1/documents/{document_id}/verification-results
-GET  /api/v1/verification-results/{result_id}
+Root directory: /
+Build command: pip install -r requirements.txt
+Start command: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+Health check path: /api/v1/health
 ```
 
-### Run full verification after BE-3 to BE-9 outputs exist
+Recommended environment for a safe demo deployment:
+
+```env
+ENVIRONMENT=production
+API_PREFIX=/api/v1
+DATABASE_URL=sqlite:///./data/refcheck_railway.db
+FILE_STORAGE_DIR=./data/uploads
+CORS_ORIGINS=https://your-frontend-domain.example
+DEMO_MODE=true
+METADATA_LOOKUP_ENABLED=false
+METADATA_MOCK_MODE=true
+RAG_SERVICE_ENABLED=true
+RAG_MOCK_MODE=true
+GENAI_MOCK_MODE=true
+CACHE_ENABLED=true
+CACHE_EXACT_ENABLED=true
+CACHE_SEMANTIC_ENABLED=false
+ENABLE_RAW_TEXT_DEBUG_ENDPOINT=false
+```
+
+If SQLite and uploaded files must survive redeploys, mount a Railway volume to the backend runtime data directory, for example `/app/backend/data`.
+
+---
+
+## 13. Release packaging and privacy check
+
+A release package should exclude private PDFs, uploaded files, runtime databases, `.env` files, caches, virtual environments, IDE files, and Git metadata.
+
+From the repository root:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/v1/documents/{document_id}/pipeline-runs \
-  -H "Content-Type: application/json" \
-  -d '{"mode":"FULL_VERIFICATION","use_cache":true,"use_rag":true,"use_genai_safety_review":true,"generate_report":false}'
+backend/.venv/bin/python backend/scripts/build_release_package.py \
+  --scan-only \
+  --root . \
+  --output /tmp/verifai_release.zip
 
-curl http://127.0.0.1:8000/api/v1/pipeline-runs/{pipeline_run_id}
-curl http://127.0.0.1:8000/api/v1/pipeline-runs/{pipeline_run_id}/steps
-curl http://127.0.0.1:8000/api/v1/documents/{document_id}/verification-results
+backend/.venv/bin/python backend/scripts/build_release_package.py \
+  --root . \
+  --output /tmp/verifai_release.zip
 ```
 
-### Validation
+A clean package should contain source code, documentation, tests, scripts, and QA reports, but no private/runtime artifacts.
+
+---
+
+## 14. Troubleshooting
+
+### `ModuleNotFoundError: No module named 'rag'`
+
+Install dependencies from the repository root and use the combined root `requirements.txt`:
 
 ```bash
-python -m compileall app scripts/validate_uploaded_pdfs_be10.py
-python scripts/init_db.py
-pytest -q
-python scripts/validate_uploaded_pdfs_be10.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf /path/to/paper3.pdf
+python -m pip install -r requirements.txt
 ```
 
-## BE-11 — Safety and Confidence Rules
+The real adapter inserts the project root into `sys.path`, but the root-level `rag/` package must still exist in the deployed/runtime package.
 
-BE-11 adds deterministic backend safety and confidence rules on top of BE-10 verification orchestration. The backend now evaluates DOI safety, evidence availability, RAG similarity, GenAI confidence, cache safety, and evidence-used consistency before exposing final results. Safety checks are stored and exposed through result detail APIs and safety summary APIs.
+### `OPENROUTER_API_KEY is not set`
 
-New endpoints:
+Either keep the backend in mock RAG mode:
+
+```env
+RAG_MOCK_MODE=true
+GENAI_MOCK_MODE=true
+```
+
+or configure live RAG credentials:
+
+```env
+OPENROUTER_API_KEY=your_openrouter_key_here
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+```
+
+### `GROQ_API_KEY is not set`
+
+Either keep GenAI verification in mock mode:
+
+```env
+GENAI_MOCK_MODE=true
+GENAI_VERIFICATION_MODE=mock
+```
+
+or configure:
+
+```env
+GROQ_API_KEY=your_groq_key_here
+```
+
+### CORS errors from the frontend
+
+Add the frontend domain to `CORS_ORIGINS`:
+
+```env
+CORS_ORIGINS=http://localhost:5173,https://your-frontend-domain.example
+```
+
+### Railway cannot find dependency files
+
+Use a self-contained root `requirements.txt` for Railway. Avoid a root `requirements.txt` that only references another file with `-r requirements-integrated.txt`, because some build layers copy only the primary manifest before installation.
+
+---
+
+## 15. Additional documentation
+
+See the phase documentation under `backend/docs/` for deeper implementation notes:
 
 ```text
-GET /api/v1/verification-results/{result_id}/safety-checks
-GET /api/v1/documents/{document_id}/safety-summary
+BE2_DATABASE_DESIGN.md
+BE3_DOCUMENT_UPLOAD_AND_TEXT_PROCESSING.md
+BE4_REFERENCE_AND_DOI_EXTRACTION.md
+BE4_2_DOI_ATTACHMENT_AND_EXTRACTION_QUALITY.md
+BE5_DOI_METADATA_LOOKUP.md
+BE6_CLAIM_AND_CITATION_MANAGEMENT.md
+BE7_EVIDENCE_PACKAGE_BUILDER.md
+BE8_VERIFICATION_CACHE_LAYER.md
+BE9_RAG_ML_INTEGRATION.md
+BE10_GENAI_VERIFICATION_ORCHESTRATION.md
+BE11_SAFETY_AND_CONFIDENCE_RULES.md
+BE12_REPORT_GENERATION_AND_FEEDBACK.md
+BE13_TESTING_LOGGING_DEMO_HARDENING.md
 ```
 
-BE-11 intentionally does not implement report generation, feedback analytics, frontend UI, or production hardening.
-
-
-## BE-12 — Report Generation and Feedback
-
-BE-12 adds backend-generated document summaries, HTML verification reports, feedback storage, mapping-feedback storage, and UAT survey storage.
-
-New endpoints:
-
-```text
-GET  /api/v1/documents/{document_id}/summary
-POST /api/v1/documents/{document_id}/reports
-GET  /api/v1/reports/{report_id}
-GET  /api/v1/documents/{document_id}/report
-GET  /api/v1/reports/{report_id}/download?format=HTML
-POST /api/v1/verification-results/{result_id}/feedback
-POST /api/v1/claim-reference-links/{link_id}/feedback
-POST /api/v1/uat/surveys
-```
-
-HTML report is the MVP format. PDF export is intentionally not implemented in BE-12 and returns `REPORT_EXPORT_NOT_SUPPORTED`.
-
-BE-12 does not rerun verification, does not change final support labels, does not auto-apply feedback as truth, and does not replace human academic review.
-
-Validation:
-
-```bash
-python -m compileall app scripts/validate_uploaded_pdfs_be12.py
-python scripts/init_db.py
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
-python scripts/validate_uploaded_pdfs_be12.py --reset-db /path/to/paper1.pdf /path/to/paper2.pdf /path/to/paper3.pdf
-```
-
-## BE-13 Final Backend Hardening
-
-BE-13 adds final testing, logging, OpenAPI validation, demo mode, and setup hardening. It does not add frontend UI or new AI/RAG algorithms.
-
-### Final validation commands
-
-```bash
-python -m compileall app scripts/validate_uploaded_pdfs_be13.py scripts/run_demo_pipeline.py scripts/run_backend_checks.py scripts/validate_openapi.py
-python scripts/validate_openapi.py
-python scripts/init_db.py
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
-```
-
-### Demo commands
-
-```bash
-python scripts/reset_demo_db.py
-python scripts/run_demo_pipeline.py
-```
-
-### Uploaded PDF validation
-
-```bash
-python scripts/validate_uploaded_pdfs_be13.py --reset-db <paper1.pdf> <paper2.pdf> <paper3.pdf>
-```
-
-See `docs/BACKEND_SETUP_GUIDE_BE13.md` and `docs/BE13_TESTING_LOGGING_DEMO_HARDENING.md` for complete setup and demo guidance.
