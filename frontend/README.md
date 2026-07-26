@@ -6,7 +6,7 @@ React + Vite frontend for the verifAi citation verification platform.
 - Node.js v18 or higher
 - npm
 
-## Setup
+## Setup 
 
 ```bash
 cd frontend/app
