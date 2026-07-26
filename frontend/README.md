@@ -14,6 +14,16 @@ cd frontend/app
 npm install
 ```
 
+## Environment setup (local backend)
+
+To connect to a locally running backend, create a `.env.local` file inside `frontend/app`:
+
+```bash
+cat > .env.local <<'ENV'
+VITE_API_BASE_URL=http://127.0.0.1:8000
+ENV
+```
+
 ## Run locally
 
 ```bash
