@@ -1,9 +1,7 @@
 
 # verifAi — RAG Pipeline
 
-**Sub-group:** AI & Prompt Engineering · Group 4 · TUM Campus Heilbronn · SoSe 2026  
-**Owner:** Saqer Terkawi (AI & Prompt Engineer)  
-**Branch:** `rag_dev_zac_hybrid`
+
 
 ---
 
